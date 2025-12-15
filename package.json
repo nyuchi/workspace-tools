@@ -1,7 +1,7 @@
 {
   "name": "workspace-tools",
-  "version": "1.0.0",
-  "description": "Nyuchi Google Workspace tools - Gmail Add-on and Email Signature Generator",
+  "version": "2.0.0",
+  "description": "Nyuchi Google Workspace tools - Gmail Add-on with Admin Dashboard and Email Signature Generator",
   "private": true,
   "workspaces": [
     "gmail-addon",
@@ -20,10 +20,29 @@
     "google-workspace",
     "gmail-addon",
     "email-signature",
-    "nyuchi"
+    "admin-dashboard",
+    "nyuchi",
+    "nyuchi-africa"
   ],
-  "author": "Nyuchi",
-  "license": "MIT",
+  "author": {
+    "name": "Nyuchi Web Services",
+    "url": "https://services.nyuchi.com"
+  },
+  "contributors": [
+    {
+      "name": "Bryan Fawcett",
+      "email": "bryan@nyuchi.com"
+    }
+  ],
+  "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nyuchitech/workspace-tools.git"
+  },
+  "bugs": {
+    "url": "https://github.com/nyuchitech/workspace-tools/issues"
+  },
+  "homepage": "https://github.com/nyuchitech/workspace-tools#readme",
   "devDependencies": {
     "@google/clasp": "^2.4.2",
     "@types/google-apps-script": "^1.0.83"
