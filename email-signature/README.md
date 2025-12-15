@@ -166,3 +166,7 @@ Add an image column to the signature table:
 ```
 
 **Note:** Logo must be hosted on a publicly accessible URL.
+
+## License
+
+MIT License - see [LICENSE](../LICENSE) for details.

@@ -79,28 +79,129 @@ Batch deployment script for Google Workspace administrators:
 
 ### Prerequisites
 
-- Node.js 18+
+- Node.js 18+ ([Download](https://nodejs.org/))
 - Google Account with Apps Script access
 - Google Workspace admin (for Admin features)
-- [clasp](https://github.com/google/clasp) CLI
 
-### Setup
+### Step 1: Install Google CLASP CLI
+
+CLASP (Command Line Apps Script Projects) is Google's official tool for developing Apps Script projects locally.
 
 ```bash
-# Clone the repository
+# Install clasp globally
+npm install -g @google/clasp
+
+# Verify installation
+clasp --version
+```
+
+### Step 2: Enable Apps Script API
+
+Before using CLASP, you must enable the Apps Script API in your Google account:
+
+1. Go to [script.google.com/home/usersettings](https://script.google.com/home/usersettings)
+2. Toggle **Google Apps Script API** to **ON**
+
+> **Note**: This is a one-time setup per Google account.
+
+### Step 3: Login to CLASP
+
+```bash
+# Login to your Google account
+clasp login
+
+# This opens a browser window for OAuth authorization
+# Grant permissions and return to your terminal
+```
+
+To verify you're logged in:
+```bash
+clasp login --status
+```
+
+### Step 4: Clone the Repository
+
+```bash
 git clone https://github.com/nyuchitech/workspace-tools.git
 cd workspace-tools
 
 # Install dependencies
 npm install
-
-# Login to Google Apps Script
-npx clasp login
-
-# Create new Apps Script project (first time)
-cd gmail-addon
-npx clasp create --type webapp --title "Nyuchi Email Signature"
 ```
+
+### Step 5: Create Apps Script Projects
+
+You have two options:
+
+#### Option A: Create New Projects (First Time Setup)
+
+```bash
+# For Gmail Add-on
+cd gmail-addon
+clasp create --title "Nyuchi Email Signature" --type standalone
+clasp push
+
+# For Email Signature Generator
+cd ../email-signature
+clasp create --title "Nyuchi Signature Generator" --type standalone
+clasp push
+```
+
+#### Option B: Clone Existing Projects
+
+If you already have Apps Script projects, update the `.clasp.json` files:
+
+```bash
+# gmail-addon/.clasp.json
+{
+  "scriptId": "YOUR_GMAIL_ADDON_SCRIPT_ID",
+  "rootDir": "."
+}
+
+# email-signature/.clasp.json
+{
+  "scriptId": "YOUR_SIGNATURE_SCRIPT_ID",
+  "rootDir": "."
+}
+```
+
+Then pull or push:
+```bash
+clasp pull  # Download from Apps Script
+clasp push  # Upload to Apps Script
+```
+
+### Step 6: Find Your Script ID
+
+To get your Script ID from an existing project:
+
+1. Open [script.google.com](https://script.google.com)
+2. Click on your project
+3. Go to **Project Settings** (gear icon)
+4. Copy the **Script ID** under "IDs"
+
+Or via CLI:
+```bash
+clasp open
+# Opens the project in browser, Script ID is in the URL
+```
+
+### Step 7: Configure Google Cloud Project
+
+For Gmail Add-on functionality:
+
+1. Go to [Google Cloud Console](https://console.cloud.google.com)
+2. Create or select a project
+3. Enable these APIs:
+   - **Gmail API**
+   - **Admin SDK Directory API** (for admin features)
+4. Configure **OAuth consent screen**:
+   - User Type: Internal (for Workspace) or External
+   - Add scopes as listed in [Required OAuth Scopes](#required-oauth-scopes)
+5. Link to Apps Script:
+   - In Apps Script editor, go to **Project Settings**
+   - Under "Google Cloud Platform (GCP) Project"
+   - Enter your GCP project number
 
 ### Configure Script IDs
 
@@ -323,7 +424,7 @@ runAllTests()                // Complete test suite
 
 ## License
 
-Proprietary - Nyuchi Web Services. All rights reserved.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## Author
 
