@@ -168,10 +168,13 @@ Additional steps for Admin features:
 
 ---
 
-### Contributors
+### Author
 
-- Nyuchi Development Team
-- Community feedback and testing
+**Nyuchi Web Services** — [services.nyuchi.com](https://services.nyuchi.com)
+
+### Developer
+
+**Bryan Fawcett** — Lead Developer
 
 ---
 
@@ -198,6 +201,7 @@ First public release of Nyuchi Email Signature tools:
 ---
 
 <p align="center">
-  <strong>Nyuchi Africa</strong><br>
-  I am because we are
+  <strong>Nyuchi Web Services</strong><br>
+  A division of Nyuchi Africa<br>
+  <em>I am because we are</em>
 </p>

@@ -24,7 +24,16 @@
     "nyuchi",
     "nyuchi-africa"
   ],
-  "author": "Nyuchi Africa",
+  "author": {
+    "name": "Nyuchi Web Services",
+    "url": "https://services.nyuchi.com"
+  },
+  "contributors": [
+    {
+      "name": "Bryan Fawcett",
+      "email": "bryan@nyuchi.com"
+    }
+  ],
   "license": "UNLICENSED",
   "repository": {
     "type": "git",

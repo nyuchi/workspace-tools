@@ -323,7 +323,14 @@ runAllTests()                // Complete test suite
 
 ## License
 
-Proprietary - Nyuchi Africa. All rights reserved.
+Proprietary - Nyuchi Web Services. All rights reserved.
+
+## Author
+
+**Nyuchi Web Services**
+[services.nyuchi.com](https://services.nyuchi.com)
+
+**Developer:** Bryan Fawcett ([@bryanfawcett](https://github.com/bryanfawcett))
 
 ## Support
 

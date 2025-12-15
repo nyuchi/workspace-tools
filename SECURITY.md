@@ -131,5 +131,7 @@ Before deploying to production:
 
 ---
 
+**Author:** Nyuchi Web Services
+**Developer:** Bryan Fawcett
 **Last Updated:** December 2025
 **Version:** 2.0.0
