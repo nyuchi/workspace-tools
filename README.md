@@ -310,33 +310,103 @@ linear-gradient(to bottom,
 
 ## Deployment
 
-### Gmail Add-on Deployment
+### Gmail Add-on Setup (Complete Guide)
 
-1. **Push code** to Apps Script:
+#### Step 1: Push Code to Apps Script
+
+```bash
+cd gmail-addon
+clasp push
+```
+
+#### Step 2: Configure the Manifest
+
+Verify `appsscript.json` includes the Gmail add-on configuration:
+
+```json
+{
+  "timeZone": "Africa/Harare",
+  "dependencies": {},
+  "exceptionLogging": "STACKDRIVER",
+  "runtimeVersion": "V8",
+  "addOns": {
+    "common": {
+      "name": "Nyuchi Email Signature",
+      "logoUrl": "https://assets.nyuchi.com/logos/nyuchi/Nyuchi_Africa_Logo_icon.svg",
+      "useLocaleFromApp": true,
+      "homepageTrigger": {
+        "runFunction": "onHomepage"
+      }
+    },
+    "gmail": {
+      "contextualTriggers": [],
+      "composeTrigger": {
+        "selectActions": [{
+          "text": "Insert Signature",
+          "runFunction": "onCompose"
+        }],
+        "draftAccess": "NONE"
+      }
+    }
+  }
+}
+```
+
+#### Step 3: Test Deployment (Development)
+
+1. Open Apps Script editor:
    ```bash
-   npm run push:gmail
+   clasp open
    ```
+2. Click **Deploy** > **Test deployments**
+3. Under **Gmail Add-on**, click **Install**
+4. Open Gmail and refresh - the add-on appears in the right sidebar
 
-2. **Configure OAuth** in Google Cloud Console:
-   - Enable Gmail API
-   - Enable Admin SDK Directory API
-   - Configure OAuth consent screen
+#### Step 4: Production Deployment
 
-3. **Deploy** from Apps Script editor:
-   - Publish > Deploy as Gmail add-on
-   - Set deployment mode to "Installed for domain"
+1. In Apps Script editor, click **Deploy** > **New deployment**
+2. Click the gear icon, select **Add-on**
+3. Fill in the deployment details:
+   - Description: "Nyuchi Email Signature v1.0"
+4. Click **Deploy**
+5. Copy the **Deployment ID**
 
-4. **Install** for your domain via Google Workspace Admin
+#### Step 5: Install for Google Workspace Domain
 
-### Web App Deployment
+**For Workspace Admins:**
+
+1. Go to [Google Admin Console](https://admin.google.com)
+2. Navigate to **Apps** > **Google Workspace Marketplace apps** > **Apps list**
+3. Click **Add app** > **Add internal app**
+4. Enter your **Deployment ID** from Step 4
+5. Configure installation settings:
+   - Automatic installation: Choose domains/OUs
+   - Manual installation: Users install themselves
+6. Click **Finish**
+
+**For Individual Users (if allowed):**
+
+1. Open Gmail
+2. Click the **+** icon in the right sidebar
+3. Search for your add-on or paste the deployment link
+4. Click **Install** and authorize
+
+#### Step 6: Verify Installation
+
+1. Open Gmail in a browser (not mobile)
+2. Look for the Nyuchi bee icon in the right sidebar
+3. Click to open and test the User/Admin tabs
+
+### Web App Dashboard Deployment
 
 1. **Deploy** from Apps Script editor:
-   - Deploy > New deployment
-   - Select "Web app"
+   - Click **Deploy** > **New deployment**
+   - Select type: **Web app**
    - Execute as: "User accessing the web app"
-   - Who has access: "Anyone within [domain]"
-
-2. **Access** via the deployment URL
+   - Who has access: "Anyone within [your domain]"
+2. Click **Deploy** and copy the URL
+3. **Access** the dashboard via the deployment URL
+4. Or use the "Open Dashboard" button from the Admin tab
 
 ### Required OAuth Scopes
 
