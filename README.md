@@ -79,28 +79,129 @@ Batch deployment script for Google Workspace administrators:
 
 ### Prerequisites
 
-- Node.js 18+
+- Node.js 18+ ([Download](https://nodejs.org/))
 - Google Account with Apps Script access
 - Google Workspace admin (for Admin features)
-- [clasp](https://github.com/google/clasp) CLI
 
-### Setup
+### Step 1: Install Google CLASP CLI
+
+CLASP (Command Line Apps Script Projects) is Google's official tool for developing Apps Script projects locally.
 
 ```bash
-# Clone the repository
+# Install clasp globally
+npm install -g @google/clasp
+
+# Verify installation
+clasp --version
+```
+
+### Step 2: Enable Apps Script API
+
+Before using CLASP, you must enable the Apps Script API in your Google account:
+
+1. Go to [script.google.com/home/usersettings](https://script.google.com/home/usersettings)
+2. Toggle **Google Apps Script API** to **ON**
+
+> **Note**: This is a one-time setup per Google account.
+
+### Step 3: Login to CLASP
+
+```bash
+# Login to your Google account
+clasp login
+
+# This opens a browser window for OAuth authorization
+# Grant permissions and return to your terminal
+```
+
+To verify you're logged in:
+```bash
+clasp login --status
+```
+
+### Step 4: Clone the Repository
+
+```bash
 git clone https://github.com/nyuchitech/workspace-tools.git
 cd workspace-tools
 
 # Install dependencies
 npm install
-
-# Login to Google Apps Script
-npx clasp login
-
-# Create new Apps Script project (first time)
-cd gmail-addon
-npx clasp create --type webapp --title "Nyuchi Email Signature"
 ```
+
+### Step 5: Create Apps Script Projects
+
+You have two options:
+
+#### Option A: Create New Projects (First Time Setup)
+
+```bash
+# For Gmail Add-on
+cd gmail-addon
+clasp create --title "Nyuchi Email Signature" --type standalone
+clasp push
+
+# For Email Signature Generator
+cd ../email-signature
+clasp create --title "Nyuchi Signature Generator" --type standalone
+clasp push
+```
+
+#### Option B: Clone Existing Projects
+
+If you already have Apps Script projects, update the `.clasp.json` files:
+
+```bash
+# gmail-addon/.clasp.json
+{
+  "scriptId": "YOUR_GMAIL_ADDON_SCRIPT_ID",
+  "rootDir": "."
+}
+
+# email-signature/.clasp.json
+{
+  "scriptId": "YOUR_SIGNATURE_SCRIPT_ID",
+  "rootDir": "."
+}
+```
+
+Then pull or push:
+```bash
+clasp pull  # Download from Apps Script
+clasp push  # Upload to Apps Script
+```
+
+### Step 6: Find Your Script ID
+
+To get your Script ID from an existing project:
+
+1. Open [script.google.com](https://script.google.com)
+2. Click on your project
+3. Go to **Project Settings** (gear icon)
+4. Copy the **Script ID** under "IDs"
+
+Or via CLI:
+```bash
+clasp open
+# Opens the project in browser, Script ID is in the URL
+```
+
+### Step 7: Configure Google Cloud Project
+
+For Gmail Add-on functionality:
+
+1. Go to [Google Cloud Console](https://console.cloud.google.com)
+2. Create or select a project
+3. Enable these APIs:
+   - **Gmail API**
+   - **Admin SDK Directory API** (for admin features)
+4. Configure **OAuth consent screen**:
+   - User Type: Internal (for Workspace) or External
+   - Add scopes as listed in [Required OAuth Scopes](#required-oauth-scopes)
+5. Link to Apps Script:
+   - In Apps Script editor, go to **Project Settings**
+   - Under "Google Cloud Platform (GCP) Project"
+   - Enter your GCP project number
 
 ### Configure Script IDs
 
@@ -209,33 +310,103 @@ linear-gradient(to bottom,
 
 ## Deployment
 
-### Gmail Add-on Deployment
+### Gmail Add-on Setup (Complete Guide)
 
-1. **Push code** to Apps Script:
+#### Step 1: Push Code to Apps Script
+
+```bash
+cd gmail-addon
+clasp push
+```
+
+#### Step 2: Configure the Manifest
+
+Verify `appsscript.json` includes the Gmail add-on configuration:
+
+```json
+{
+  "timeZone": "Africa/Harare",
+  "dependencies": {},
+  "exceptionLogging": "STACKDRIVER",
+  "runtimeVersion": "V8",
+  "addOns": {
+    "common": {
+      "name": "Nyuchi Email Signature",
+      "logoUrl": "https://assets.nyuchi.com/logos/nyuchi/Nyuchi_Africa_Logo_icon.svg",
+      "useLocaleFromApp": true,
+      "homepageTrigger": {
+        "runFunction": "onHomepage"
+      }
+    },
+    "gmail": {
+      "contextualTriggers": [],
+      "composeTrigger": {
+        "selectActions": [{
+          "text": "Insert Signature",
+          "runFunction": "onCompose"
+        }],
+        "draftAccess": "NONE"
+      }
+    }
+  }
+}
+```
+
+#### Step 3: Test Deployment (Development)
+
+1. Open Apps Script editor:
    ```bash
-   npm run push:gmail
+   clasp open
    ```
+2. Click **Deploy** > **Test deployments**
+3. Under **Gmail Add-on**, click **Install**
+4. Open Gmail and refresh - the add-on appears in the right sidebar
 
-2. **Configure OAuth** in Google Cloud Console:
-   - Enable Gmail API
-   - Enable Admin SDK Directory API
-   - Configure OAuth consent screen
+#### Step 4: Production Deployment
 
-3. **Deploy** from Apps Script editor:
-   - Publish > Deploy as Gmail add-on
-   - Set deployment mode to "Installed for domain"
+1. In Apps Script editor, click **Deploy** > **New deployment**
+2. Click the gear icon, select **Add-on**
+3. Fill in the deployment details:
+   - Description: "Nyuchi Email Signature v1.0"
+4. Click **Deploy**
+5. Copy the **Deployment ID**
 
-4. **Install** for your domain via Google Workspace Admin
+#### Step 5: Install for Google Workspace Domain
 
-### Web App Deployment
+**For Workspace Admins:**
+
+1. Go to [Google Admin Console](https://admin.google.com)
+2. Navigate to **Apps** > **Google Workspace Marketplace apps** > **Apps list**
+3. Click **Add app** > **Add internal app**
+4. Enter your **Deployment ID** from Step 4
+5. Configure installation settings:
+   - Automatic installation: Choose domains/OUs
+   - Manual installation: Users install themselves
+6. Click **Finish**
+
+**For Individual Users (if allowed):**
+
+1. Open Gmail
+2. Click the **+** icon in the right sidebar
+3. Search for your add-on or paste the deployment link
+4. Click **Install** and authorize
+
+#### Step 6: Verify Installation
+
+1. Open Gmail in a browser (not mobile)
+2. Look for the Nyuchi bee icon in the right sidebar
+3. Click to open and test the User/Admin tabs
+
+### Web App Dashboard Deployment
 
 1. **Deploy** from Apps Script editor:
-   - Deploy > New deployment
-   - Select "Web app"
+   - Click **Deploy** > **New deployment**
+   - Select type: **Web app**
    - Execute as: "User accessing the web app"
-   - Who has access: "Anyone within [domain]"
-
-2. **Access** via the deployment URL
+   - Who has access: "Anyone within [your domain]"
+2. Click **Deploy** and copy the URL
+3. **Access** the dashboard via the deployment URL
+4. Or use the "Open Dashboard" button from the Admin tab
 
 ### Required OAuth Scopes
 
@@ -323,7 +494,7 @@ runAllTests()                // Complete test suite
 
 ## License
 
-Proprietary - Nyuchi Web Services. All rights reserved.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## Author
 

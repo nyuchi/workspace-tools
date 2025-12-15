@@ -224,7 +224,7 @@ clasp open
 
 ## License
 
-Proprietary - Nyuchi Africa
+MIT License - see [LICENSE](../LICENSE) for details.
 
 ## Support
 
