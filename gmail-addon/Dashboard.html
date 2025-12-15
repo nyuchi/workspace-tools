@@ -1,0 +1,1686 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nyuchi Email Signature Manager</title>
+  <base target="_top">
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Noto+Serif:wght@400;700&display=swap" rel="stylesheet">
+
+  <style>
+    /* ============================================
+       NYUCHI DESIGN SYSTEM
+       ============================================ */
+
+    :root {
+      /* Primary Colors */
+      --nyuchi-primary: #5f5873;
+      --nyuchi-primary-dark: #4a4560;
+      --nyuchi-primary-light: #7a7490;
+
+      /* Text Colors */
+      --text-primary: #2a2a2a;
+      --text-secondary: #737373;
+      --text-muted: #9a9a9a;
+
+      /* Background Colors */
+      --bg-primary: #ffffff;
+      --bg-secondary: #f8f7fc;
+      --bg-tertiary: #f0eff5;
+
+      /* Zimbabwe Flag Colors */
+      --flag-green: #729b63;
+      --flag-yellow: #f6ad55;
+      --flag-red: #d4634a;
+      --flag-black: #171717;
+      --flag-white: #ffffff;
+
+      /* Status Colors */
+      --success: #729b63;
+      --warning: #f6ad55;
+      --error: #d4634a;
+      --info: #5f5873;
+
+      /* Borders & Shadows */
+      --border-color: #e5e5e5;
+      --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+      --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.07);
+      --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1);
+
+      /* Spacing */
+      --spacing-xs: 4px;
+      --spacing-sm: 8px;
+      --spacing-md: 16px;
+      --spacing-lg: 24px;
+      --spacing-xl: 32px;
+      --spacing-2xl: 48px;
+
+      /* Border Radius */
+      --radius-sm: 4px;
+      --radius-md: 8px;
+      --radius-lg: 12px;
+      --radius-xl: 16px;
+    }
+
+    /* ============================================
+       BASE STYLES
+       ============================================ */
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 14px;
+      line-height: 1.6;
+      color: var(--text-primary);
+      background: var(--bg-secondary);
+      min-height: 100vh;
+    }
+
+    h1, h2, h3, h4, h5, h6 {
+      font-weight: 600;
+      line-height: 1.3;
+    }
+
+    a {
+      color: var(--nyuchi-primary);
+      text-decoration: none;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+
+    /* ============================================
+       LAYOUT
+       ============================================ */
+
+    .app-container {
+      display: flex;
+      min-height: 100vh;
+    }
+
+    /* Sidebar */
+    .sidebar {
+      width: 260px;
+      background: var(--bg-primary);
+      border-right: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      position: fixed;
+      height: 100vh;
+      z-index: 100;
+    }
+
+    .sidebar-header {
+      padding: var(--spacing-lg);
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .logo-container {
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-md);
+    }
+
+    .logo-container img {
+      height: 40px;
+      width: auto;
+    }
+
+    .logo-text {
+      font-family: 'Noto Serif', Georgia, serif;
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--nyuchi-primary);
+    }
+
+    .logo-tagline {
+      font-size: 11px;
+      font-style: italic;
+      color: var(--text-secondary);
+      margin-top: 2px;
+    }
+
+    /* Zimbabwe Flag Accent */
+    .flag-accent {
+      height: 4px;
+      background: linear-gradient(to right,
+        var(--flag-green) 0%, var(--flag-green) 20%,
+        var(--flag-yellow) 20%, var(--flag-yellow) 40%,
+        var(--flag-red) 40%, var(--flag-red) 60%,
+        var(--flag-black) 60%, var(--flag-black) 80%,
+        var(--flag-white) 80%, var(--flag-white) 100%
+      );
+    }
+
+    /* Navigation */
+    .sidebar-nav {
+      flex: 1;
+      padding: var(--spacing-md);
+      overflow-y: auto;
+    }
+
+    .nav-section {
+      margin-bottom: var(--spacing-lg);
+    }
+
+    .nav-section-title {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-muted);
+      padding: var(--spacing-sm) var(--spacing-md);
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-md);
+      padding: var(--spacing-md);
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      color: var(--text-secondary);
+    }
+
+    .nav-item:hover {
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+    }
+
+    .nav-item.active {
+      background: var(--nyuchi-primary);
+      color: white;
+    }
+
+    .nav-item svg {
+      width: 20px;
+      height: 20px;
+      flex-shrink: 0;
+    }
+
+    .nav-item-badge {
+      margin-left: auto;
+      background: var(--nyuchi-primary);
+      color: white;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 10px;
+    }
+
+    .nav-item.active .nav-item-badge {
+      background: white;
+      color: var(--nyuchi-primary);
+    }
+
+    /* Sidebar Footer */
+    .sidebar-footer {
+      padding: var(--spacing-md);
+      border-top: 1px solid var(--border-color);
+    }
+
+    .user-info {
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-md);
+      padding: var(--spacing-sm);
+    }
+
+    .user-avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: var(--nyuchi-primary);
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 600;
+      font-size: 14px;
+    }
+
+    .user-details {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .user-name {
+      font-weight: 600;
+      font-size: 13px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .user-email {
+      font-size: 11px;
+      color: var(--text-secondary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* Main Content */
+    .main-content {
+      flex: 1;
+      margin-left: 260px;
+      padding: var(--spacing-xl);
+    }
+
+    /* Page Header */
+    .page-header {
+      margin-bottom: var(--spacing-xl);
+    }
+
+    .page-title {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin-bottom: var(--spacing-xs);
+    }
+
+    .page-subtitle {
+      color: var(--text-secondary);
+      font-size: 14px;
+    }
+
+    /* ============================================
+       CARDS
+       ============================================ */
+
+    .card {
+      background: var(--bg-primary);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-sm);
+      border: 1px solid var(--border-color);
+      overflow: hidden;
+    }
+
+    .card-header {
+      padding: var(--spacing-lg);
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .card-title {
+      font-size: 16px;
+      font-weight: 600;
+    }
+
+    .card-body {
+      padding: var(--spacing-lg);
+    }
+
+    .card-footer {
+      padding: var(--spacing-lg);
+      border-top: 1px solid var(--border-color);
+      background: var(--bg-secondary);
+    }
+
+    /* ============================================
+       STATS GRID
+       ============================================ */
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: var(--spacing-lg);
+      margin-bottom: var(--spacing-xl);
+    }
+
+    .stat-card {
+      background: var(--bg-primary);
+      border-radius: var(--radius-lg);
+      padding: var(--spacing-lg);
+      border: 1px solid var(--border-color);
+    }
+
+    .stat-card-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: var(--radius-md);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: var(--spacing-md);
+    }
+
+    .stat-card-icon.primary { background: rgba(95, 88, 115, 0.1); color: var(--nyuchi-primary); }
+    .stat-card-icon.success { background: rgba(114, 155, 99, 0.1); color: var(--success); }
+    .stat-card-icon.warning { background: rgba(246, 173, 85, 0.1); color: var(--warning); }
+    .stat-card-icon.error { background: rgba(212, 99, 74, 0.1); color: var(--error); }
+
+    .stat-card-icon svg {
+      width: 24px;
+      height: 24px;
+    }
+
+    .stat-value {
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin-bottom: var(--spacing-xs);
+    }
+
+    .stat-label {
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+
+    /* ============================================
+       TABLES
+       ============================================ */
+
+    .table-container {
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    th, td {
+      padding: var(--spacing-md);
+      text-align: left;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    th {
+      font-weight: 600;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-secondary);
+      background: var(--bg-secondary);
+    }
+
+    tr:hover td {
+      background: var(--bg-secondary);
+    }
+
+    .user-cell {
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-md);
+    }
+
+    .user-cell-avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: var(--bg-tertiary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 600;
+      font-size: 13px;
+      color: var(--nyuchi-primary);
+    }
+
+    .user-cell-info {
+      min-width: 0;
+    }
+
+    .user-cell-name {
+      font-weight: 500;
+    }
+
+    .user-cell-email {
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    .brand-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--spacing-xs);
+      padding: var(--spacing-xs) var(--spacing-sm);
+      background: var(--bg-tertiary);
+      border-radius: var(--radius-sm);
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    .brand-badge img {
+      height: 16px;
+      width: auto;
+    }
+
+    .status-badge {
+      display: inline-block;
+      padding: var(--spacing-xs) var(--spacing-sm);
+      border-radius: var(--radius-sm);
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .status-badge.active {
+      background: rgba(114, 155, 99, 0.1);
+      color: var(--success);
+    }
+
+    .status-badge.pending {
+      background: rgba(246, 173, 85, 0.1);
+      color: var(--warning);
+    }
+
+    .status-badge.error {
+      background: rgba(212, 99, 74, 0.1);
+      color: var(--error);
+    }
+
+    /* ============================================
+       BUTTONS
+       ============================================ */
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: var(--spacing-sm);
+      padding: var(--spacing-sm) var(--spacing-md);
+      font-family: inherit;
+      font-size: 14px;
+      font-weight: 500;
+      border: none;
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .btn svg {
+      width: 18px;
+      height: 18px;
+    }
+
+    .btn-primary {
+      background: var(--nyuchi-primary);
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: var(--nyuchi-primary-dark);
+    }
+
+    .btn-secondary {
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+    }
+
+    .btn-secondary:hover {
+      background: var(--border-color);
+    }
+
+    .btn-success {
+      background: var(--success);
+      color: white;
+    }
+
+    .btn-success:hover {
+      background: #5a8a4e;
+    }
+
+    .btn-danger {
+      background: var(--error);
+      color: white;
+    }
+
+    .btn-danger:hover {
+      background: #c0503a;
+    }
+
+    .btn-outline {
+      background: transparent;
+      border: 1px solid var(--border-color);
+      color: var(--text-primary);
+    }
+
+    .btn-outline:hover {
+      background: var(--bg-secondary);
+    }
+
+    .btn-sm {
+      padding: var(--spacing-xs) var(--spacing-sm);
+      font-size: 12px;
+    }
+
+    .btn-lg {
+      padding: var(--spacing-md) var(--spacing-lg);
+      font-size: 16px;
+    }
+
+    .btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .btn-group {
+      display: flex;
+      gap: var(--spacing-sm);
+    }
+
+    /* ============================================
+       FORMS
+       ============================================ */
+
+    .form-group {
+      margin-bottom: var(--spacing-lg);
+    }
+
+    .form-label {
+      display: block;
+      font-weight: 500;
+      margin-bottom: var(--spacing-sm);
+      color: var(--text-primary);
+    }
+
+    .form-input, .form-select, .form-textarea {
+      width: 100%;
+      padding: var(--spacing-md);
+      font-family: inherit;
+      font-size: 14px;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      background: var(--bg-primary);
+      transition: all 0.2s ease;
+    }
+
+    .form-input:focus, .form-select:focus, .form-textarea:focus {
+      outline: none;
+      border-color: var(--nyuchi-primary);
+      box-shadow: 0 0 0 3px rgba(95, 88, 115, 0.1);
+    }
+
+    .form-hint {
+      font-size: 12px;
+      color: var(--text-secondary);
+      margin-top: var(--spacing-xs);
+    }
+
+    .form-row {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: var(--spacing-lg);
+    }
+
+    /* ============================================
+       MODAL
+       ============================================ */
+
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      opacity: 0;
+      visibility: hidden;
+      transition: all 0.3s ease;
+    }
+
+    .modal-overlay.active {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .modal {
+      background: var(--bg-primary);
+      border-radius: var(--radius-xl);
+      width: 90%;
+      max-width: 600px;
+      max-height: 90vh;
+      overflow: hidden;
+      transform: translateY(20px);
+      transition: transform 0.3s ease;
+    }
+
+    .modal-overlay.active .modal {
+      transform: translateY(0);
+    }
+
+    .modal-header {
+      padding: var(--spacing-lg);
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .modal-title {
+      font-size: 18px;
+      font-weight: 600;
+    }
+
+    .modal-close {
+      width: 32px;
+      height: 32px;
+      border-radius: var(--radius-md);
+      border: none;
+      background: transparent;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-secondary);
+    }
+
+    .modal-close:hover {
+      background: var(--bg-tertiary);
+    }
+
+    .modal-body {
+      padding: var(--spacing-lg);
+      max-height: 60vh;
+      overflow-y: auto;
+    }
+
+    .modal-footer {
+      padding: var(--spacing-lg);
+      border-top: 1px solid var(--border-color);
+      display: flex;
+      justify-content: flex-end;
+      gap: var(--spacing-sm);
+    }
+
+    /* ============================================
+       SIGNATURE PREVIEW
+       ============================================ */
+
+    .signature-preview {
+      background: white;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: var(--spacing-lg);
+      margin-top: var(--spacing-md);
+    }
+
+    .signature-preview-label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-muted);
+      margin-bottom: var(--spacing-md);
+    }
+
+    /* ============================================
+       TABS
+       ============================================ */
+
+    .tabs {
+      display: flex;
+      border-bottom: 1px solid var(--border-color);
+      margin-bottom: var(--spacing-lg);
+    }
+
+    .tab {
+      padding: var(--spacing-md) var(--spacing-lg);
+      font-weight: 500;
+      color: var(--text-secondary);
+      border-bottom: 2px solid transparent;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .tab:hover {
+      color: var(--text-primary);
+    }
+
+    .tab.active {
+      color: var(--nyuchi-primary);
+      border-bottom-color: var(--nyuchi-primary);
+    }
+
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    /* ============================================
+       ALERTS
+       ============================================ */
+
+    .alert {
+      padding: var(--spacing-md);
+      border-radius: var(--radius-md);
+      margin-bottom: var(--spacing-lg);
+      display: flex;
+      align-items: flex-start;
+      gap: var(--spacing-md);
+    }
+
+    .alert svg {
+      width: 20px;
+      height: 20px;
+      flex-shrink: 0;
+    }
+
+    .alert-success {
+      background: rgba(114, 155, 99, 0.1);
+      color: var(--success);
+    }
+
+    .alert-warning {
+      background: rgba(246, 173, 85, 0.1);
+      color: #b07d2e;
+    }
+
+    .alert-error {
+      background: rgba(212, 99, 74, 0.1);
+      color: var(--error);
+    }
+
+    .alert-info {
+      background: rgba(95, 88, 115, 0.1);
+      color: var(--nyuchi-primary);
+    }
+
+    /* ============================================
+       LOADING
+       ============================================ */
+
+    .loading {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: var(--spacing-2xl);
+    }
+
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid var(--border-color);
+      border-top-color: var(--nyuchi-primary);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* ============================================
+       RESPONSIVE
+       ============================================ */
+
+    @media (max-width: 768px) {
+      .sidebar {
+        transform: translateX(-100%);
+      }
+
+      .main-content {
+        margin-left: 0;
+      }
+
+      .form-row {
+        grid-template-columns: 1fr;
+      }
+
+      .stats-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* ============================================
+       BRAND SELECTOR
+       ============================================ */
+
+    .brand-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: var(--spacing-md);
+    }
+
+    .brand-card {
+      border: 2px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      padding: var(--spacing-lg);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-align: center;
+    }
+
+    .brand-card:hover {
+      border-color: var(--nyuchi-primary-light);
+    }
+
+    .brand-card.selected {
+      border-color: var(--nyuchi-primary);
+      background: rgba(95, 88, 115, 0.05);
+    }
+
+    .brand-card img {
+      height: 40px;
+      width: auto;
+      margin-bottom: var(--spacing-md);
+    }
+
+    .brand-card-name {
+      font-weight: 600;
+      font-size: 14px;
+      margin-bottom: var(--spacing-xs);
+    }
+
+    .brand-card-tagline {
+      font-size: 11px;
+      color: var(--text-secondary);
+      font-style: italic;
+    }
+
+    /* ============================================
+       SEARCH
+       ============================================ */
+
+    .search-box {
+      position: relative;
+    }
+
+    .search-box svg {
+      position: absolute;
+      left: var(--spacing-md);
+      top: 50%;
+      transform: translateY(-50%);
+      width: 18px;
+      height: 18px;
+      color: var(--text-muted);
+    }
+
+    .search-box input {
+      padding-left: 44px;
+    }
+
+    /* ============================================
+       EMPTY STATE
+       ============================================ */
+
+    .empty-state {
+      text-align: center;
+      padding: var(--spacing-2xl);
+      color: var(--text-secondary);
+    }
+
+    .empty-state svg {
+      width: 64px;
+      height: 64px;
+      color: var(--border-color);
+      margin-bottom: var(--spacing-lg);
+    }
+
+    .empty-state-title {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: var(--spacing-sm);
+      color: var(--text-primary);
+    }
+  </style>
+</head>
+<body>
+  <div class="app-container">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="logo-container">
+          <img src="https://assets.nyuchi.com/logos/nyuchi/Nyuchi_Africa_Logo_dark.svg" alt="Nyuchi">
+          <div>
+            <div class="logo-text">Nyuchi Africa</div>
+            <div class="logo-tagline">I am because we are</div>
+          </div>
+        </div>
+      </div>
+      <div class="flag-accent"></div>
+
+      <nav class="sidebar-nav">
+        <div class="nav-section">
+          <div class="nav-section-title">Dashboard</div>
+          <div class="nav-item active" data-page="overview">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+            Overview
+          </div>
+        </div>
+
+        <div class="nav-section">
+          <div class="nav-section-title">User Management</div>
+          <div class="nav-item" data-page="users">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            All Users
+            <span class="nav-item-badge" id="userCount">0</span>
+          </div>
+          <div class="nav-item" data-page="signatures">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+            Signatures
+          </div>
+        </div>
+
+        <div class="nav-section">
+          <div class="nav-section-title">Configuration</div>
+          <div class="nav-item" data-page="brands">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="14.31" y1="8" x2="20.05" y2="17.94"/><line x1="9.69" y1="8" x2="21.17" y2="8"/><line x1="7.38" y1="12" x2="13.12" y2="2.06"/><line x1="9.69" y1="16" x2="3.95" y2="6.06"/><line x1="14.31" y1="16" x2="2.83" y2="16"/><line x1="16.62" y1="12" x2="10.88" y2="21.94"/></svg>
+            Brands
+          </div>
+          <div class="nav-item" data-page="settings">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            Settings
+          </div>
+        </div>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="user-info">
+          <div class="user-avatar" id="currentUserAvatar">N</div>
+          <div class="user-details">
+            <div class="user-name" id="currentUserName">Loading...</div>
+            <div class="user-email" id="currentUserEmail">...</div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <!-- Overview Page -->
+      <div id="page-overview" class="page-content active">
+        <header class="page-header">
+          <h1 class="page-title">Email Signature Dashboard</h1>
+          <p class="page-subtitle">Manage branded email signatures for your organization</p>
+        </header>
+
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-card-icon primary">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            </div>
+            <div class="stat-value" id="statTotalUsers">-</div>
+            <div class="stat-label">Total Users</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-card-icon success">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            </div>
+            <div class="stat-value" id="statSignaturesApplied">-</div>
+            <div class="stat-label">Signatures Applied</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-card-icon warning">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+            </div>
+            <div class="stat-value" id="statTotalAliases">-</div>
+            <div class="stat-label">Email Aliases</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-card-icon primary">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="14.31" y1="8" x2="20.05" y2="17.94"/><line x1="9.69" y1="8" x2="21.17" y2="8"/></svg>
+            </div>
+            <div class="stat-value" id="statBrands">9</div>
+            <div class="stat-label">Active Brands</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">Quick Actions</h3>
+          </div>
+          <div class="card-body">
+            <div class="btn-group">
+              <button class="btn btn-primary" onclick="updateAllSignatures()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                Update All Signatures
+              </button>
+              <button class="btn btn-secondary" onclick="refreshUserList()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
+                Refresh Data
+              </button>
+              <button class="btn btn-outline" onclick="showPage('settings')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                Settings
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top: var(--spacing-lg)">
+          <div class="card-header">
+            <h3 class="card-title">Recent Activity</h3>
+          </div>
+          <div class="card-body">
+            <div id="activityLog">
+              <div class="empty-state">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                <div class="empty-state-title">No recent activity</div>
+                <p>Activity will appear here after you perform actions</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Users Page -->
+      <div id="page-users" class="page-content">
+        <header class="page-header">
+          <h1 class="page-title">User Management</h1>
+          <p class="page-subtitle">View and manage user email signatures</p>
+        </header>
+
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">Domain Users</h3>
+            <div class="btn-group">
+              <button class="btn btn-sm btn-secondary" onclick="refreshUserList()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
+                Refresh
+              </button>
+              <button class="btn btn-sm btn-primary" onclick="updateAllSignatures()">
+                Update All
+              </button>
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="search-box" style="margin-bottom: var(--spacing-lg)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input type="text" class="form-input" id="userSearch" placeholder="Search users..." oninput="filterUsers()">
+            </div>
+            <div class="table-container">
+              <table>
+                <thead>
+                  <tr>
+                    <th>User</th>
+                    <th>Brand</th>
+                    <th>Aliases</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="userTableBody">
+                  <tr>
+                    <td colspan="5">
+                      <div class="loading"><div class="spinner"></div></div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Signatures Page -->
+      <div id="page-signatures" class="page-content">
+        <header class="page-header">
+          <h1 class="page-title">Signature Templates</h1>
+          <p class="page-subtitle">Preview and customize signature templates by brand</p>
+        </header>
+
+        <div class="card">
+          <div class="card-body">
+            <div class="form-group">
+              <label class="form-label">Select Brand to Preview</label>
+              <select class="form-select" id="previewBrand" onchange="updateSignaturePreview()">
+                <option value="nyuchi">Nyuchi Africa</option>
+                <option value="lingo">Nyuchi Lingo</option>
+                <option value="learning">Nyuchi Learning</option>
+                <option value="development">Nyuchi Development</option>
+                <option value="foundation">Nyuchi Foundation</option>
+                <option value="mukoko">Mukoko</option>
+                <option value="mukokoNews">Mukoko News</option>
+                <option value="travel">Zimbabwe Travel Information</option>
+                <option value="techLeaders">Technology Leaders of Africa</option>
+              </select>
+            </div>
+
+            <div class="signature-preview">
+              <div class="signature-preview-label">Signature Preview</div>
+              <div id="signaturePreviewContent">
+                <!-- Signature will be rendered here -->
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Brands Page -->
+      <div id="page-brands" class="page-content">
+        <header class="page-header">
+          <h1 class="page-title">Brand Configuration</h1>
+          <p class="page-subtitle">View all Nyuchi Africa brands and their settings</p>
+        </header>
+
+        <div class="brand-grid" id="brandGrid">
+          <!-- Brands will be loaded here -->
+        </div>
+      </div>
+
+      <!-- Settings Page -->
+      <div id="page-settings" class="page-content">
+        <header class="page-header">
+          <h1 class="page-title">Settings</h1>
+          <p class="page-subtitle">Configure signature deployment settings</p>
+        </header>
+
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">Domain Configuration</h3>
+          </div>
+          <div class="card-body">
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Primary Domain</label>
+                <input type="text" class="form-input" value="nyuchi.com" readonly>
+                <div class="form-hint">The main Google Workspace domain</div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Company Name</label>
+                <input type="text" class="form-input" value="Nyuchi Africa" readonly>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top: var(--spacing-lg)">
+          <div class="card-header">
+            <h3 class="card-title">Scheduled Updates</h3>
+          </div>
+          <div class="card-body">
+            <div class="alert alert-info">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+              <div>Automatic signature updates run daily at 2:00 AM Africa/Harare timezone to keep all user signatures consistent.</div>
+            </div>
+            <div class="btn-group">
+              <button class="btn btn-primary" onclick="enableDailyTrigger()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                Enable Daily Updates
+              </button>
+              <button class="btn btn-outline" onclick="disableDailyTrigger()">
+                Disable Daily Updates
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top: var(--spacing-lg)">
+          <div class="card-header">
+            <h3 class="card-title">Promotional Banner</h3>
+          </div>
+          <div class="card-body">
+            <div class="form-group">
+              <label class="form-label">Banner Image URL</label>
+              <input type="text" class="form-input" id="bannerImageUrl" value="https://drive.google.com/file/d/1QoMdrAUZB7_0Ls12vr6YNo6NfQn74-di/view?usp=sharing">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Banner Link URL</label>
+              <input type="text" class="form-input" id="bannerLinkUrl" value="https://www.nyuchi.com">
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Modal -->
+  <div class="modal-overlay" id="modal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 class="modal-title" id="modalTitle">Modal Title</h3>
+        <button class="modal-close" onclick="closeModal()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="modal-body" id="modalBody">
+        <!-- Modal content -->
+      </div>
+      <div class="modal-footer" id="modalFooter">
+        <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+        <button class="btn btn-primary" id="modalConfirm">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ============================================
+    // BRAND DATA (matches Code.js BRANDS)
+    // ============================================
+
+    const BRANDS = {
+      nyuchi: {
+        name: 'Nyuchi Africa',
+        tagline: 'I am because we are',
+        website: 'nyuchi.com',
+        logo: 'https://assets.nyuchi.com/logos/nyuchi/Nyuchi_Africa_Logo_dark.svg'
+      },
+      lingo: {
+        name: 'Nyuchi Lingo',
+        tagline: 'Language Learning for Africa',
+        website: 'lingo.nyuchi.com',
+        logo: 'https://assets.nyuchi.com/logos/nyuchi/Nyuchi_Lingo_Logo_dark.svg',
+        parent: 'Nyuchi Africa'
+      },
+      learning: {
+        name: 'Nyuchi Learning',
+        tagline: 'Education for All',
+        website: 'learning.nyuchi.com',
+        logo: 'https://assets.nyuchi.com/logos/nyuchi/Nyuchi_Learning_Logo_dark.svg',
+        parent: 'Nyuchi Africa'
+      },
+      development: {
+        name: 'Nyuchi Development',
+        tagline: 'Building Digital Africa',
+        website: 'services.nyuchi.com',
+        logo: 'https://assets.nyuchi.com/logos/nyuchi/Nyuchi_Development_Logo_dark.svg',
+        parent: 'Nyuchi Africa'
+      },
+      foundation: {
+        name: 'Nyuchi Foundation',
+        tagline: 'Empowering Communities',
+        website: 'foundation.nyuchi.com',
+        logo: 'https://assets.nyuchi.com/logos/nyuchi/Nyuchi_Foundation_Logo_dark.svg',
+        parent: 'Nyuchi Africa'
+      },
+      mukoko: {
+        name: 'Mukoko',
+        tagline: 'Your Digital Twin Ecosystem',
+        website: 'mukoko.com',
+        logo: 'https://assets.nyuchi.com/logos/mukoko/Mukoko_Logo_dark.png'
+      },
+      mukokoNews: {
+        name: 'Mukoko News',
+        tagline: 'Pan-African Journalism',
+        website: 'news.mukoko.com',
+        logo: 'https://assets.nyuchi.com/logos/mukoko/Mukoko_News_Logo_dark.png',
+        parent: 'Mukoko'
+      },
+      travel: {
+        name: 'Zimbabwe Travel Information',
+        tagline: 'Discover the Heart of Africa',
+        website: 'travel-info.co.zw',
+        logo: 'https://assets.nyuchi.com/logos/zti/Zimbabwe_Travel_Information_Logo_dark.png'
+      },
+      techLeaders: {
+        name: 'Technology Leaders of Africa',
+        tagline: 'Leading African Innovation',
+        website: 'techdirectors.africa',
+        logo: 'https://assets.nyuchi.com/logos/technology-leaders/Technology_Leaders_Logo_dark.png'
+      }
+    };
+
+    // State
+    let users = [];
+    let currentUser = null;
+
+    // ============================================
+    // INITIALIZATION
+    // ============================================
+
+    document.addEventListener('DOMContentLoaded', function() {
+      initNavigation();
+      loadBrands();
+      loadCurrentUser();
+      loadUsers();
+      updateSignaturePreview();
+    });
+
+    function initNavigation() {
+      document.querySelectorAll('.nav-item').forEach(item => {
+        item.addEventListener('click', function() {
+          const page = this.dataset.page;
+          showPage(page);
+        });
+      });
+    }
+
+    function showPage(page) {
+      // Update nav
+      document.querySelectorAll('.nav-item').forEach(item => {
+        item.classList.toggle('active', item.dataset.page === page);
+      });
+
+      // Update content
+      document.querySelectorAll('.page-content').forEach(content => {
+        content.classList.toggle('active', content.id === 'page-' + page);
+      });
+    }
+
+    // ============================================
+    // DATA LOADING
+    // ============================================
+
+    function loadCurrentUser() {
+      google.script.run
+        .withSuccessHandler(function(user) {
+          currentUser = user;
+          document.getElementById('currentUserName').textContent = user.name || 'Admin';
+          document.getElementById('currentUserEmail').textContent = user.email;
+          document.getElementById('currentUserAvatar').textContent = (user.name || user.email).charAt(0).toUpperCase();
+        })
+        .withFailureHandler(function(error) {
+          console.error('Failed to load user:', error);
+        })
+        .getCurrentUserInfo();
+    }
+
+    function loadUsers() {
+      document.getElementById('userTableBody').innerHTML = '<tr><td colspan="5"><div class="loading"><div class="spinner"></div></div></td></tr>';
+
+      google.script.run
+        .withSuccessHandler(function(data) {
+          users = data.users || [];
+          renderUserTable();
+          updateStats(data);
+        })
+        .withFailureHandler(function(error) {
+          document.getElementById('userTableBody').innerHTML = '<tr><td colspan="5"><div class="alert alert-error">Failed to load users: ' + error.message + '</div></td></tr>';
+        })
+        .getDashboardData();
+    }
+
+    function refreshUserList() {
+      loadUsers();
+      logActivity('Refreshed user list');
+    }
+
+    function updateStats(data) {
+      document.getElementById('statTotalUsers').textContent = data.totalUsers || 0;
+      document.getElementById('statTotalAliases').textContent = data.totalAliases || 0;
+      document.getElementById('statSignaturesApplied').textContent = data.totalUsers || 0;
+      document.getElementById('userCount').textContent = data.totalUsers || 0;
+    }
+
+    // ============================================
+    // USER TABLE
+    // ============================================
+
+    function renderUserTable() {
+      const tbody = document.getElementById('userTableBody');
+
+      if (users.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5"><div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg><div class="empty-state-title">No users found</div><p>Users from your domain will appear here</p></div></td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = users.map(user => {
+        const brand = getBrandFromEmail(user.primaryEmail);
+        const initials = getInitials(user.name);
+        const aliasCount = (user.aliases || []).length;
+
+        return `
+          <tr>
+            <td>
+              <div class="user-cell">
+                <div class="user-cell-avatar">${initials}</div>
+                <div class="user-cell-info">
+                  <div class="user-cell-name">${escapeHtml(user.name)}</div>
+                  <div class="user-cell-email">${escapeHtml(user.primaryEmail)}</div>
+                </div>
+              </div>
+            </td>
+            <td>
+              <div class="brand-badge">
+                <img src="${brand.logo}" alt="${brand.name}">
+                ${brand.name}
+              </div>
+            </td>
+            <td>${aliasCount > 0 ? '+' + aliasCount : '-'}</td>
+            <td><span class="status-badge active">Active</span></td>
+            <td>
+              <div class="btn-group">
+                <button class="btn btn-sm btn-outline" onclick="previewUserSignature('${user.primaryEmail}')">Preview</button>
+                <button class="btn btn-sm btn-primary" onclick="updateUserSignature('${user.primaryEmail}')">Update</button>
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function filterUsers() {
+      const query = document.getElementById('userSearch').value.toLowerCase();
+      const filtered = users.filter(user =>
+        user.name.toLowerCase().includes(query) ||
+        user.primaryEmail.toLowerCase().includes(query)
+      );
+
+      const tbody = document.getElementById('userTableBody');
+      if (filtered.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5"><div class="empty-state">No matching users found</div></td></tr>';
+        return;
+      }
+
+      // Re-render with filtered users
+      const originalUsers = users;
+      users = filtered;
+      renderUserTable();
+      users = originalUsers;
+    }
+
+    // ============================================
+    // BRANDS
+    // ============================================
+
+    function loadBrands() {
+      const grid = document.getElementById('brandGrid');
+      grid.innerHTML = Object.entries(BRANDS).map(([key, brand]) => `
+        <div class="brand-card" data-brand="${key}">
+          <img src="${brand.logo}" alt="${brand.name}">
+          <div class="brand-card-name">${brand.name}</div>
+          <div class="brand-card-tagline">${brand.tagline}</div>
+          ${brand.parent ? '<div style="font-size: 10px; color: var(--text-muted); margin-top: 8px;">Part of ' + brand.parent + '</div>' : ''}
+        </div>
+      `).join('');
+    }
+
+    function getBrandFromEmail(email) {
+      const domain = email.split('@')[1];
+      const domainMap = {
+        'lingo.nyuchi.com': 'lingo',
+        'learning.nyuchi.com': 'learning',
+        'services.nyuchi.com': 'development',
+        'foundation.nyuchi.com': 'foundation',
+        'travel-info.co.zw': 'travel',
+        'mukoko.com': 'mukoko',
+        'hararemetro.co.zw': 'mukokoNews',
+        'news.mukoko.com': 'mukokoNews',
+        'techdirectors.africa': 'techLeaders',
+        'nyuchi.com': 'nyuchi'
+      };
+      return BRANDS[domainMap[domain] || 'nyuchi'];
+    }
+
+    // ============================================
+    // SIGNATURE PREVIEW
+    // ============================================
+
+    function updateSignaturePreview() {
+      const brandKey = document.getElementById('previewBrand').value;
+
+      google.script.run
+        .withSuccessHandler(function(html) {
+          document.getElementById('signaturePreviewContent').innerHTML = html;
+        })
+        .withFailureHandler(function(error) {
+          document.getElementById('signaturePreviewContent').innerHTML = '<div class="alert alert-error">Failed to load preview</div>';
+        })
+        .getSignaturePreview(brandKey);
+    }
+
+    function previewUserSignature(email) {
+      openModal('Signature Preview', '<div class="loading"><div class="spinner"></div></div>');
+
+      google.script.run
+        .withSuccessHandler(function(data) {
+          document.getElementById('modalBody').innerHTML = `
+            <div style="margin-bottom: var(--spacing-lg)">
+              <strong>${escapeHtml(data.name)}</strong><br>
+              <span style="color: var(--text-secondary)">${escapeHtml(email)}</span>
+            </div>
+            <div class="signature-preview">
+              <div class="signature-preview-label">Generated Signature</div>
+              ${data.signatureHtml}
+            </div>
+          `;
+          document.getElementById('modalFooter').innerHTML = `
+            <button class="btn btn-secondary" onclick="closeModal()">Close</button>
+            <button class="btn btn-primary" onclick="updateUserSignature('${email}'); closeModal();">Apply Signature</button>
+          `;
+        })
+        .withFailureHandler(function(error) {
+          document.getElementById('modalBody').innerHTML = '<div class="alert alert-error">' + error.message + '</div>';
+        })
+        .getUserSignaturePreview(email);
+    }
+
+    // ============================================
+    // ACTIONS
+    // ============================================
+
+    function updateUserSignature(email) {
+      showNotification('Updating signature...', 'info');
+
+      google.script.run
+        .withSuccessHandler(function(result) {
+          showNotification('Signature updated for ' + email, 'success');
+          logActivity('Updated signature for ' + email);
+        })
+        .withFailureHandler(function(error) {
+          showNotification('Failed: ' + error.message, 'error');
+        })
+        .updateSingleUserFromDashboard(email);
+    }
+
+    function updateAllSignatures() {
+      openModal('Confirm Bulk Update', `
+        <div class="alert alert-warning">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          <div>
+            <strong>Warning:</strong> This will update email signatures for ALL ${users.length} users in your domain.
+          </div>
+        </div>
+        <p>Are you sure you want to proceed?</p>
+      `);
+
+      document.getElementById('modalFooter').innerHTML = `
+        <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+        <button class="btn btn-danger" onclick="confirmUpdateAll()">Update All Signatures</button>
+      `;
+    }
+
+    function confirmUpdateAll() {
+      closeModal();
+      showNotification('Updating all signatures... This may take a few minutes.', 'info');
+
+      google.script.run
+        .withSuccessHandler(function(result) {
+          showNotification(`Updated ${result.success} signatures, ${result.failed} failed`, result.failed > 0 ? 'warning' : 'success');
+          logActivity(`Bulk updated ${result.success} signatures`);
+        })
+        .withFailureHandler(function(error) {
+          showNotification('Bulk update failed: ' + error.message, 'error');
+        })
+        .updateAllFromDashboard();
+    }
+
+    function enableDailyTrigger() {
+      google.script.run
+        .withSuccessHandler(function() {
+          showNotification('Daily signature updates enabled', 'success');
+          logActivity('Enabled daily automatic updates');
+        })
+        .withFailureHandler(function(error) {
+          showNotification('Failed: ' + error.message, 'error');
+        })
+        .createDailyTriggerFromDashboard();
+    }
+
+    function disableDailyTrigger() {
+      google.script.run
+        .withSuccessHandler(function() {
+          showNotification('Daily signature updates disabled', 'success');
+          logActivity('Disabled daily automatic updates');
+        })
+        .withFailureHandler(function(error) {
+          showNotification('Failed: ' + error.message, 'error');
+        })
+        .removeDailyTriggerFromDashboard();
+    }
+
+    // ============================================
+    // MODAL
+    // ============================================
+
+    function openModal(title, content) {
+      document.getElementById('modalTitle').textContent = title;
+      document.getElementById('modalBody').innerHTML = content;
+      document.getElementById('modal').classList.add('active');
+    }
+
+    function closeModal() {
+      document.getElementById('modal').classList.remove('active');
+    }
+
+    // ============================================
+    // NOTIFICATIONS
+    // ============================================
+
+    function showNotification(message, type) {
+      // Simple notification using alert for now
+      // Could be enhanced with toast notifications
+      const log = document.getElementById('activityLog');
+      const timestamp = new Date().toLocaleTimeString();
+      const icon = {
+        success: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polyline points="20 6 9 17 4 12"/></svg>',
+        error: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>',
+        warning: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
+        info: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>'
+      };
+
+      if (log.querySelector('.empty-state')) {
+        log.innerHTML = '';
+      }
+
+      const item = document.createElement('div');
+      item.className = 'alert alert-' + type;
+      item.innerHTML = icon[type] + '<div><strong>' + timestamp + '</strong> - ' + message + '</div>';
+      log.insertBefore(item, log.firstChild);
+    }
+
+    function logActivity(message) {
+      showNotification(message, 'info');
+    }
+
+    // ============================================
+    // UTILITIES
+    // ============================================
+
+    function getInitials(name) {
+      if (!name) return '?';
+      return name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
+    }
+
+    function escapeHtml(text) {
+      if (!text) return '';
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+  </script>
+</body>
+</html>

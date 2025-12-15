@@ -453,6 +453,13 @@ function addAdminTabContent(card) {
     .setTopLabel('Domain')
     .setText(ADMIN_CONFIG.domain));
 
+  // Open Full Dashboard Button
+  infoSection.addWidget(CardService.newTextButton()
+    .setText('Open Full Dashboard')
+    .setTextButtonStyle(CardService.TextButtonStyle.FILLED)
+    .setBackgroundColor(COLORS.primary)
+    .setOnClickAction(CardService.newAction().setFunctionName('openDashboard')));
+
   card.addSection(infoSection);
 
   // Single User Section
@@ -1709,4 +1716,244 @@ function testAdminSignature() {
   Logger.log(html);
 
   return html;
+}
+
+// ============================================================================
+// DASHBOARD WEB APP FUNCTIONS
+// ============================================================================
+
+/**
+ * Open the dashboard as a web app
+ * Can be accessed via: https://script.google.com/macros/s/{deployment-id}/exec
+ */
+function doGet(e) {
+  return HtmlService.createHtmlOutputFromFile('Dashboard')
+    .setTitle('Nyuchi Email Signature Manager')
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1');
+}
+
+/**
+ * Open dashboard from add-on (as sidebar or modal)
+ */
+function openDashboard(e) {
+  const html = HtmlService.createHtmlOutputFromFile('Dashboard')
+    .setTitle('Nyuchi Signature Manager')
+    .setWidth(1200)
+    .setHeight(800);
+
+  // Return a link to open the web app
+  const url = ScriptApp.getService().getUrl();
+
+  return CardService.newActionResponseBuilder()
+    .setOpenLink(CardService.newOpenLink()
+      .setUrl(url)
+      .setOpenAs(CardService.OpenAs.FULL_SIZE)
+      .setOnClose(CardService.OnClose.NOTHING))
+    .build();
+}
+
+/**
+ * Get current user info for dashboard
+ */
+function getCurrentUserInfo() {
+  const email = Session.getActiveUser().getEmail();
+  let name = email.split('@')[0];
+
+  try {
+    const user = AdminDirectory.Users.get(email);
+    if (user.name && user.name.fullName) {
+      name = user.name.fullName;
+    }
+  } catch (e) {
+    // Fall back to email-based name
+  }
+
+  return {
+    email: email,
+    name: name
+  };
+}
+
+/**
+ * Get all dashboard data (users, stats, etc.)
+ */
+function getDashboardData() {
+  try {
+    const users = getAllDomainUsers();
+    let totalAliases = 0;
+
+    const userList = users.map(user => {
+      const aliases = getAdminUserAliases(user);
+      totalAliases += aliases.length;
+
+      return {
+        primaryEmail: user.primaryEmail,
+        name: user.name ? user.name.fullName : user.primaryEmail.split('@')[0],
+        title: getJobTitle(user),
+        phone: getPhoneNumber(user),
+        aliases: aliases
+      };
+    });
+
+    return {
+      users: userList,
+      totalUsers: users.length,
+      totalAliases: totalAliases,
+      domain: ADMIN_CONFIG.domain
+    };
+  } catch (error) {
+    Logger.log('Error getting dashboard data: ' + error.message);
+    throw new Error('Failed to load users. Make sure you have admin permissions.');
+  }
+}
+
+/**
+ * Get signature preview for a brand (for template preview)
+ */
+function getSignaturePreview(brandKey) {
+  const brand = BRANDS[brandKey] || BRANDS.nyuchi;
+
+  const mockUser = {
+    name: { fullName: 'John Doe' },
+    primaryEmail: 'john@' + brand.website,
+    organizations: [{ title: 'Team Member', primary: true }],
+    phones: [{ value: '+263 77 123 4567', type: 'work' }]
+  };
+
+  return generateAdminSignatureHtml(mockUser, mockUser.primaryEmail);
+}
+
+/**
+ * Get signature preview for a specific user
+ */
+function getUserSignaturePreview(email) {
+  try {
+    const user = AdminDirectory.Users.get(email, { projection: 'full' });
+    const signatureHtml = generateAdminSignatureHtml(user, email);
+
+    return {
+      name: user.name ? user.name.fullName : email.split('@')[0],
+      email: email,
+      signatureHtml: signatureHtml
+    };
+  } catch (error) {
+    throw new Error('Could not find user: ' + email);
+  }
+}
+
+/**
+ * Update a single user's signature from dashboard
+ */
+function updateSingleUserFromDashboard(email) {
+  try {
+    const user = AdminDirectory.Users.get(email, { projection: 'full' });
+    const aliases = getAdminUserAliases(user);
+    const allAddresses = [user.primaryEmail, ...aliases];
+    let updatedCount = 0;
+
+    allAddresses.forEach(emailAddress => {
+      const signature = generateAdminSignatureHtml(user, emailAddress);
+      Gmail.Users.Settings.SendAs.update(
+        { signature: signature },
+        user.primaryEmail,
+        emailAddress
+      );
+      updatedCount++;
+    });
+
+    return {
+      success: true,
+      updated: updatedCount,
+      user: user.name ? user.name.fullName : email
+    };
+  } catch (error) {
+    throw new Error('Failed to update signature: ' + error.message);
+  }
+}
+
+/**
+ * Update all user signatures from dashboard
+ */
+function updateAllFromDashboard() {
+  try {
+    const users = getAllDomainUsers();
+    let successCount = 0;
+    let failedCount = 0;
+
+    users.forEach(user => {
+      const aliases = getAdminUserAliases(user);
+      const allAddresses = [user.primaryEmail, ...aliases];
+
+      allAddresses.forEach(emailAddress => {
+        try {
+          const signature = generateAdminSignatureHtml(user, emailAddress);
+          Gmail.Users.Settings.SendAs.update(
+            { signature: signature },
+            user.primaryEmail,
+            emailAddress
+          );
+          successCount++;
+        } catch (err) {
+          failedCount++;
+          Logger.log('Failed for ' + emailAddress + ': ' + err.message);
+        }
+        Utilities.sleep(300);
+      });
+      Utilities.sleep(300);
+    });
+
+    return {
+      success: successCount,
+      failed: failedCount,
+      total: successCount + failedCount
+    };
+  } catch (error) {
+    throw new Error('Bulk update failed: ' + error.message);
+  }
+}
+
+/**
+ * Create daily trigger from dashboard
+ */
+function createDailyTriggerFromDashboard() {
+  try {
+    const triggers = ScriptApp.getProjectTriggers();
+    triggers.forEach(trigger => {
+      if (trigger.getHandlerFunction() === 'scheduledSignatureUpdate') {
+        ScriptApp.deleteTrigger(trigger);
+      }
+    });
+
+    ScriptApp.newTrigger('scheduledSignatureUpdate')
+      .timeBased()
+      .atHour(2)
+      .everyDays(1)
+      .create();
+
+    return { success: true, message: 'Daily trigger created' };
+  } catch (error) {
+    throw new Error('Failed to create trigger: ' + error.message);
+  }
+}
+
+/**
+ * Remove daily trigger from dashboard
+ */
+function removeDailyTriggerFromDashboard() {
+  try {
+    const triggers = ScriptApp.getProjectTriggers();
+    let removed = 0;
+
+    triggers.forEach(trigger => {
+      if (trigger.getHandlerFunction() === 'scheduledSignatureUpdate') {
+        ScriptApp.deleteTrigger(trigger);
+        removed++;
+      }
+    });
+
+    return { success: true, removed: removed };
+  } catch (error) {
+    throw new Error('Failed to remove trigger: ' + error.message);
+  }
 }

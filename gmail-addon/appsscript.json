@@ -32,6 +32,10 @@
       },
       "universalActions": [
         {
+          "label": "Open Dashboard",
+          "runFunction": "openDashboard"
+        },
+        {
           "label": "Reset Settings",
           "runFunction": "resetSettings"
         },
@@ -60,5 +64,9 @@
     }
   },
   "exceptionLogging": "STACKDRIVER",
-  "runtimeVersion": "V8"
+  "runtimeVersion": "V8",
+  "webapp": {
+    "executeAs": "USER_ACCESSING",
+    "access": "DOMAIN"
+  }
 }
