@@ -1,5 +1,27 @@
 import { Link } from 'react-router-dom'
 
+// Bee icon SVG component - represents "nyuchi" (bee in Shona)
+const BeeIcon = ({ className = "h-12 w-12" }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    {/* Bee body */}
+    <ellipse cx="12" cy="13" rx="6" ry="5" fill="#FFD740" />
+    {/* Stripes */}
+    <path d="M8 11.5h8M8 13.5h8M8 15.5h8" stroke="#5D4037" strokeWidth="1.5" strokeLinecap="round" />
+    {/* Head */}
+    <circle cx="12" cy="7" r="3" fill="#5D4037" />
+    {/* Eyes */}
+    <circle cx="10.5" cy="6.5" r="0.75" fill="#FFD740" />
+    <circle cx="13.5" cy="6.5" r="0.75" fill="#FFD740" />
+    {/* Antennae */}
+    <path d="M10 4.5C9 3 8 2.5 7.5 2.5M14 4.5C15 3 16 2.5 16.5 2.5" stroke="#5D4037" strokeWidth="1" strokeLinecap="round" />
+    {/* Wings */}
+    <ellipse cx="7" cy="10" rx="3" ry="2" fill="#5D4037" fillOpacity="0.2" />
+    <ellipse cx="17" cy="10" rx="3" ry="2" fill="#5D4037" fillOpacity="0.2" />
+    {/* Stinger */}
+    <path d="M12 18v2" stroke="#5D4037" strokeWidth="1.5" strokeLinecap="round" />
+  </svg>
+)
+
 const Home = () => {
   const tools = [
     {
@@ -68,18 +90,20 @@ const Home = () => {
   return (
     <div>
       {/* Hero Section */}
-      <div className="bg-gradient-to-br from-stone-100 to-stone-50">
+      <div className="bg-gradient-to-br from-amber-50 via-stone-50 to-stone-100">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 md:py-24">
           <div className="text-center">
-            <div className="flex justify-center mb-6">
-              <img
-                src="https://assets.nyuchi.com/logos/nyuchi/Nyuchi_Africa_Logo_dark.svg"
-                alt="Nyuchi Africa"
-                className="h-16 md:h-20"
-              />
+            <div className="flex justify-center items-center gap-3 mb-6">
+              <BeeIcon className="h-14 w-14 md:h-16 md:w-16" />
+              <span
+                className="text-4xl md:text-5xl font-bold tracking-tight"
+                style={{ fontFamily: "'Noto Serif', Georgia, serif", color: '#5D4037' }}
+              >
+                nyuchi
+              </span>
             </div>
-            <h1 className="text-3xl md:text-5xl font-bold text-stone-900 mb-4" style={{ fontFamily: "'Noto Serif', Georgia, serif" }}>
-              Workspace Tools
+            <h1 className="text-2xl md:text-4xl font-semibold text-stone-800 mb-4" style={{ fontFamily: "'Plus Jakarta Sans', Arial, sans-serif" }}>
+              workspace tools
             </h1>
             <p className="text-lg md:text-xl text-stone-600 max-w-2xl mx-auto mb-8">
               Google Workspace email signature management for Nyuchi Africa and the Bundu Family ecosystem.
@@ -87,13 +111,14 @@ const Home = () => {
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Link
                 to="/signature-generator"
-                className="px-6 py-3 bg-stone-900 text-white rounded-xl font-medium hover:bg-stone-800 transition-colors"
+                className="px-8 py-4 text-white rounded-xl font-semibold hover:opacity-90 transition-all shadow-lg hover:shadow-xl min-h-[56px] text-base md:text-lg"
+                style={{ backgroundColor: '#5D4037' }}
               >
                 Generate Signature
               </Link>
               <Link
                 to="/setup"
-                className="px-6 py-3 bg-white text-stone-900 rounded-xl font-medium border border-stone-300 hover:bg-stone-50 transition-colors"
+                className="px-8 py-4 bg-white text-stone-800 rounded-xl font-semibold border-2 border-stone-200 hover:border-amber-300 hover:bg-amber-50 transition-all min-h-[56px] text-base md:text-lg"
               >
                 Setup Guide
               </Link>
@@ -161,16 +186,16 @@ const Home = () => {
       </div>
 
       {/* CTA Section */}
-      <div className="bg-stone-900 text-white">
+      <div className="text-white" style={{ backgroundColor: '#5D4037' }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 text-center">
-          <h2 className="text-2xl font-bold mb-4">Ready to Get Started?</h2>
-          <p className="text-stone-300 mb-8 max-w-xl mx-auto">
+          <h2 className="text-2xl md:text-3xl font-bold mb-4">Ready to Get Started?</h2>
+          <p className="text-amber-100 mb-8 max-w-xl mx-auto">
             Follow our setup guide to install the Gmail Add-on or start generating signatures now.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link
               to="/setup"
-              className="px-6 py-3 bg-white text-stone-900 rounded-xl font-medium hover:bg-stone-100 transition-colors"
+              className="px-8 py-4 bg-white text-stone-900 rounded-xl font-semibold hover:bg-amber-50 transition-colors min-h-[56px] text-base md:text-lg"
             >
               View Setup Guide
             </Link>
@@ -178,7 +203,7 @@ const Home = () => {
               href="https://github.com/nyuchitech/workspace-tools"
               target="_blank"
               rel="noopener noreferrer"
-              className="px-6 py-3 bg-stone-800 text-white rounded-xl font-medium hover:bg-stone-700 transition-colors"
+              className="px-8 py-4 rounded-xl font-semibold hover:opacity-90 transition-colors min-h-[56px] text-base md:text-lg border-2 border-amber-200 text-amber-100 hover:bg-amber-900/20"
             >
               View on GitHub
             </a>
