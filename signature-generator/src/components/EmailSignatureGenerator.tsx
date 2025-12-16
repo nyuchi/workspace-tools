@@ -41,7 +41,19 @@ const EmailSignatureGenerator = () => {
   });
   const [showSignature, setShowSignature] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [copyError, setCopyError] = useState<string | null>(null);
+  const [imageErrors, setImageErrors] = useState<Record<string, boolean>>({});
   const signatureRef = useRef<HTMLDivElement>(null);
+
+  // Handle image load errors
+  const handleImageError = (imageKey: string) => {
+    setImageErrors(prev => ({ ...prev, [imageKey]: true }));
+  };
+
+  // Reset image errors when URLs change
+  useEffect(() => {
+    setImageErrors({});
+  }, [formData.profileImage, formData.promoBanner]);
 
   const brands: Record<string, {
     name: string;
@@ -136,37 +148,45 @@ const EmailSignatureGenerator = () => {
   };
 
   const handleCopy = async () => {
-    if (signatureRef.current) {
-      try {
-        // Use modern Clipboard API with HTML content
-        const htmlContent = signatureRef.current.innerHTML;
-        const textContent = signatureRef.current.innerText;
+    if (!signatureRef.current) return;
 
-        if (navigator.clipboard && typeof ClipboardItem !== 'undefined') {
-          // Modern browsers with ClipboardItem support
-          const htmlBlob = new Blob([htmlContent], { type: 'text/html' });
-          const textBlob = new Blob([textContent], { type: 'text/plain' });
-          const clipboardItem = new ClipboardItem({
-            'text/html': htmlBlob,
-            'text/plain': textBlob
-          });
-          await navigator.clipboard.write([clipboardItem]);
-        } else {
-          // Fallback for older browsers - use selection
-          const selection = window.getSelection();
-          const range = document.createRange();
-          range.selectNodeContents(signatureRef.current);
-          selection?.removeAllRanges();
-          selection?.addRange(range);
-          document.execCommand('copy');
-          selection?.removeAllRanges();
+    setCopyError(null);
+
+    try {
+      // Use modern Clipboard API with HTML content
+      const htmlContent = signatureRef.current.innerHTML;
+      const textContent = signatureRef.current.innerText;
+
+      if (navigator.clipboard && typeof ClipboardItem !== 'undefined') {
+        // Modern browsers with ClipboardItem support
+        const htmlBlob = new Blob([htmlContent], { type: 'text/html' });
+        const textBlob = new Blob([textContent], { type: 'text/plain' });
+        const clipboardItem = new ClipboardItem({
+          'text/html': htmlBlob,
+          'text/plain': textBlob
+        });
+        await navigator.clipboard.write([clipboardItem]);
+      } else {
+        // Fallback for older browsers - use selection
+        const selection = window.getSelection();
+        const range = document.createRange();
+        range.selectNodeContents(signatureRef.current);
+        selection?.removeAllRanges();
+        selection?.addRange(range);
+        const success = document.execCommand('copy');
+        selection?.removeAllRanges();
+
+        if (!success) {
+          throw new Error('Copy command failed');
         }
-
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-      } catch (err) {
-        console.error('Failed to copy:', err);
       }
+
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+      setCopyError('Failed to copy. Try selecting the signature manually and pressing Ctrl+C.');
+      setTimeout(() => setCopyError(null), 5000);
     }
   };
 
@@ -310,9 +330,14 @@ const EmailSignatureGenerator = () => {
                     name="profileImage"
                     value={formData.profileImage}
                     onChange={handleInputChange}
-                    className="w-full px-4 py-2.5 border border-stone-300 rounded-xl focus:ring-2 focus:ring-stone-400 focus:border-transparent transition-all outline-none"
+                    className={`w-full px-4 py-2.5 border rounded-xl focus:ring-2 focus:ring-stone-400 focus:border-transparent transition-all outline-none ${
+                      imageErrors['profile'] ? 'border-red-300 bg-red-50' : 'border-stone-300'
+                    }`}
                     placeholder="https://..."
                   />
+                  {imageErrors['profile'] && (
+                    <p className="text-red-500 text-xs mt-1">Failed to load image. Please check the URL.</p>
+                  )}
                 </div>
               </div>
 
@@ -380,9 +405,14 @@ const EmailSignatureGenerator = () => {
                       name="promoBanner"
                       value={formData.promoBanner}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-2.5 border border-stone-300 rounded-xl focus:ring-2 focus:ring-stone-400 focus:border-transparent transition-all text-sm outline-none"
+                      className={`w-full px-4 py-2.5 border rounded-xl focus:ring-2 focus:ring-stone-400 focus:border-transparent transition-all text-sm outline-none ${
+                        imageErrors['banner'] ? 'border-red-300 bg-red-50' : 'border-stone-300'
+                      }`}
                       placeholder="https://..."
                     />
+                    {imageErrors['banner'] && (
+                      <p className="text-red-500 text-xs mt-1">Failed to load banner.</p>
+                    )}
                   </div>
                   <div>
                     <label className="block text-sm text-stone-600 mb-1">Banner Link URL</label>
@@ -418,13 +448,22 @@ const EmailSignatureGenerator = () => {
                   className={`px-4 py-2 rounded-xl text-sm font-medium transition-all cursor-pointer ${
                     copied
                       ? 'bg-emerald-100 text-emerald-700'
+                      : copyError
+                      ? 'bg-red-100 text-red-700'
                       : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
                   }`}
                 >
-                  {copied ? '✓ Copied!' : 'Copy Signature'}
+                  {copied ? '✓ Copied!' : copyError ? '✕ Error' : 'Copy Signature'}
                 </button>
               )}
             </div>
+
+            {/* Error Toast */}
+            {copyError && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
+                {copyError}
+              </div>
+            )}
 
             <div className="border-2 border-dashed border-stone-200 rounded-xl p-4 min-h-64 bg-stone-50/50">
               {!showSignature ? (
@@ -437,7 +476,7 @@ const EmailSignatureGenerator = () => {
                   <table cellPadding="0" cellSpacing="0" style={{ fontFamily: "'Plus Jakarta Sans', Arial, sans-serif", fontSize: '14px', lineHeight: '1.5', color: colors.text, maxWidth: '500px' }}>
                     <tbody>
                       <tr>
-                        {formData.profileImage && (
+                        {formData.profileImage && !imageErrors['profile'] && (
                           <td style={{ verticalAlign: 'top', paddingRight: '16px' }}>
                             <img
                               src={sanitizeUrl(formData.profileImage)}
@@ -445,6 +484,7 @@ const EmailSignatureGenerator = () => {
                               width="80"
                               height="80"
                               style={{ borderRadius: '50%', display: 'block', objectFit: 'cover' }}
+                              onError={() => handleImageError('profile')}
                             />
                           </td>
                         )}
@@ -508,7 +548,7 @@ const EmailSignatureGenerator = () => {
                           </table>
                         </td>
                       </tr>
-                      {formData.promoBanner && (
+                      {formData.promoBanner && !imageErrors['banner'] && (
                         <>
                           <tr>
                             <td colSpan={2} style={{ paddingTop: '16px' }}></td>
@@ -521,6 +561,7 @@ const EmailSignatureGenerator = () => {
                                   alt="Promotion"
                                   width="400"
                                   style={{ display: 'block', maxWidth: '100%', height: 'auto', borderRadius: '8px' }}
+                                  onError={() => handleImageError('banner')}
                                 />
                               </a>
                             </td>
