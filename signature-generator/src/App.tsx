@@ -7,7 +7,7 @@ import Setup from './pages/Setup'
 
 function App() {
   return (
-    <BrowserRouter basename="/workspace-tools">
+    <BrowserRouter>
       <Routes>
         <Route path="/" element={<Layout />}>
           <Route index element={<Home />} />
