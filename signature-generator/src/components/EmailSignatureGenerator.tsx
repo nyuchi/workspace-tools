@@ -1,19 +1,18 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { sanitizeUrl as braintreeSanitizeUrl } from '@braintree/sanitize-url';
 
-// Sanitize URL to prevent javascript: and other dangerous protocols
+// Use braintree's sanitize-url for robust XSS protection
+// Returns 'about:blank' for dangerous URLs (javascript:, data:, etc.)
 const sanitizeUrl = (url: string): string => {
   if (!url) return '';
   const trimmed = url.trim();
-  // Only allow http, https, mailto, and tel protocols
-  if (/^(https?:|mailto:|tel:)/i.test(trimmed)) {
-    return trimmed;
+  // If no protocol and not empty, assume https
+  if (trimmed && !/^[a-z]+:/i.test(trimmed)) {
+    return braintreeSanitizeUrl(`https://${trimmed}`);
   }
-  // If no protocol, assume https
-  if (!/^[a-z]+:/i.test(trimmed)) {
-    return `https://${trimmed}`;
-  }
-  // Block dangerous protocols like javascript:, data:, etc.
-  return '';
+  const sanitized = braintreeSanitizeUrl(trimmed);
+  // braintree returns 'about:blank' for dangerous URLs
+  return sanitized === 'about:blank' ? '' : sanitized;
 };
 
 // Create safe mailto URL with proper encoding
