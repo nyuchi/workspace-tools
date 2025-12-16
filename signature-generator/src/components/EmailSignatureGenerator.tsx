@@ -16,6 +16,28 @@ const sanitizeUrl = (url: string): string => {
   return '';
 };
 
+// Create safe mailto URL with proper encoding
+const createMailtoUrl = (email: string): string => {
+  if (!email) return '';
+  return `mailto:${encodeURIComponent(email.trim())}`;
+};
+
+// Create safe tel URL with proper encoding
+const createTelUrl = (phone: string): string => {
+  if (!phone) return '';
+  // Remove spaces and encode the phone number
+  const cleanPhone = phone.replace(/\s/g, '');
+  return `tel:${encodeURIComponent(cleanPhone)}`;
+};
+
+// Create safe WhatsApp URL with proper encoding
+const createWhatsAppUrl = (phone: string): string => {
+  if (!phone) return '';
+  // Remove any non-numeric characters except + and encode
+  const cleanPhone = phone.replace(/[^\d+]/g, '');
+  return `https://wa.me/${encodeURIComponent(cleanPhone)}`;
+};
+
 // Escape HTML entities to prevent XSS - uses string replacement for safety
 const escapeHtml = (text: string): string => {
   if (!text) return '';
@@ -194,14 +216,14 @@ const EmailSignatureGenerator = () => {
         <tbody>
           <tr>
             <td style="padding-bottom: 3px;">
-              <a href="${escapeAttr(sanitizeUrl(`mailto:${formData.email}`))}" style="color: ${brandData.primaryColor}; text-decoration: none;">${escapeHtml(formData.email)}</a>
+              <a href="${escapeAttr(createMailtoUrl(formData.email))}" style="color: ${brandData.primaryColor}; text-decoration: none;">${escapeHtml(formData.email)}</a>
             </td>
           </tr>`;
 
     if (formData.phone) {
       html += `<tr>
         <td style="padding-bottom: 3px;">
-          <a href="${escapeAttr(sanitizeUrl(`tel:${formData.phone.replace(/\s/g, '')}`))} " style="color: ${brandData.primaryColor}; text-decoration: none;">${escapeHtml(formData.phone)}</a>
+          <a href="${escapeAttr(createTelUrl(formData.phone))}" style="color: ${brandData.primaryColor}; text-decoration: none;">${escapeHtml(formData.phone)}</a>
         </td>
       </tr>`;
     }
@@ -221,7 +243,7 @@ const EmailSignatureGenerator = () => {
             ${socialIconHtml(formData.twitter, 'https://cdn-icons-png.flaticon.com/512/5969/5969020.png', 'X')}
             ${socialIconHtml(formData.facebook, 'https://cdn-icons-png.flaticon.com/512/5968/5968764.png', 'Facebook')}
             ${socialIconHtml(formData.instagram, 'https://cdn-icons-png.flaticon.com/512/2111/2111463.png', 'Instagram')}
-            ${formData.whatsapp ? socialIconHtml(`https://wa.me/${formData.whatsapp}`, 'https://cdn-icons-png.flaticon.com/512/3670/3670051.png', 'WhatsApp') : ''}
+            ${formData.whatsapp ? socialIconHtml(createWhatsAppUrl(formData.whatsapp), 'https://cdn-icons-png.flaticon.com/512/3670/3670051.png', 'WhatsApp') : ''}
           </tr>
         </tbody>
       </table>
@@ -307,7 +329,7 @@ const EmailSignatureGenerator = () => {
     return (
       <td style={{ paddingRight: '8px' }}>
         <a href={safeUrl} style={{ textDecoration: 'none' }}>
-          <img src={sanitizeUrl(icon)} alt={escapeHtml(alt)} width="24" height="24" style={{ display: 'block', borderRadius: '4px' }} />
+          <img src={sanitizeUrl(icon)} alt={alt} width="24" height="24" style={{ display: 'block', borderRadius: '4px' }} />
         </a>
       </td>
     );
@@ -618,7 +640,7 @@ const EmailSignatureGenerator = () => {
                             <tbody>
                               <tr>
                                 <td style={{ paddingBottom: '3px' }}>
-                                  <a href={sanitizeUrl(`mailto:${formData.email}`)} style={{ color: currentBrand.primaryColor, textDecoration: 'none' }}>
+                                  <a href={createMailtoUrl(formData.email)} style={{ color: currentBrand.primaryColor, textDecoration: 'none' }}>
                                     {formData.email}
                                   </a>
                                 </td>
@@ -626,7 +648,7 @@ const EmailSignatureGenerator = () => {
                               {formData.phone && (
                                 <tr>
                                   <td style={{ paddingBottom: '3px' }}>
-                                    <a href={sanitizeUrl(`tel:${formData.phone.replace(/\s/g, '')}`)} style={{ color: currentBrand.primaryColor, textDecoration: 'none' }}>
+                                    <a href={createTelUrl(formData.phone)} style={{ color: currentBrand.primaryColor, textDecoration: 'none' }}>
                                       {formData.phone}
                                     </a>
                                   </td>
@@ -650,7 +672,7 @@ const EmailSignatureGenerator = () => {
                                 <SocialIcon url={formData.facebook} icon="https://cdn-icons-png.flaticon.com/512/5968/5968764.png" alt="Facebook" />
                                 <SocialIcon url={formData.instagram} icon="https://cdn-icons-png.flaticon.com/512/2111/2111463.png" alt="Instagram" />
                                 {formData.whatsapp && (
-                                  <SocialIcon url={`https://wa.me/${formData.whatsapp}`} icon="https://cdn-icons-png.flaticon.com/512/3670/3670051.png" alt="WhatsApp" />
+                                  <SocialIcon url={createWhatsAppUrl(formData.whatsapp)} icon="https://cdn-icons-png.flaticon.com/512/3670/3670051.png" alt="WhatsApp" />
                                 )}
                               </tr>
                             </tbody>
