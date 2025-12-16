@@ -1,5 +1,28 @@
 import React, { useState, useRef, useEffect } from 'react';
 
+// Sanitize URL to prevent javascript: and other dangerous protocols
+const sanitizeUrl = (url: string): string => {
+  if (!url) return '';
+  const trimmed = url.trim();
+  // Only allow http, https, mailto, and tel protocols
+  if (/^(https?:|mailto:|tel:)/i.test(trimmed)) {
+    return trimmed;
+  }
+  // If no protocol, assume https
+  if (!/^[a-z]+:/i.test(trimmed)) {
+    return `https://${trimmed}`;
+  }
+  // Block dangerous protocols like javascript:, data:, etc.
+  return '';
+};
+
+// Escape HTML entities to prevent XSS
+const escapeHtml = (text: string): string => {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+};
+
 const EmailSignatureGenerator = () => {
   const [brand, setBrand] = useState('nyuchi');
   const [formData, setFormData] = useState({
@@ -115,13 +138,30 @@ const EmailSignatureGenerator = () => {
   const handleCopy = async () => {
     if (signatureRef.current) {
       try {
-        const selection = window.getSelection();
-        const range = document.createRange();
-        range.selectNodeContents(signatureRef.current);
-        selection?.removeAllRanges();
-        selection?.addRange(range);
-        document.execCommand('copy');
-        selection?.removeAllRanges();
+        // Use modern Clipboard API with HTML content
+        const htmlContent = signatureRef.current.innerHTML;
+        const textContent = signatureRef.current.innerText;
+
+        if (navigator.clipboard && typeof ClipboardItem !== 'undefined') {
+          // Modern browsers with ClipboardItem support
+          const htmlBlob = new Blob([htmlContent], { type: 'text/html' });
+          const textBlob = new Blob([textContent], { type: 'text/plain' });
+          const clipboardItem = new ClipboardItem({
+            'text/html': htmlBlob,
+            'text/plain': textBlob
+          });
+          await navigator.clipboard.write([clipboardItem]);
+        } else {
+          // Fallback for older browsers - use selection
+          const selection = window.getSelection();
+          const range = document.createRange();
+          range.selectNodeContents(signatureRef.current);
+          selection?.removeAllRanges();
+          selection?.addRange(range);
+          document.execCommand('copy');
+          selection?.removeAllRanges();
+        }
+
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
       } catch (err) {
@@ -133,11 +173,12 @@ const EmailSignatureGenerator = () => {
   const currentBrand = brands[brand];
 
   const SocialIcon = ({ url, icon, alt }: { url: string; icon: string; alt: string }) => {
-    if (!url) return null;
+    const safeUrl = sanitizeUrl(url);
+    if (!safeUrl) return null;
     return (
       <td style={{ paddingRight: '8px' }}>
-        <a href={url} style={{ textDecoration: 'none' }}>
-          <img src={icon} alt={alt} width="24" height="24" style={{ display: 'block', borderRadius: '4px' }} />
+        <a href={safeUrl} style={{ textDecoration: 'none' }}>
+          <img src={sanitizeUrl(icon)} alt={escapeHtml(alt)} width="24" height="24" style={{ display: 'block', borderRadius: '4px' }} />
         </a>
       </td>
     );
@@ -399,7 +440,7 @@ const EmailSignatureGenerator = () => {
                         {formData.profileImage && (
                           <td style={{ verticalAlign: 'top', paddingRight: '16px' }}>
                             <img
-                              src={formData.profileImage}
+                              src={sanitizeUrl(formData.profileImage)}
                               alt="Profile"
                               width="80"
                               height="80"
@@ -428,7 +469,7 @@ const EmailSignatureGenerator = () => {
                             <tbody>
                               <tr>
                                 <td style={{ paddingBottom: '3px' }}>
-                                  <a href={`mailto:${formData.email}`} style={{ color: currentBrand.primaryColor, textDecoration: 'none' }}>
+                                  <a href={sanitizeUrl(`mailto:${formData.email}`)} style={{ color: currentBrand.primaryColor, textDecoration: 'none' }}>
                                     {formData.email}
                                   </a>
                                 </td>
@@ -436,7 +477,7 @@ const EmailSignatureGenerator = () => {
                               {formData.phone && (
                                 <tr>
                                   <td style={{ paddingBottom: '3px' }}>
-                                    <a href={`tel:${formData.phone.replace(/\s/g, '')}`} style={{ color: currentBrand.primaryColor, textDecoration: 'none' }}>
+                                    <a href={sanitizeUrl(`tel:${formData.phone.replace(/\s/g, '')}`)} style={{ color: currentBrand.primaryColor, textDecoration: 'none' }}>
                                       {formData.phone}
                                     </a>
                                   </td>
@@ -474,9 +515,9 @@ const EmailSignatureGenerator = () => {
                           </tr>
                           <tr>
                             <td colSpan={2}>
-                              <a href={formData.promoLink || '#'} style={{ textDecoration: 'none' }}>
+                              <a href={sanitizeUrl(formData.promoLink) || '#'} style={{ textDecoration: 'none' }}>
                                 <img
-                                  src={formData.promoBanner}
+                                  src={sanitizeUrl(formData.promoBanner)}
                                   alt="Promotion"
                                   width="400"
                                   style={{ display: 'block', maxWidth: '100%', height: 'auto', borderRadius: '8px' }}
