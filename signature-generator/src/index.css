@@ -1,0 +1,6 @@
+@import "tailwindcss";
+
+@theme {
+  --font-noto-serif: 'Noto Serif', Georgia, serif;
+  --font-plus-jakarta: 'Plus Jakarta Sans', Arial, sans-serif;
+}
