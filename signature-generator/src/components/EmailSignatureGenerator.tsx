@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 
 // Sanitize URL to prevent javascript: and other dangerous protocols
 const sanitizeUrl = (url: string): string => {
@@ -16,11 +16,20 @@ const sanitizeUrl = (url: string): string => {
   return '';
 };
 
-// Escape HTML entities to prevent XSS
+// Escape HTML entities to prevent XSS - uses string replacement for safety
 const escapeHtml = (text: string): string => {
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
+  if (!text) return '';
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+};
+
+// Escape attribute values
+const escapeAttr = (text: string): string => {
+  return escapeHtml(text);
 };
 
 const EmailSignatureGenerator = () => {
@@ -147,15 +156,115 @@ const EmailSignatureGenerator = () => {
     setCopied(false);
   };
 
+  // Generate signature HTML with proper escaping - avoids innerHTML XSS risks
+  const generateSignatureHtml = useCallback(() => {
+    const brandData = brands[brand];
+
+    const socialIconHtml = (url: string, iconUrl: string, alt: string) => {
+      const safeUrl = sanitizeUrl(url);
+      if (!safeUrl) return '';
+      return `<td style="padding-right: 8px;">
+        <a href="${escapeAttr(safeUrl)}" style="text-decoration: none;">
+          <img src="${escapeAttr(sanitizeUrl(iconUrl))}" alt="${escapeAttr(alt)}" width="24" height="24" style="display: block; border-radius: 4px;" />
+        </a>
+      </td>`;
+    };
+
+    let html = `<table cellpadding="0" cellspacing="0" style="font-family: 'Plus Jakarta Sans', Arial, sans-serif; font-size: 14px; line-height: 1.5; color: ${colors.text}; max-width: 500px;">
+      <tbody>
+        <tr>`;
+
+    // Profile image
+    if (formData.profileImage && !imageErrors['profile']) {
+      html += `<td style="vertical-align: top; padding-right: 16px;">
+        <img src="${escapeAttr(sanitizeUrl(formData.profileImage))}" alt="Profile" width="80" height="80" style="border-radius: 50%; display: block; object-fit: cover;" />
+      </td>`;
+    }
+
+    html += `<td style="vertical-align: top;">
+      <span style="font-family: 'Plus Jakarta Sans', Arial, sans-serif; font-size: 17px; font-weight: 700; color: ${colors.text};">${escapeHtml(formData.name)}</span>
+      <br />
+      <span style="font-size: 13px; font-weight: 500; color: ${colors.muted};">${escapeHtml(formData.title)}</span>
+      <br /><br />
+      <span style="font-family: 'Noto Serif', Georgia, serif; font-size: 15px; font-weight: 700; color: ${brandData.primaryColor};">${escapeHtml(brandData.name)}</span>
+      <br />
+      <span style="font-size: 12px; font-style: italic; color: ${colors.muted};">"${escapeHtml(brandData.tagline)}"</span>
+      <br /><br />
+      <table cellpadding="0" cellspacing="0" style="font-size: 13px; color: ${colors.muted};">
+        <tbody>
+          <tr>
+            <td style="padding-bottom: 3px;">
+              <a href="${escapeAttr(sanitizeUrl(`mailto:${formData.email}`))}" style="color: ${brandData.primaryColor}; text-decoration: none;">${escapeHtml(formData.email)}</a>
+            </td>
+          </tr>`;
+
+    if (formData.phone) {
+      html += `<tr>
+        <td style="padding-bottom: 3px;">
+          <a href="${escapeAttr(sanitizeUrl(`tel:${formData.phone.replace(/\s/g, '')}`))} " style="color: ${brandData.primaryColor}; text-decoration: none;">${escapeHtml(formData.phone)}</a>
+        </td>
+      </tr>`;
+    }
+
+    html += `<tr>
+        <td>
+          <a href="${escapeAttr(brandData.websiteUrl)}" style="color: ${brandData.primaryColor}; text-decoration: none;">${escapeHtml(brandData.website)}</a>
+        </td>
+      </tr>
+        </tbody>
+      </table>
+      <br />
+      <table cellpadding="0" cellspacing="0">
+        <tbody>
+          <tr>
+            ${socialIconHtml(formData.linkedin, 'https://cdn-icons-png.flaticon.com/512/3536/3536505.png', 'LinkedIn')}
+            ${socialIconHtml(formData.twitter, 'https://cdn-icons-png.flaticon.com/512/5969/5969020.png', 'X')}
+            ${socialIconHtml(formData.facebook, 'https://cdn-icons-png.flaticon.com/512/5968/5968764.png', 'Facebook')}
+            ${socialIconHtml(formData.instagram, 'https://cdn-icons-png.flaticon.com/512/2111/2111463.png', 'Instagram')}
+            ${formData.whatsapp ? socialIconHtml(`https://wa.me/${formData.whatsapp}`, 'https://cdn-icons-png.flaticon.com/512/3670/3670051.png', 'WhatsApp') : ''}
+          </tr>
+        </tbody>
+      </table>
+    </td>
+  </tr>`;
+
+    // Promo banner
+    if (formData.promoBanner && !imageErrors['banner']) {
+      html += `<tr>
+        <td colspan="2" style="padding-top: 16px;"></td>
+      </tr>
+      <tr>
+        <td colspan="2">
+          <a href="${escapeAttr(sanitizeUrl(formData.promoLink) || '#')}" style="text-decoration: none;">
+            <img src="${escapeAttr(sanitizeUrl(formData.promoBanner))}" alt="Promotion" width="400" style="display: block; max-width: 100%; height: auto; border-radius: 8px;" />
+          </a>
+        </td>
+      </tr>`;
+    }
+
+    html += `</tbody></table>`;
+
+    return html;
+  }, [brand, formData, imageErrors, brands, colors]);
+
+  // Generate plain text version
+  const generateSignatureText = useCallback(() => {
+    const brandData = brands[brand];
+    let text = `${formData.name}\n${formData.title}\n\n${brandData.name}\n"${brandData.tagline}"\n\n${formData.email}`;
+    if (formData.phone) text += `\n${formData.phone}`;
+    text += `\n${brandData.website}`;
+    return text;
+  }, [brand, formData, brands]);
+
   const handleCopy = async () => {
     if (!signatureRef.current) return;
 
     setCopyError(null);
 
     try {
-      // Use modern Clipboard API with HTML content
-      const htmlContent = signatureRef.current.innerHTML;
-      const textContent = signatureRef.current.innerText;
+      // Generate HTML with explicit escaping instead of reading innerHTML
+      const htmlContent = generateSignatureHtml();
+      const textContent = generateSignatureText();
 
       if (navigator.clipboard && typeof ClipboardItem !== 'undefined') {
         // Modern browsers with ClipboardItem support
@@ -167,7 +276,7 @@ const EmailSignatureGenerator = () => {
         });
         await navigator.clipboard.write([clipboardItem]);
       } else {
-        // Fallback for older browsers - use selection
+        // Fallback for older browsers - use selection on the visible element
         const selection = window.getSelection();
         const range = document.createRange();
         range.selectNodeContents(signatureRef.current);
