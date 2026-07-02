@@ -19,7 +19,7 @@ import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import type { JSONRPCMessage } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 
-const SERVER_NAME = "nyuchi-mcp";
+const SERVER_NAME = "nyuchi-tools";
 const SERVER_VERSION = "0.1.0";
 const MCP_PROTOCOL_VERSION = "2024-11-05";
 
