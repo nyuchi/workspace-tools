@@ -389,7 +389,6 @@ const EmailSignatureGenerator = () => {
   const activeMineral = brandMineral[brand] || 'cobalt';
   const mineralColor = `var(--color-${activeMineral})`;
   const mineralContainer = `var(--container-${activeMineral})`;
-  void mineralContainer;
 
   const SocialIcon = ({ url, icon, alt }: { url: string; icon: string; alt: string }) => {
     const safeUrl = sanitizeUrl(url);
