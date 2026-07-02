@@ -17,7 +17,7 @@
     "deploy:signature": "cd email-signature && clasp deploy",
     "build:web": "npm run build --prefix signature-generator",
     "dev:tools": "wrangler dev",
-    "deploy:tools": "npm run build:web && wrangler deploy",
+    "deploy:tools": "wrangler deploy",
     "typecheck:worker": "tsc --noEmit -p mcp/tsconfig.json"
   },
   "keywords": [
