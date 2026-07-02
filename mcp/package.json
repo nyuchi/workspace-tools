@@ -1,0 +1,23 @@
+{
+  "name": "@nyuchi/mcp-tools",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Model Context Protocol server for Nyuchi workspace tools (email signatures, studio cards, article banners). Deployed on Cloudflare Workers at tools.nyuchi.com/mcp.",
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "types": "wrangler types"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "hono": "^4.6.0",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260101.0",
+    "typescript": "^5.6.0",
+    "wrangler": "^3.90.0"
+  }
+}
