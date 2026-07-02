@@ -1,0 +1,12 @@
+name = "nyuchi-mcp"
+main = "src/index.ts"
+compatibility_date = "2026-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Bind this Worker to tools.nyuchi.com/mcp/*. The zone `nyuchi.com` must
+# already exist in Cloudflare. Workers routes take precedence over Pages
+# for the matched path, so the sibling signature-generator/ Pages deploy
+# at tools.nyuchi.com keeps serving everything except /mcp/*.
+[[routes]]
+pattern = "tools.nyuchi.com/mcp/*"
+zone_name = "nyuchi.com"
