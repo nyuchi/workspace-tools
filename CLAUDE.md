@@ -10,17 +10,19 @@ Sub-projects for managing Nyuchi Africa email signatures and design assets. They
 |-----------|-------|---------|---------------|
 | `gmail-addon/` | Google Apps Script (V8) | Gmail Add-on (CardService UI) + admin web dashboard | Apps Script via clasp |
 | `email-signature/` | Google Apps Script (V8) | Admin batch script: push signatures to all domain users & aliases | Apps Script via clasp |
-| `signature-generator/` | React 19 + TypeScript + Vite | Standalone web app: signature builder, Nyuchi Studio (social cards), banner generator, setup docs | GitHub Pages (`tools.nyuchi.com`) |
-| `mcp/` | Cloudflare Workers + Hono + `@modelcontextprotocol/sdk` | MCP HTTP server exposing signature / studio-card / banner generation as tools | Cloudflare Workers route `tools.nyuchi.com/mcp/*` |
+| `signature-generator/` | React 19 + TypeScript + Vite | Standalone web app: signature builder, Nyuchi Studio (social cards), banner generator, setup docs | Bundled into the `nyuchi-tools` Worker as static assets |
+| `mcp/` | Cloudflare Workers + Hono + `@modelcontextprotocol/sdk` | The `nyuchi-tools` Worker: serves the built SPA **and** the MCP HTTP server | Cloudflare Workers route `tools.nyuchi.com/*` |
 
 The repo root is an npm workspace covering the two Apps Script projects; `signature-generator/` and `mcp/` are separate npm projects with their own lockfiles.
 
 ## URL layout on `tools.nyuchi.com`
 
-- `/`, `/gmail-addon`, `/signature-generator`, `/studio`, `/banner`, `/setup` → GitHub Pages (SPA)
-- `/mcp/*` → Cloudflare Worker (MCP server)
+One Cloudflare Worker (`nyuchi-tools`, defined in `mcp/`) serves the whole hostname via the route `tools.nyuchi.com/*`:
 
-The Cloudflare Worker route takes precedence over the Pages site for that path prefix. GitHub Pages' SPA `404.html` fallback handles unknown SPA routes; real files under `public/*` (including the vendored fonts and assets) resolve directly.
+- `/mcp` and `/mcp/*` → MCP JSON-RPC handler (`assets.run_worker_first` sends these to the Worker script)
+- everything else → the built SPA from `signature-generator/dist` as static assets, with `single-page-application` fallback for client-side routes
+
+GitHub Pages is **no longer used** — the DNS record is a proxied Workers-only placeholder (`AAAA 100::`), not a CNAME to GitHub. **The SPA must be built before deploying the Worker** (`cd signature-generator && npm run build`), since `mcp/wrangler.toml` points its assets directory at `../signature-generator/dist`.
 
 ## Commands
 
@@ -105,6 +107,6 @@ All signature HTML is assembled from user input by hand. Both Apps Script files 
 
 ## Deployment
 
-- `signature-generator/` auto-deploys to GitHub Pages via `.github/workflows/deploy.yml` on push to `main`, but **only when files under `signature-generator/**` change**. Custom domain comes from `signature-generator/public/CNAME`.
-- `mcp/` deploys manually via `wrangler deploy`. The Workers route pattern in `wrangler.toml` binds `tools.nyuchi.com/mcp/*` and takes precedence over Pages for that path.
+- The whole web surface deploys as one Worker: `cd signature-generator && npm run build`, then `cd ../mcp && npm run deploy` (wrangler picks up `CLOUDFLARE_API_TOKEN`; the account is pinned in `wrangler.toml`). Workers Builds (GitHub app) is the intended CI path — root dir `mcp`, deploy `npx wrangler deploy`, watch paths `mcp/**` and `signature-generator/**`.
+- There is no GitHub Pages deployment anymore; don't resurrect `.github/workflows/deploy.yml` or `public/CNAME`.
 - Apps Script projects deploy manually with the clasp `deploy:*` scripts; there is no CI for them.

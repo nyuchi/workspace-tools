@@ -14,8 +14,9 @@ directory = "../signature-generator/dist"
 not_found_handling = "single-page-application"
 run_worker_first = ["/mcp", "/mcp/*"]
 
-# The `nyuchi.com` zone must exist in Cloudflare and tools.nyuchi.com must be
-# a proxied DNS record for the route to take effect.
+# Workers Custom Domain: Cloudflare creates and manages the DNS record and
+# certificate for tools.nyuchi.com itself, and the Worker receives all paths
+# on the hostname. The `nyuchi.com` zone must exist in Cloudflare.
 [[routes]]
-pattern = "tools.nyuchi.com/*"
-zone_name = "nyuchi.com"
+pattern = "tools.nyuchi.com"
+custom_domain = true
