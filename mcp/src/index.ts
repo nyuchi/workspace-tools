@@ -18,6 +18,13 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import type { JSONRPCMessage } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
+import {
+  type AuthEnv,
+  authConfigured,
+  protectedResourceMetadata,
+  verifyBearer,
+  wwwAuthenticateHeader,
+} from "./auth.js";
 
 const SERVER_NAME = "nyuchi-tools";
 const SERVER_VERSION = "0.1.0";
@@ -206,28 +213,57 @@ function escapeHtml(input: string): string {
 // Hono HTTP surface.
 // -----------------------------------------------------------------------------
 
-const app = new Hono();
+const app = new Hono<{ Bindings: AuthEnv }>();
 
-// This MCP server has NO authentication. MCP clients (e.g. claude.ai
-// connectors) probe OAuth discovery endpoints before connecting; without
-// explicit JSON 404s here, the SPA fallback would answer 200 text/html and
-// clients would conclude a (broken) sign-in service exists. These paths are
-// routed to the Worker via assets.run_worker_first in wrangler.toml.
+// OAuth surface. Behavior is driven by the AUTHKIT_DOMAIN Worker var:
+//
+//   unset → the MCP server is OPEN. Discovery endpoints return JSON 404s so
+//     MCP clients (e.g. claude.ai connectors) conclude "no sign-in needed"
+//     instead of hitting the SPA fallback's 200 text/html and inventing a
+//     broken sign-in service.
+//
+//   set → WorkOS Connect protects /mcp. The protected-resource metadata
+//     advertises the WorkOS authorization server; client registration and
+//     the actual OAuth flow happen on WorkOS, not here.
+//
+// These paths reach the Worker via assets.run_worker_first in wrangler.toml.
+app.all("/.well-known/oauth-protected-resource", (c) => {
+  if (authConfigured(c.env)) return c.json(protectedResourceMetadata(c.env));
+  return c.json(
+    { error: "no_protected_resource_metadata", detail: "This MCP server does not require authentication." },
+    404,
+  );
+});
+app.all("/.well-known/oauth-protected-resource/*", (c) => {
+  if (authConfigured(c.env)) return c.json(protectedResourceMetadata(c.env));
+  return c.json(
+    { error: "no_protected_resource_metadata", detail: "This MCP server does not require authentication." },
+    404,
+  );
+});
 app.all("/.well-known/oauth-authorization-server", (c) =>
-  c.json({ error: "no_authorization_server", detail: "This MCP server does not require authentication." }, 404),
+  c.json({ error: "no_authorization_server", detail: "Authorization is handled by WorkOS; see oauth-protected-resource metadata." }, 404),
 );
 app.all("/.well-known/oauth-authorization-server/*", (c) =>
-  c.json({ error: "no_authorization_server", detail: "This MCP server does not require authentication." }, 404),
-);
-app.all("/.well-known/oauth-protected-resource", (c) =>
-  c.json({ error: "no_protected_resource_metadata", detail: "This MCP server does not require authentication." }, 404),
-);
-app.all("/.well-known/oauth-protected-resource/*", (c) =>
-  c.json({ error: "no_protected_resource_metadata", detail: "This MCP server does not require authentication." }, 404),
+  c.json({ error: "no_authorization_server", detail: "Authorization is handled by WorkOS; see oauth-protected-resource metadata." }, 404),
 );
 app.all("/register", (c) =>
-  c.json({ error: "registration_not_supported", detail: "This MCP server does not require authentication." }, 404),
+  c.json({ error: "registration_not_supported", detail: "Client registration is handled by the WorkOS authorization server." }, 404),
 );
+
+// Bearer-token gate for /mcp — no-op until AUTHKIT_DOMAIN is configured.
+app.use("/mcp", async (c, next) => {
+  if (!authConfigured(c.env)) return next();
+  const verified = await verifyBearer(c.env, c.req.header("Authorization"));
+  if (!verified) {
+    return c.json(
+      { error: "unauthorized", detail: "Valid bearer token required." },
+      401,
+      { "WWW-Authenticate": wwwAuthenticateHeader(c.env) },
+    );
+  }
+  return next();
+});
 
 // Discovery: cheap identity ping for clients probing the endpoint.
 app.get("/mcp", (c) => {
