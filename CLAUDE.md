@@ -72,17 +72,23 @@ The React app's design system is a mirror of the Mzizi brand registry (Bundu eco
 Nyuchi's canonical mineral is **gold** (`#FFD740`). Every other brand has its own — the mapping lives in `EmailSignatureGenerator.tsx`.
 
 ### Brand config is duplicated across the Apps Script side, not shared
-The two Apps Script projects hardcode their own brand/division list:
+The TypeScript side has ONE canonical brand config + signature template:
+`signature-generator/src/engines/signature/index.ts` (`BRANDS`,
+`buildSignatureHtml`, `buildSignatureText`) — a pure module imported by both
+the SPA component and the Worker's `generate_email_signature` MCP tool. The
+two Apps Script projects still hardcode their own brand/division list (Apps
+Script cannot import npm modules):
 - `gmail-addon/Code.js` → `BRANDS` object (keyed by brand slug, e.g. `nyuchi`, `mukoko`).
 - `email-signature/Code.js` → `CONFIG.divisions` (keyed by **email domain**, e.g. `lingo.nyuchi.com`).
-- `signature-generator/src/components/EmailSignatureGenerator.tsx` → its own brand map.
 
-A brand or social-link change must be applied in all three. The two Apps Script files also differ in shape (slug-keyed vs domain-keyed) and in logo URLs (`assets.nyuchi.com` CDN vs raw GitHub).
+A brand or social-link change must be applied in the engine module and both
+Apps Script files. The two Apps Script files also differ in shape (slug-keyed
+vs domain-keyed) and in logo URLs (`assets.nyuchi.com` CDN vs raw GitHub).
 
 ### The emitted email-signature HTML is separate from the SPA UI
 `EmailSignatureGenerator.tsx` has two visual surfaces:
 - **SPA UI** — the form the user fills in. Restyled to the Mzizi mineral / dark design system.
-- **Emitted signature HTML** — the string this component copies into Gmail. This uses the historical Nyuchi purple `#5f5873` + Plus Jakarta Sans / Noto Serif and must match the two Apps Script files so signatures render consistently across every recipient's inbox.
+- **Emitted signature HTML** — the string this component copies into Gmail, built by `src/engines/signature/index.ts` (`buildSignatureHtml`). This uses the historical signature styling (Plus Jakarta Sans / Noto Serif, brand primary colors) and must match the two Apps Script files so signatures render consistently across every recipient's inbox. Change it only in the engine module, never per-surface.
 
 Don't accidentally restyle the emitted HTML when working on the SPA UI. The distinction is important: the SPA is behind the studio's mineral tokens; the signature markup is brand-locked to the historical Nyuchi purple.
 
