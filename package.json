@@ -48,6 +48,7 @@
   },
   "homepage": "https://github.com/nyuchitech/workspace-tools#readme",
   "dependencies": {
+    "@braintree/sanitize-url": "^7.1.1",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "hono": "^4.6.0",
     "jose": "^6.2.3",
