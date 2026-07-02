@@ -53,6 +53,42 @@ const escapeAttr = (text: string): string => {
   return escapeHtml(text);
 };
 
+// Token-driven pill input used across the SPA form.
+// Behavioural props (name/value/onChange/etc.) flow through; visual styling is
+// token-only so light/dark switching via [data-theme] just works.
+type TokenInputProps = React.InputHTMLAttributes<HTMLInputElement> & { hasError?: boolean };
+const TokenInput = ({ hasError, onFocus, onBlur, ...rest }: TokenInputProps) => (
+  <input
+    {...rest}
+    onFocus={(e) => {
+      e.currentTarget.style.boxShadow = hasError
+        ? '0 0 0 2px var(--error)'
+        : '0 0 0 2px var(--ring)';
+      onFocus?.(e);
+    }}
+    onBlur={(e) => {
+      e.currentTarget.style.boxShadow = hasError
+        ? '0 0 0 1px var(--error)'
+        : 'var(--ring-1)';
+      onBlur?.(e);
+    }}
+    style={{
+      width: '100%',
+      height: 'var(--h-input-sm)',
+      padding: '0 20px',
+      borderRadius: 'var(--radius-full)',
+      background: hasError ? 'var(--destructive-container)' : 'var(--input)',
+      color: 'var(--foreground)',
+      fontFamily: 'var(--font-sans)',
+      fontSize: 'var(--fs-body)',
+      boxShadow: hasError ? '0 0 0 1px var(--error)' : 'var(--ring-1)',
+      outline: 'none',
+      border: 'none',
+      transition: 'box-shadow 120ms ease',
+    }}
+  />
+);
+
 const EmailSignatureGenerator = () => {
   const [brand, setBrand] = useState('nyuchi');
   const [formData, setFormData] = useState({
@@ -74,6 +110,25 @@ const EmailSignatureGenerator = () => {
   const [copyError, setCopyError] = useState<string | null>(null);
   const [imageErrors, setImageErrors] = useState<Record<string, boolean>>({});
   const signatureRef = useRef<HTMLDivElement>(null);
+
+  // Theme (dark by default, persisted). Sync <html data-theme=…> so token
+  // variables in tokens.css flip; the SPA UI reads from those tokens only.
+  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
+    if (typeof window === 'undefined') return 'dark';
+    return window.localStorage.getItem('nyuchi-theme') === 'light' ? 'light' : 'dark';
+  });
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    document.documentElement.dataset.theme = theme;
+    try {
+      window.localStorage.setItem('nyuchi-theme', theme);
+    } catch {
+      /* localStorage unavailable — ignore */
+    }
+  }, [theme]);
+
+  const toggleTheme = () => setTheme((t) => (t === 'dark' ? 'light' : 'dark'));
 
   // Handle image load errors
   const handleImageError = (imageKey: string) => {
@@ -322,6 +377,20 @@ const EmailSignatureGenerator = () => {
 
   const currentBrand = brands[brand];
 
+  // Brand -> Mzizi mineral. Drives SPA UI accent (chip border, ring, primary
+  // button, "How to use" panel). Does NOT affect the emitted signature HTML,
+  // which continues to use brands[brand].primaryColor.
+  const brandMineral: Record<string, string> = {
+    nyuchi: 'gold',
+    mukoko: 'tanzanite',
+    travel: 'malachite',
+    learning: 'cobalt',
+  };
+  const activeMineral = brandMineral[brand] || 'cobalt';
+  const mineralColor = `var(--color-${activeMineral})`;
+  const mineralContainer = `var(--container-${activeMineral})`;
+  void mineralContainer;
+
   const SocialIcon = ({ url, icon, alt }: { url: string; icon: string; alt: string }) => {
     const safeUrl = sanitizeUrl(url);
     if (!safeUrl) return null;
@@ -341,227 +410,339 @@ const EmailSignatureGenerator = () => {
     learning: 'Learning'
   };
 
+  // Reusable inline styles for SPA chrome. Kept inside render so tokens are
+  // referenced as CSS vars (no JS-side theme branching needed).
+  const captionStyle: React.CSSProperties = {
+    fontFamily: 'var(--font-mono)',
+    fontSize: 'var(--fs-caption)',
+    letterSpacing: '0.14em',
+    textTransform: 'uppercase',
+    color: 'var(--muted-foreground)',
+    margin: 0,
+  };
+  const sectionHeadingStyle: React.CSSProperties = {
+    ...captionStyle,
+    paddingBottom: 'var(--space-sm)',
+    borderBottom: '1px solid var(--border)',
+  };
+  const fieldLabelStyle: React.CSSProperties = {
+    display: 'block',
+    marginBottom: 'var(--space-xs-plus)',
+    fontFamily: 'var(--font-sans)',
+    fontSize: 'var(--fs-small)',
+    color: 'var(--muted-foreground)',
+  };
+  const cardStyle: React.CSSProperties = {
+    background: 'var(--surface)',
+    borderRadius: 'var(--radius-lg)',
+    boxShadow: 'var(--ring-1), var(--shadow-sm)',
+  };
+  const requiredMark = <span style={{ color: 'var(--error)' }}>*</span>;
+
   return (
-    <div className="min-h-screen bg-stone-50 p-4 md:p-6">
+    <div
+      className="min-h-screen p-4 md:p-6"
+      style={{
+        background: 'var(--background)',
+        color: 'var(--foreground)',
+        fontFamily: 'var(--font-sans)',
+      }}
+    >
       <div className="max-w-5xl mx-auto">
+        {/* Theme toggle */}
+        <div className="flex justify-end mb-4">
+          <button
+            type="button"
+            onClick={toggleTheme}
+            aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+            className="inline-flex items-center gap-2"
+            style={{
+              minHeight: 'var(--min-touch)',
+              padding: '0 var(--space-base)',
+              borderRadius: 'var(--radius-full)',
+              background: 'var(--surface)',
+              color: 'var(--foreground)',
+              boxShadow: 'var(--ring-1)',
+              fontFamily: 'var(--font-mono)',
+              fontSize: 'var(--fs-caption)',
+              letterSpacing: '0.14em',
+              textTransform: 'uppercase',
+              border: 'none',
+              cursor: 'pointer',
+            }}
+          >
+            <span aria-hidden="true">{theme === 'dark' ? '☀️' : '☽'}</span>
+            <span>{theme === 'dark' ? 'Light' : 'Dark'}</span>
+          </button>
+        </div>
+
         {/* Header */}
         <div className="text-center mb-8">
           <div className="flex items-center justify-center gap-2 mb-3">
-            <span className="text-2xl">&#x1F41D;</span>
-            <h1 className="text-2xl md:text-3xl font-bold text-stone-800" style={{ fontFamily: "'Noto Serif', Georgia, serif" }}>
+            <span className="text-2xl" aria-hidden="true">&#x1F41D;</span>
+            <h1
+              style={{
+                fontFamily: 'var(--font-serif)',
+                fontSize: 'var(--fs-h3)',
+                lineHeight: 'var(--lh-h3)',
+                fontWeight: 700,
+                color: 'var(--foreground)',
+                margin: 0,
+              }}
+            >
               Email Signature Generator
             </h1>
           </div>
-          <p className="text-stone-600">Create your branded email signature for the Bundu Family ecosystem</p>
+          <p style={{ color: 'var(--muted-foreground)', fontSize: 'var(--fs-body)', margin: 0 }}>
+            Create your branded email signature for the Bundu Family ecosystem
+          </p>
         </div>
 
         <div className="grid lg:grid-cols-2 gap-6">
           {/* Form */}
-          <div className="bg-white rounded-2xl shadow-sm border border-stone-200 p-6">
+          <div className="p-6" style={cardStyle}>
             <form onSubmit={handleGenerate}>
               {/* Brand Selection */}
               <div className="mb-6">
-                <label className="block text-sm font-semibold text-stone-700 mb-3">Select Brand</label>
+                <div className="mb-3" style={captionStyle}>Select Brand</div>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                  {Object.entries(brands).map(([key, value]) => (
-                    <button
-                      key={key}
-                      type="button"
-                      onClick={() => setBrand(key)}
-                      className={`p-3 rounded-xl text-sm font-medium transition-all border-2 ${
-                        brand === key
-                          ? 'border-current shadow-sm'
-                          : 'bg-stone-50 border-transparent text-stone-600 hover:bg-stone-100'
-                      }`}
-                      style={brand === key ? {
-                        backgroundColor: `${value.primaryColor}15`,
-                        borderColor: value.primaryColor,
-                        color: value.primaryColor
-                      } : {}}
-                    >
-                      {brandLabels[key]}
-                    </button>
-                  ))}
+                  {Object.entries(brands).map(([key]) => {
+                    const isActive = brand === key;
+                    const mineralKey = brandMineral[key] || 'cobalt';
+                    const chipColor = `var(--color-${mineralKey})`;
+                    const chipContainer = `var(--container-${mineralKey})`;
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => setBrand(key)}
+                        className="transition-all"
+                        style={{
+                          minHeight: 'var(--h-button-sm)',
+                          padding: '0 var(--space-base)',
+                          borderRadius: 'var(--radius-full)',
+                          fontFamily: 'var(--font-sans)',
+                          fontSize: 'var(--fs-small)',
+                          fontWeight: 600,
+                          background: isActive ? chipContainer : 'var(--muted)',
+                          color: isActive ? chipColor : 'var(--muted-foreground)',
+                          boxShadow: isActive
+                            ? `inset 0 0 0 2px ${chipColor}`
+                            : 'var(--ring-1)',
+                          border: 'none',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {brandLabels[key]}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
               {/* Personal Info */}
               <div className="space-y-4 mb-6">
-                <h3 className="font-semibold text-stone-800 border-b border-stone-200 pb-2">Personal Information</h3>
+                <h3 style={sectionHeadingStyle}>Personal Information</h3>
 
-                <div>
-                  <label className="block text-sm text-stone-600 mb-1">Full Name <span className="text-red-500">*</span></label>
-                  <input
+                <label className="block">
+                  <span style={fieldLabelStyle}>Full Name {requiredMark}</span>
+                  <TokenInput
                     type="text"
                     name="name"
                     value={formData.name}
                     onChange={handleInputChange}
                     required
-                    className="w-full px-4 py-2.5 border border-stone-300 rounded-xl focus:ring-2 focus:ring-stone-400 focus:border-transparent transition-all outline-none"
                     placeholder="Bryan Fawcett"
                   />
-                </div>
+                </label>
 
-                <div>
-                  <label className="block text-sm text-stone-600 mb-1">Job Title <span className="text-red-500">*</span></label>
-                  <input
+                <label className="block">
+                  <span style={fieldLabelStyle}>Job Title {requiredMark}</span>
+                  <TokenInput
                     type="text"
                     name="title"
                     value={formData.title}
                     onChange={handleInputChange}
                     required
-                    className="w-full px-4 py-2.5 border border-stone-300 rounded-xl focus:ring-2 focus:ring-stone-400 focus:border-transparent transition-all outline-none"
                     placeholder="CEO & Founder"
                   />
-                </div>
+                </label>
 
-                <div>
-                  <label className="block text-sm text-stone-600 mb-1">Email <span className="text-red-500">*</span></label>
-                  <input
+                <label className="block">
+                  <span style={fieldLabelStyle}>Email {requiredMark}</span>
+                  <TokenInput
                     type="email"
                     name="email"
                     value={formData.email}
                     onChange={handleInputChange}
                     required
-                    className="w-full px-4 py-2.5 border border-stone-300 rounded-xl focus:ring-2 focus:ring-stone-400 focus:border-transparent transition-all outline-none"
                     placeholder="bryan@nyuchi.com"
                   />
-                </div>
+                </label>
 
                 <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-sm text-stone-600 mb-1">Phone</label>
-                    <input
+                  <label className="block">
+                    <span style={fieldLabelStyle}>Phone</span>
+                    <TokenInput
                       type="tel"
                       name="phone"
                       value={formData.phone}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-2.5 border border-stone-300 rounded-xl focus:ring-2 focus:ring-stone-400 focus:border-transparent transition-all outline-none"
                       placeholder="+65 9814 3374"
                     />
-                  </div>
-                  <div>
-                    <label className="block text-sm text-stone-600 mb-1">WhatsApp</label>
-                    <input
+                  </label>
+                  <label className="block">
+                    <span style={fieldLabelStyle}>WhatsApp</span>
+                    <TokenInput
                       type="text"
                       name="whatsapp"
                       value={formData.whatsapp}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-2.5 border border-stone-300 rounded-xl focus:ring-2 focus:ring-stone-400 focus:border-transparent transition-all outline-none"
                       placeholder="263771234567"
                     />
-                  </div>
+                  </label>
                 </div>
 
-                <div>
-                  <label className="block text-sm text-stone-600 mb-1">Profile Image URL</label>
-                  <input
+                <label className="block">
+                  <span style={fieldLabelStyle}>Profile Image URL</span>
+                  <TokenInput
                     type="url"
                     name="profileImage"
                     value={formData.profileImage}
                     onChange={handleInputChange}
-                    className={`w-full px-4 py-2.5 border rounded-xl focus:ring-2 focus:ring-stone-400 focus:border-transparent transition-all outline-none ${
-                      imageErrors['profile'] ? 'border-red-300 bg-red-50' : 'border-stone-300'
-                    }`}
+                    hasError={!!imageErrors['profile']}
                     placeholder="https://..."
                   />
                   {imageErrors['profile'] && (
-                    <p className="text-red-500 text-xs mt-1">Failed to load image. Please check the URL.</p>
+                    <p
+                      style={{
+                        color: 'var(--error)',
+                        fontSize: 'var(--fs-caption)',
+                        marginTop: 'var(--space-xs)',
+                      }}
+                    >
+                      Failed to load image. Please check the URL.
+                    </p>
                   )}
-                </div>
+                </label>
               </div>
 
               {/* Social Links */}
               <div className="space-y-4 mb-6">
-                <h3 className="font-semibold text-stone-800 border-b border-stone-200 pb-2">Social Links</h3>
+                <h3 style={sectionHeadingStyle}>Social Links</h3>
 
                 <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-sm text-stone-600 mb-1">LinkedIn</label>
-                    <input
+                  <label className="block">
+                    <span style={fieldLabelStyle}>LinkedIn</span>
+                    <TokenInput
                       type="url"
                       name="linkedin"
                       value={formData.linkedin}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-2.5 border border-stone-300 rounded-xl focus:ring-2 focus:ring-stone-400 focus:border-transparent transition-all text-sm outline-none"
                       placeholder="https://linkedin.com/in/..."
                     />
-                  </div>
-                  <div>
-                    <label className="block text-sm text-stone-600 mb-1">X / Twitter</label>
-                    <input
+                  </label>
+                  <label className="block">
+                    <span style={fieldLabelStyle}>X / Twitter</span>
+                    <TokenInput
                       type="url"
                       name="twitter"
                       value={formData.twitter}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-2.5 border border-stone-300 rounded-xl focus:ring-2 focus:ring-stone-400 focus:border-transparent transition-all text-sm outline-none"
                       placeholder="https://x.com/..."
                     />
-                  </div>
-                  <div>
-                    <label className="block text-sm text-stone-600 mb-1">Facebook</label>
-                    <input
+                  </label>
+                  <label className="block">
+                    <span style={fieldLabelStyle}>Facebook</span>
+                    <TokenInput
                       type="url"
                       name="facebook"
                       value={formData.facebook}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-2.5 border border-stone-300 rounded-xl focus:ring-2 focus:ring-stone-400 focus:border-transparent transition-all text-sm outline-none"
                       placeholder="https://facebook.com/..."
                     />
-                  </div>
-                  <div>
-                    <label className="block text-sm text-stone-600 mb-1">Instagram</label>
-                    <input
+                  </label>
+                  <label className="block">
+                    <span style={fieldLabelStyle}>Instagram</span>
+                    <TokenInput
                       type="url"
                       name="instagram"
                       value={formData.instagram}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-2.5 border border-stone-300 rounded-xl focus:ring-2 focus:ring-stone-400 focus:border-transparent transition-all text-sm outline-none"
                       placeholder="https://instagram.com/..."
                     />
-                  </div>
+                  </label>
                 </div>
               </div>
 
               {/* Promo Banner */}
               <div className="space-y-4 mb-6">
-                <h3 className="font-semibold text-stone-800 border-b border-stone-200 pb-2">Promo Banner <span className="text-stone-400 font-normal">(optional)</span></h3>
+                <h3 style={sectionHeadingStyle}>
+                  Promo Banner{' '}
+                  <span
+                    style={{
+                      textTransform: 'none',
+                      letterSpacing: 0,
+                      fontFamily: 'var(--font-sans)',
+                      color: 'var(--muted-foreground)',
+                    }}
+                  >
+                    (optional)
+                  </span>
+                </h3>
 
                 <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-sm text-stone-600 mb-1">Banner Image URL</label>
-                    <input
+                  <label className="block">
+                    <span style={fieldLabelStyle}>Banner Image URL</span>
+                    <TokenInput
                       type="url"
                       name="promoBanner"
                       value={formData.promoBanner}
                       onChange={handleInputChange}
-                      className={`w-full px-4 py-2.5 border rounded-xl focus:ring-2 focus:ring-stone-400 focus:border-transparent transition-all text-sm outline-none ${
-                        imageErrors['banner'] ? 'border-red-300 bg-red-50' : 'border-stone-300'
-                      }`}
+                      hasError={!!imageErrors['banner']}
                       placeholder="https://..."
                     />
                     {imageErrors['banner'] && (
-                      <p className="text-red-500 text-xs mt-1">Failed to load banner.</p>
+                      <p
+                        style={{
+                          color: 'var(--error)',
+                          fontSize: 'var(--fs-caption)',
+                          marginTop: 'var(--space-xs)',
+                        }}
+                      >
+                        Failed to load banner.
+                      </p>
                     )}
-                  </div>
-                  <div>
-                    <label className="block text-sm text-stone-600 mb-1">Banner Link URL</label>
-                    <input
+                  </label>
+                  <label className="block">
+                    <span style={fieldLabelStyle}>Banner Link URL</span>
+                    <TokenInput
                       type="url"
                       name="promoLink"
                       value={formData.promoLink}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-2.5 border border-stone-300 rounded-xl focus:ring-2 focus:ring-stone-400 focus:border-transparent transition-all text-sm outline-none"
                       placeholder="https://..."
                     />
-                  </div>
+                  </label>
                 </div>
               </div>
 
               <button
                 type="submit"
-                className="w-full py-3 px-4 text-white font-semibold rounded-xl transition-all hover:opacity-90 active:scale-[0.98] cursor-pointer"
-                style={{ backgroundColor: currentBrand.primaryColor }}
+                className="w-full transition-transform active:scale-[0.98]"
+                style={{
+                  height: 'var(--h-button-default)',
+                  padding: '0 var(--space-lg)',
+                  borderRadius: 'var(--radius-full)',
+                  background: mineralColor,
+                  color: 'var(--primary-foreground)',
+                  fontFamily: 'var(--font-sans)',
+                  fontSize: 'var(--fs-body)',
+                  fontWeight: 700,
+                  border: 'none',
+                  cursor: 'pointer',
+                  boxShadow: 'var(--shadow-sm)',
+                }}
               >
                 Generate Signature
               </button>
@@ -569,19 +750,34 @@ const EmailSignatureGenerator = () => {
           </div>
 
           {/* Preview */}
-          <div className="bg-white rounded-2xl shadow-sm border border-stone-200 p-6">
+          <div className="p-6" style={cardStyle}>
             <div className="flex justify-between items-center mb-4">
-              <h3 className="font-semibold text-stone-800">Preview</h3>
+              <h3 style={captionStyle}>Preview</h3>
               {showSignature && (
                 <button
                   onClick={handleCopy}
-                  className={`px-4 py-2 rounded-xl text-sm font-medium transition-all cursor-pointer ${
-                    copied
-                      ? 'bg-emerald-100 text-emerald-700'
+                  className="transition-colors"
+                  style={{
+                    minHeight: 'var(--h-button-sm)',
+                    padding: '0 var(--space-lg)',
+                    borderRadius: 'var(--radius-full)',
+                    fontFamily: 'var(--font-sans)',
+                    fontSize: 'var(--fs-small)',
+                    fontWeight: 600,
+                    border: 'none',
+                    cursor: 'pointer',
+                    background: copied
+                      ? 'var(--container-malachite)'
                       : copyError
-                      ? 'bg-red-100 text-red-700'
-                      : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
-                  }`}
+                      ? 'var(--destructive-container)'
+                      : 'var(--muted)',
+                    color: copied
+                      ? 'var(--color-malachite)'
+                      : copyError
+                      ? 'var(--error)'
+                      : 'var(--foreground)',
+                    boxShadow: 'var(--ring-1)',
+                  }}
                 >
                   {copied ? '✓ Copied!' : copyError ? '✕ Error' : 'Copy Signature'}
                 </button>
@@ -590,16 +786,37 @@ const EmailSignatureGenerator = () => {
 
             {/* Error Toast */}
             {copyError && (
-              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
+              <div
+                className="mb-4 p-3"
+                style={{
+                  background: 'var(--destructive-container)',
+                  color: 'var(--error)',
+                  borderRadius: 'var(--radius-md)',
+                  boxShadow: '0 0 0 1px var(--error)',
+                  fontSize: 'var(--fs-small)',
+                }}
+              >
                 {copyError}
               </div>
             )}
 
-            <div className="border-2 border-dashed border-stone-200 rounded-xl p-4 min-h-64 bg-stone-50/50">
+            <div
+              className="p-4 min-h-64"
+              style={{
+                border: '2px dashed var(--border)',
+                borderRadius: 'var(--radius-md)',
+                background: 'var(--muted)',
+              }}
+            >
               {!showSignature ? (
-                <div className="flex flex-col items-center justify-center h-64 text-stone-400 text-center">
-                  <div className="text-4xl mb-3">&#x2709;&#xFE0F;</div>
-                  <p>Fill in the form and click<br/>"Generate Signature"</p>
+                <div
+                  className="flex flex-col items-center justify-center h-64 text-center"
+                  style={{ color: 'var(--muted-foreground)' }}
+                >
+                  <div className="text-4xl mb-3" aria-hidden="true">&#x2709;&#xFE0F;</div>
+                  <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-body)' }}>
+                    Fill in the form and click<br />"Generate Signature"
+                  </p>
                 </div>
               ) : (
                 <div ref={signatureRef} className="bg-white p-4 rounded-lg">
@@ -705,13 +922,37 @@ const EmailSignatureGenerator = () => {
             </div>
 
             {showSignature && (
-              <div className="mt-4 p-4 rounded-xl" style={{ backgroundColor: `${currentBrand.primaryColor}10` }}>
-                <h4 className="font-medium mb-2" style={{ color: currentBrand.primaryColor }}>How to use:</h4>
-                <ol className="text-sm space-y-1" style={{ color: currentBrand.primaryColor }}>
-                  <li>1. Click "Copy Signature" above</li>
-                  <li>2. Open your email app settings</li>
-                  <li>3. Go to Signature settings</li>
-                  <li>4. Paste the signature</li>
+              <div
+                className="mt-4 p-4"
+                style={{
+                  background: mineralContainer,
+                  color: mineralColor,
+                  borderRadius: 'var(--radius-md)',
+                  boxShadow: `inset 0 0 0 1px ${mineralColor}`,
+                }}
+              >
+                <h4
+                  style={{
+                    fontFamily: 'var(--font-sans)',
+                    fontWeight: 700,
+                    fontSize: 'var(--fs-body)',
+                    marginBottom: 'var(--space-sm)',
+                  }}
+                >
+                  How to use:
+                </h4>
+                <ol
+                  style={{
+                    fontSize: 'var(--fs-small)',
+                    margin: 0,
+                    padding: 0,
+                    listStyle: 'none',
+                  }}
+                >
+                  <li style={{ marginBottom: 'var(--space-xs)' }}>1. Click "Copy Signature" above</li>
+                  <li style={{ marginBottom: 'var(--space-xs)' }}>2. Open your email app settings</li>
+                  <li style={{ marginBottom: 'var(--space-xs)' }}>3. Go to Signature settings</li>
+                  <li style={{ marginBottom: 'var(--space-xs)' }}>4. Paste the signature</li>
                   <li>5. Save changes</li>
                 </ol>
               </div>
@@ -720,12 +961,21 @@ const EmailSignatureGenerator = () => {
         </div>
 
         {/* Footer */}
-        <div className="text-center mt-8 text-sm text-stone-500">
+        <div
+          className="text-center mt-8"
+          style={{
+            fontSize: 'var(--fs-small)',
+            color: 'var(--muted-foreground)',
+            fontFamily: 'var(--font-sans)',
+          }}
+        >
           <p className="flex items-center justify-center gap-2">
-            <span>&#x1F41D;</span>
+            <span aria-hidden="true">&#x1F41D;</span>
             <span>Nyuchi Africa</span>
-            <span>&bull;</span>
-            <span className="italic">"Ndiri nekuti tiri" &mdash; I am because we are</span>
+            <span aria-hidden="true">&bull;</span>
+            <span style={{ fontStyle: 'italic' }}>
+              "Ndiri nekuti tiri" &mdash; I am because we are
+            </span>
           </p>
         </div>
       </div>
