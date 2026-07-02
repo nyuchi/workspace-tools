@@ -1,57 +1,16 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { sanitizeUrl as braintreeSanitizeUrl } from '@braintree/sanitize-url';
-
-// Use braintree's sanitize-url for robust XSS protection
-// Returns 'about:blank' for dangerous URLs (javascript:, data:, etc.)
-const sanitizeUrl = (url: string): string => {
-  if (!url) return '';
-  const trimmed = url.trim();
-  // If no protocol and not empty, assume https
-  if (trimmed && !/^[a-z]+:/i.test(trimmed)) {
-    return braintreeSanitizeUrl(`https://${trimmed}`);
-  }
-  const sanitized = braintreeSanitizeUrl(trimmed);
-  // braintree returns 'about:blank' for dangerous URLs
-  return sanitized === 'about:blank' ? '' : sanitized;
-};
-
-// Create safe mailto URL with proper encoding
-const createMailtoUrl = (email: string): string => {
-  if (!email) return '';
-  return `mailto:${encodeURIComponent(email.trim())}`;
-};
-
-// Create safe tel URL with proper encoding
-const createTelUrl = (phone: string): string => {
-  if (!phone) return '';
-  // Remove spaces and encode the phone number
-  const cleanPhone = phone.replace(/\s/g, '');
-  return `tel:${encodeURIComponent(cleanPhone)}`;
-};
-
-// Create safe WhatsApp URL with proper encoding
-const createWhatsAppUrl = (phone: string): string => {
-  if (!phone) return '';
-  // Remove any non-numeric characters except + and encode
-  const cleanPhone = phone.replace(/[^\d+]/g, '');
-  return `https://wa.me/${encodeURIComponent(cleanPhone)}`;
-};
-
-// Escape HTML entities to prevent XSS - uses string replacement for safety
-const escapeHtml = (text: string): string => {
-  if (!text) return '';
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
-};
-
-// Escape attribute values
-const escapeAttr = (text: string): string => {
-  return escapeHtml(text);
-};
+import React, { useState, useRef, useEffect } from 'react';
+import {
+  BRANDS,
+  BRAND_KEYS,
+  SIGNATURE_COLORS,
+  buildSignatureHtml,
+  buildSignatureText,
+  createMailtoUrl,
+  createTelUrl,
+  createWhatsAppUrl,
+  sanitizeUrl,
+  type BrandKey,
+} from '../engines/signature';
 
 // Token-driven pill input used across the SPA form.
 // Behavioural props (name/value/onChange/etc.) flow through; visual styling is
@@ -90,7 +49,7 @@ const TokenInput = ({ hasError, onFocus, onBlur, ...rest }: TokenInputProps) => 
 );
 
 const EmailSignatureGenerator = () => {
-  const [brand, setBrand] = useState('nyuchi');
+  const [brand, setBrand] = useState<BrandKey>('nyuchi');
   const [formData, setFormData] = useState({
     name: '',
     title: '',
@@ -140,73 +99,8 @@ const EmailSignatureGenerator = () => {
     setImageErrors({});
   }, [formData.profileImage, formData.promoBanner]);
 
-  const brands: Record<string, {
-    name: string;
-    tagline: string;
-    website: string;
-    websiteUrl: string;
-    primaryColor: string;
-    primaryColorDark: string;
-    socials: Record<string, string>;
-  }> = {
-    nyuchi: {
-      name: 'Nyuchi Africa',
-      tagline: 'I am because we are',
-      website: 'nyuchi.com',
-      websiteUrl: 'https://nyuchi.com',
-      primaryColor: '#5D4037',
-      primaryColorDark: '#FFD740',
-      socials: {
-        linkedin: 'https://www.linkedin.com/company/nyuchi/',
-        facebook: 'https://facebook.com/nyuchigroup',
-        instagram: 'https://instagram.com/nyuchi.africa'
-      }
-    },
-    mukoko: {
-      name: 'Mukoko',
-      tagline: 'Your Digital Twin Ecosystem',
-      website: 'mukoko.com',
-      websiteUrl: 'https://mukoko.com',
-      primaryColor: '#4B0082',
-      primaryColorDark: '#B388FF',
-      socials: {
-        facebook: 'https://facebook.com/mukokoafrica',
-        instagram: 'https://instagram.com/mukoko.africa'
-      }
-    },
-    travel: {
-      name: 'Zimbabwe Travel Information',
-      tagline: 'Discover the Heart of Africa',
-      website: 'travel-info.co.zw',
-      websiteUrl: 'https://travel-info.co.zw',
-      primaryColor: '#004D40',
-      primaryColorDark: '#64FFDA',
-      socials: {
-        twitter: 'https://x.com/zimbabwetravel',
-        instagram: 'https://instagram.com/zimbabwe.travel'
-      }
-    },
-    learning: {
-      name: 'Nyuchi Learning',
-      tagline: 'Education for Africa\'s Future',
-      website: 'learning.nyuchi.com',
-      websiteUrl: 'https://learning.nyuchi.com',
-      primaryColor: '#0047AB',
-      primaryColorDark: '#00B0FF',
-      socials: {
-        linkedin: 'https://www.linkedin.com/company/nyuchi/',
-        instagram: 'https://instagram.com/nyuchi.africa'
-      }
-    }
-  };
-
-  const colors = {
-    text: '#141413',
-    muted: '#52524E'
-  };
-
   useEffect(() => {
-    const brandSocials = brands[brand].socials;
+    const brandSocials = BRANDS[brand].socials;
     setFormData(prev => {
       return {
         ...prev,
@@ -232,105 +126,16 @@ const EmailSignatureGenerator = () => {
     setCopied(false);
   };
 
-  // Generate signature HTML with proper escaping - avoids innerHTML XSS risks
-  const generateSignatureHtml = useCallback(() => {
-    const brandData = brands[brand];
-
-    const socialIconHtml = (url: string, iconUrl: string, alt: string) => {
-      const safeUrl = sanitizeUrl(url);
-      if (!safeUrl) return '';
-      return `<td style="padding-right: 8px;">
-        <a href="${escapeAttr(safeUrl)}" style="text-decoration: none;">
-          <img src="${escapeAttr(sanitizeUrl(iconUrl))}" alt="${escapeAttr(alt)}" width="24" height="24" style="display: block; border-radius: 4px;" />
-        </a>
-      </td>`;
-    };
-
-    let html = `<table cellpadding="0" cellspacing="0" style="font-family: 'Plus Jakarta Sans', Arial, sans-serif; font-size: 14px; line-height: 1.5; color: ${colors.text}; max-width: 500px;">
-      <tbody>
-        <tr>`;
-
-    // Profile image
-    if (formData.profileImage && !imageErrors['profile']) {
-      html += `<td style="vertical-align: top; padding-right: 16px;">
-        <img src="${escapeAttr(sanitizeUrl(formData.profileImage))}" alt="Profile" width="80" height="80" style="border-radius: 50%; display: block; object-fit: cover;" />
-      </td>`;
-    }
-
-    html += `<td style="vertical-align: top;">
-      <span style="font-family: 'Plus Jakarta Sans', Arial, sans-serif; font-size: 17px; font-weight: 700; color: ${colors.text};">${escapeHtml(formData.name)}</span>
-      <br />
-      <span style="font-size: 13px; font-weight: 500; color: ${colors.muted};">${escapeHtml(formData.title)}</span>
-      <br /><br />
-      <span style="font-family: 'Noto Serif', Georgia, serif; font-size: 15px; font-weight: 700; color: ${brandData.primaryColor};">${escapeHtml(brandData.name)}</span>
-      <br />
-      <span style="font-size: 12px; font-style: italic; color: ${colors.muted};">"${escapeHtml(brandData.tagline)}"</span>
-      <br /><br />
-      <table cellpadding="0" cellspacing="0" style="font-size: 13px; color: ${colors.muted};">
-        <tbody>
-          <tr>
-            <td style="padding-bottom: 3px;">
-              <a href="${escapeAttr(createMailtoUrl(formData.email))}" style="color: ${brandData.primaryColor}; text-decoration: none;">${escapeHtml(formData.email)}</a>
-            </td>
-          </tr>`;
-
-    if (formData.phone) {
-      html += `<tr>
-        <td style="padding-bottom: 3px;">
-          <a href="${escapeAttr(createTelUrl(formData.phone))}" style="color: ${brandData.primaryColor}; text-decoration: none;">${escapeHtml(formData.phone)}</a>
-        </td>
-      </tr>`;
-    }
-
-    html += `<tr>
-        <td>
-          <a href="${escapeAttr(brandData.websiteUrl)}" style="color: ${brandData.primaryColor}; text-decoration: none;">${escapeHtml(brandData.website)}</a>
-        </td>
-      </tr>
-        </tbody>
-      </table>
-      <br />
-      <table cellpadding="0" cellspacing="0">
-        <tbody>
-          <tr>
-            ${socialIconHtml(formData.linkedin, 'https://cdn-icons-png.flaticon.com/512/3536/3536505.png', 'LinkedIn')}
-            ${socialIconHtml(formData.twitter, 'https://cdn-icons-png.flaticon.com/512/5969/5969020.png', 'X')}
-            ${socialIconHtml(formData.facebook, 'https://cdn-icons-png.flaticon.com/512/5968/5968764.png', 'Facebook')}
-            ${socialIconHtml(formData.instagram, 'https://cdn-icons-png.flaticon.com/512/2111/2111463.png', 'Instagram')}
-            ${formData.whatsapp ? socialIconHtml(createWhatsAppUrl(formData.whatsapp), 'https://cdn-icons-png.flaticon.com/512/3670/3670051.png', 'WhatsApp') : ''}
-          </tr>
-        </tbody>
-      </table>
-    </td>
-  </tr>`;
-
-    // Promo banner
-    if (formData.promoBanner && !imageErrors['banner']) {
-      html += `<tr>
-        <td colspan="2" style="padding-top: 16px;"></td>
-      </tr>
-      <tr>
-        <td colspan="2">
-          <a href="${escapeAttr(sanitizeUrl(formData.promoLink) || '#')}" style="text-decoration: none;">
-            <img src="${escapeAttr(sanitizeUrl(formData.promoBanner))}" alt="Promotion" width="400" style="display: block; max-width: 100%; height: auto; border-radius: 8px;" />
-          </a>
-        </td>
-      </tr>`;
-    }
-
-    html += `</tbody></table>`;
-
-    return html;
-  }, [brand, formData, imageErrors, brands, colors]);
-
-  // Generate plain text version
-  const generateSignatureText = useCallback(() => {
-    const brandData = brands[brand];
-    let text = `${formData.name}\n${formData.title}\n\n${brandData.name}\n"${brandData.tagline}"\n\n${formData.email}`;
-    if (formData.phone) text += `\n${formData.phone}`;
-    text += `\n${brandData.website}`;
-    return text;
-  }, [brand, formData, brands]);
+  // Signature HTML/text generation lives in the shared pure engine
+  // (src/engines/signature) so the MCP Worker emits identical markup.
+  // Images that failed to load in the preview are dropped from the copied
+  // HTML, matching the preview's behavior.
+  const signatureParams = () => ({
+    brand,
+    ...formData,
+    profileImage: imageErrors['profile'] ? '' : formData.profileImage,
+    promoBanner: imageErrors['banner'] ? '' : formData.promoBanner,
+  });
 
   const handleCopy = async () => {
     if (!signatureRef.current) return;
@@ -339,8 +144,8 @@ const EmailSignatureGenerator = () => {
 
     try {
       // Generate HTML with explicit escaping instead of reading innerHTML
-      const htmlContent = generateSignatureHtml();
-      const textContent = generateSignatureText();
+      const htmlContent = buildSignatureHtml(signatureParams());
+      const textContent = buildSignatureText(signatureParams());
 
       if (navigator.clipboard && typeof ClipboardItem !== 'undefined') {
         // Modern browsers with ClipboardItem support
@@ -375,11 +180,11 @@ const EmailSignatureGenerator = () => {
     }
   };
 
-  const currentBrand = brands[brand];
+  const currentBrand = BRANDS[brand];
 
   // Brand -> Mzizi mineral. Drives SPA UI accent (chip border, ring, primary
   // button, "How to use" panel). Does NOT affect the emitted signature HTML,
-  // which continues to use brands[brand].primaryColor.
+  // which continues to use BRANDS[brand].primaryColor.
   const brandMineral: Record<string, string> = {
     nyuchi: 'gold',
     mukoko: 'tanzanite',
@@ -505,7 +310,7 @@ const EmailSignatureGenerator = () => {
               <div className="mb-6">
                 <div className="mb-3" style={captionStyle}>Select Brand</div>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                  {Object.entries(brands).map(([key]) => {
+                  {BRAND_KEYS.map((key) => {
                     const isActive = brand === key;
                     const mineralKey = brandMineral[key] || 'cobalt';
                     const chipColor = `var(--color-${mineralKey})`;
@@ -819,7 +624,7 @@ const EmailSignatureGenerator = () => {
                 </div>
               ) : (
                 <div ref={signatureRef} className="bg-white p-4 rounded-lg">
-                  <table cellPadding="0" cellSpacing="0" style={{ fontFamily: "'Plus Jakarta Sans', Arial, sans-serif", fontSize: '14px', lineHeight: '1.5', color: colors.text, maxWidth: '500px' }}>
+                  <table cellPadding="0" cellSpacing="0" style={{ fontFamily: "'Plus Jakarta Sans', Arial, sans-serif", fontSize: '14px', lineHeight: '1.5', color: SIGNATURE_COLORS.text, maxWidth: '500px' }}>
                     <tbody>
                       <tr>
                         {formData.profileImage && !imageErrors['profile'] && (
@@ -835,11 +640,11 @@ const EmailSignatureGenerator = () => {
                           </td>
                         )}
                         <td style={{ verticalAlign: 'top' }}>
-                          <span style={{ fontFamily: "'Plus Jakarta Sans', Arial, sans-serif", fontSize: '17px', fontWeight: 700, color: colors.text }}>
+                          <span style={{ fontFamily: "'Plus Jakarta Sans', Arial, sans-serif", fontSize: '17px', fontWeight: 700, color: SIGNATURE_COLORS.text }}>
                             {formData.name}
                           </span>
                           <br />
-                          <span style={{ fontSize: '13px', fontWeight: 500, color: colors.muted }}>
+                          <span style={{ fontSize: '13px', fontWeight: 500, color: SIGNATURE_COLORS.muted }}>
                             {formData.title}
                           </span>
                           <br /><br />
@@ -847,11 +652,11 @@ const EmailSignatureGenerator = () => {
                             {currentBrand.name}
                           </span>
                           <br />
-                          <span style={{ fontSize: '12px', fontStyle: 'italic', color: colors.muted }}>
+                          <span style={{ fontSize: '12px', fontStyle: 'italic', color: SIGNATURE_COLORS.muted }}>
                             "{currentBrand.tagline}"
                           </span>
                           <br /><br />
-                          <table cellPadding="0" cellSpacing="0" style={{ fontSize: '13px', color: colors.muted }}>
+                          <table cellPadding="0" cellSpacing="0" style={{ fontSize: '13px', color: SIGNATURE_COLORS.muted }}>
                             <tbody>
                               <tr>
                                 <td style={{ paddingBottom: '3px' }}>
