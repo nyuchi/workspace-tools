@@ -26,3 +26,6 @@ npm-debug.log*
 # wrangler
 .wrangler/
 .dev.vars
+
+# Claude Code agent worktrees (transient)
+.claude/worktrees/
