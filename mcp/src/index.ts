@@ -208,6 +208,27 @@ function escapeHtml(input: string): string {
 
 const app = new Hono();
 
+// This MCP server has NO authentication. MCP clients (e.g. claude.ai
+// connectors) probe OAuth discovery endpoints before connecting; without
+// explicit JSON 404s here, the SPA fallback would answer 200 text/html and
+// clients would conclude a (broken) sign-in service exists. These paths are
+// routed to the Worker via assets.run_worker_first in wrangler.toml.
+app.all("/.well-known/oauth-authorization-server", (c) =>
+  c.json({ error: "no_authorization_server", detail: "This MCP server does not require authentication." }, 404),
+);
+app.all("/.well-known/oauth-authorization-server/*", (c) =>
+  c.json({ error: "no_authorization_server", detail: "This MCP server does not require authentication." }, 404),
+);
+app.all("/.well-known/oauth-protected-resource", (c) =>
+  c.json({ error: "no_protected_resource_metadata", detail: "This MCP server does not require authentication." }, 404),
+);
+app.all("/.well-known/oauth-protected-resource/*", (c) =>
+  c.json({ error: "no_protected_resource_metadata", detail: "This MCP server does not require authentication." }, 404),
+);
+app.all("/register", (c) =>
+  c.json({ error: "registration_not_supported", detail: "This MCP server does not require authentication." }, 404),
+);
+
 // Discovery: cheap identity ping for clients probing the endpoint.
 app.get("/mcp", (c) => {
   return c.json({
