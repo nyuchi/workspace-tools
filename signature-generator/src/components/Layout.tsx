@@ -40,8 +40,10 @@ const Layout = () => {
   const navigation = [
     { name: 'Home', href: '/' },
     { name: 'Gmail Add-on', href: '/gmail-addon' },
-    { name: 'Signature Generator', href: '/signature-generator' },
-    { name: 'Setup Guide', href: '/setup' },
+    { name: 'Signature', href: '/signature-generator' },
+    { name: 'Studio', href: '/studio' },
+    { name: 'Banner', href: '/banner' },
+    { name: 'Setup', href: '/setup' },
   ]
 
   const isActive = (href: string) => {
