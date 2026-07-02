@@ -1,41 +1,40 @@
-# @nyuchi/mcp-tools
+# nyuchi-tools Worker
 
-Model Context Protocol (MCP) server for the Nyuchi workspace-tools repo, exposed to LLM clients over streamable-HTTP.
+Source for the Cloudflare Worker that serves **all of `tools.nyuchi.com`**:
 
-- **Deploy target:** Cloudflare Workers, routed at `https://tools.nyuchi.com/mcp/*`.
-- **Sibling deploys:** The React app in `signature-generator/` continues to serve the rest of `tools.nyuchi.com` from GitHub Pages. The Workers route for `/mcp/*` takes precedence over Pages for that path only.
-- **Discovery endpoint:** `GET /mcp` returns a small JSON descriptor.
-- **RPC endpoint:** `POST /mcp` handles JSON-RPC 2.0 requests per the MCP streamable-HTTP transport.
+- `/mcp` — Model Context Protocol server (streamable-HTTP JSON-RPC) exposing
+  `generate_email_signature`, `generate_studio_card`, and
+  `generate_article_banner`.
+- everything else — the built `signature-generator/` SPA, bundled as Worker
+  static assets with single-page-application fallback.
 
-## Tools
+## Where things live
 
-Three stub tools are registered — they return valid MCP tool responses with placeholder HTML/SVG until the real generator engines are ported into this Worker.
+Deployment is configured **at the repo root**, not here:
 
-| Name | Purpose |
-|------|---------|
-| `generate_email_signature` | Branded Nyuchi email signature HTML. |
-| `generate_studio_card` | Nyuchi Studio social card as SVG. |
-| `generate_article_banner` | Article banner as SVG. |
+- `../wrangler.toml` — Worker name, custom domain, assets directory
+- `../package.json` — dependencies and the `dev:tools` / `deploy:tools` scripts
+- `mcp/src/index.ts` — the Worker source (this directory)
+- `mcp/tsconfig.json` — typecheck config (`npm run typecheck:worker` from root)
 
-## Development
+## Develop & deploy (from the repo root)
 
 ```bash
-cd mcp
 npm install
-npm run dev        # local wrangler dev server
+npm run build:web      # build the SPA into signature-generator/dist
+npm run dev:tools      # wrangler dev — http://localhost:8787
+npm run deploy:tools   # build SPA + wrangler deploy
 ```
 
-## Deployment
+`wrangler` reads `CLOUDFLARE_API_TOKEN` from the environment; the account is
+pinned in `wrangler.toml`. The custom domain `tools.nyuchi.com` is managed by
+Cloudflare (Workers Custom Domain on the `nyuchi.com` zone).
 
-```bash
-npx wrangler login # first time only
-cd mcp
-npm run deploy
-```
+## Notes
 
-The `tools.nyuchi.com` zone must already exist in your Cloudflare account. The route in `wrangler.toml` binds the Worker to `tools.nyuchi.com/mcp/*`.
-
-## Notes / Follow-ups
-
-- **PNG rasterization is deferred.** The card and banner tools currently return SVG strings. Producing PNGs from a Worker will use either `@resvg/resvg-wasm` (server-side) or client-side canvas rendering by the caller — we picked SVG-only for the initial scaffold to keep the Worker bundle small.
-- **Brand configuration is not shared** with the other three sub-projects yet — see the repo root `CLAUDE.md`. When the real signature engine lands here, decide whether to duplicate the brand map (fourth copy) or extract a shared package.
+- The MCP tools currently return placeholder output. Wiring the real
+  `signature-generator/src/engines/nyuchi` `buildSVG` into
+  `generate_studio_card` is blocked on a Workers-safe text-measurement
+  fallback (the engine uses canvas `measureText`, which Workers lack).
+- PNG output is deferred: either `resvg-wasm` in the Worker or client-side
+  canvas rasterization of the returned SVG.

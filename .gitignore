@@ -22,3 +22,7 @@ npm-debug.log*
 
 # clasp
 .clasprc.json
+
+# wrangler
+.wrangler/
+.dev.vars

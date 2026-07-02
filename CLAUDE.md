@@ -11,9 +11,9 @@ Sub-projects for managing Nyuchi Africa email signatures and design assets. They
 | `gmail-addon/` | Google Apps Script (V8) | Gmail Add-on (CardService UI) + admin web dashboard | Apps Script via clasp |
 | `email-signature/` | Google Apps Script (V8) | Admin batch script: push signatures to all domain users & aliases | Apps Script via clasp |
 | `signature-generator/` | React 19 + TypeScript + Vite | Standalone web app: signature builder, Nyuchi Studio (social cards), banner generator, setup docs | Bundled into the `nyuchi-tools` Worker as static assets |
-| `mcp/` | Cloudflare Workers + Hono + `@modelcontextprotocol/sdk` | The `nyuchi-tools` Worker: serves the built SPA **and** the MCP HTTP server | Cloudflare Workers route `tools.nyuchi.com/*` |
+| `mcp/src/` | Cloudflare Workers + Hono + `@modelcontextprotocol/sdk` | Source of the `nyuchi-tools` Worker: serves the built SPA **and** the MCP HTTP server | Workers Custom Domain `tools.nyuchi.com` (config: root `wrangler.toml`) |
 
-The repo root is an npm workspace covering the two Apps Script projects; `signature-generator/` and `mcp/` are separate npm projects with their own lockfiles.
+The repo root package.json carries the Apps Script npm workspace **and** the Worker's dependencies + deploy scripts; `signature-generator/` is a separate npm project with its own lockfile. `mcp/` holds only Worker source and its tsconfig — no package.json.
 
 ## URL layout on `tools.nyuchi.com`
 
@@ -45,14 +45,16 @@ npm run lint     # eslint
 npm run preview
 ```
 
-### MCP server (`mcp/`)
+### The `nyuchi-tools` Worker (root `wrangler.toml`, source in `mcp/src/`)
+Deployment lives at the **repo root** — there is no per-directory package for the Worker.
 ```bash
-cd mcp
-npm install
-npm run dev      # wrangler dev — local Worker at http://localhost:8787/mcp
-npm run deploy   # wrangler deploy — deploys to Cloudflare, binds the tools.nyuchi.com/mcp/* route
+npm install               # root deps include wrangler + the Worker's runtime deps
+npm run build:web         # build the SPA into signature-generator/dist (required before deploy)
+npm run dev:tools         # wrangler dev — local Worker at http://localhost:8787
+npm run deploy:tools      # build:web + wrangler deploy
+npm run typecheck:worker  # tsc against mcp/tsconfig.json
 ```
-Deploy requires `wrangler login` first and the `nyuchi.com` zone to exist in Cloudflare.
+`wrangler` reads `CLOUDFLARE_API_TOKEN` from the environment; the account id is pinned in `wrangler.toml`. `tools.nyuchi.com` is a Workers Custom Domain on the `nyuchi.com` zone.
 
 ### Tests
 There is **no automated test runner**. The Apps Script "tests" are exported functions run manually from the Apps Script editor:

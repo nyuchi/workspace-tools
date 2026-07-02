@@ -1,7 +1,7 @@
 {
   "name": "workspace-tools",
   "version": "2.0.0",
-  "description": "Nyuchi Google Workspace tools - Gmail Add-on with Admin Dashboard and Email Signature Generator",
+  "description": "Nyuchi workspace tools - Gmail Add-on, email signature generator, Nyuchi Studio, and the nyuchi-tools Cloudflare Worker (SPA + MCP)",
   "private": true,
   "workspaces": [
     "gmail-addon",
@@ -14,7 +14,11 @@
     "open:gmail": "cd gmail-addon && clasp open",
     "open:signature": "cd email-signature && clasp open",
     "deploy:gmail": "cd gmail-addon && clasp deploy",
-    "deploy:signature": "cd email-signature && clasp deploy"
+    "deploy:signature": "cd email-signature && clasp deploy",
+    "build:web": "npm run build --prefix signature-generator",
+    "dev:tools": "wrangler dev",
+    "deploy:tools": "npm run build:web && wrangler deploy",
+    "typecheck:worker": "tsc --noEmit -p mcp/tsconfig.json"
   },
   "keywords": [
     "google-workspace",
@@ -43,8 +47,16 @@
     "url": "https://github.com/nyuchitech/workspace-tools/issues"
   },
   "homepage": "https://github.com/nyuchitech/workspace-tools#readme",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "hono": "^4.6.0",
+    "zod": "^3.25.0"
+  },
   "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260101.0",
     "@google/clasp": "^2.4.2",
-    "@types/google-apps-script": "^1.0.83"
+    "@types/google-apps-script": "^1.0.83",
+    "typescript": "^5.6.0",
+    "wrangler": "^4.0.0"
   }
 }
