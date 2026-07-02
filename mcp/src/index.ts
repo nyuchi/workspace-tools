@@ -25,6 +25,11 @@ import {
   verifyBearer,
   wwwAuthenticateHeader,
 } from "./auth.js";
+import {
+  BRAND_KEYS,
+  buildSignatureHtml,
+  type SignatureParams,
+} from "../../signature-generator/src/engines/signature";
 
 const SERVER_NAME = "nyuchi-tools";
 const SERVER_VERSION = "0.1.0";
@@ -87,35 +92,31 @@ function buildServer(): McpServer {
   });
 
   // --- generate_email_signature -------------------------------------------
+  // Shares the pure signature engine with the SPA so both surfaces emit
+  // byte-identical signature HTML.
   server.registerTool(
     "generate_email_signature",
     {
       title: "Generate email signature",
       description: "Generate a branded Nyuchi email signature as HTML.",
       inputSchema: {
-        brand: z.string().describe("Brand slug, e.g. 'nyuchi' or 'mukoko'."),
+        brand: z.enum(BRAND_KEYS).describe("Brand slug."),
         name: z.string().describe("Full name of the signer."),
-        title: z.string().optional().describe("Job title / role."),
         email: z.string().describe("Email address."),
+        title: z.string().optional().describe("Job title / role."),
         phone: z.string().optional().describe("Phone number in international format."),
-        linkedin: z.string().optional().describe("LinkedIn profile URL or handle."),
+        whatsapp: z.string().optional().describe("WhatsApp number, digits with country code."),
+        profileImage: z.string().optional().describe("Profile image URL."),
+        linkedin: z.string().optional().describe("LinkedIn profile URL."),
+        twitter: z.string().optional().describe("X / Twitter profile URL."),
+        facebook: z.string().optional().describe("Facebook page URL."),
+        instagram: z.string().optional().describe("Instagram profile URL."),
+        promoBanner: z.string().optional().describe("Promo banner image URL."),
+        promoLink: z.string().optional().describe("Promo banner target URL."),
       },
     },
-    async (args: {
-      brand: string;
-      name: string;
-      title?: string;
-      email: string;
-      phone?: string;
-      linkedin?: string;
-    }) => {
-      // Stub — real signature template will land when the engine is ported here.
-      const html = `<div data-nyuchi-signature="${escapeHtml(args.brand)}">` +
-        `<strong>${escapeHtml(args.name)}</strong>` +
-        (args.title ? `<br/><span>${escapeHtml(args.title)}</span>` : "") +
-        `<br/><a href="mailto:${escapeHtml(args.email)}">${escapeHtml(args.email)}</a>` +
-        `<!-- placeholder signature for ${escapeHtml(args.name)} -->` +
-        `</div>`;
+    async (args: SignatureParams) => {
+      const html = buildSignatureHtml(args);
       return { content: [{ type: "text", text: html }] };
     },
   );

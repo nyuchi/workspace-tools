@@ -32,7 +32,10 @@ Cloudflare (Workers Custom Domain on the `nyuchi.com` zone).
 
 ## Notes
 
-- The MCP tools currently return placeholder output. Wiring the real
+- `generate_email_signature` imports the shared pure engine at
+  `signature-generator/src/engines/signature` (the same module the SPA uses),
+  so both surfaces emit byte-identical signature HTML.
+- The studio/banner MCP tools still return placeholder output. Wiring the real
   `signature-generator/src/engines/nyuchi` `buildSVG` into
   `generate_studio_card` is blocked on a Workers-safe text-measurement
   fallback (the engine uses canvas `measureText`, which Workers lack).
