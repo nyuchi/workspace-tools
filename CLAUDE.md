@@ -73,7 +73,7 @@ The React app's design system is a mirror of the Mzizi brand registry (Bundu eco
 1. When changing colors, radius, spacing, or type scale, update Mzizi first, then reflect in `tokens.css`. Do not invent values.
 2. Fonts are Noto Sans (body/UI), Noto Serif (headlines), JetBrains Mono (labels/code). Noto Sans and JetBrains Mono are vendored as variable fonts under `signature-generator/public/fonts/`; Noto Serif still loads from Google Fonts.
 
-Nyuchi's canonical mineral is **gold** (`#FFD740`). Every other brand has its own — the mapping lives in `EmailSignatureGenerator.tsx`.
+Nyuchi's canonical mineral is **gold** (`#FFD740`). Every other brand has its own — the signature-page mapping lives in `signature-generator/src/pages/signature/helpers.ts` (`BRAND_MINERAL`).
 
 ### The brand registry is the canonical source; Apps Script copies are hand-synced
 `signature-generator/src/engines/brands/index.ts` is THE canonical brand
@@ -114,9 +114,9 @@ both Apps Script files. The two Apps Script files also differ in shape
 GitHub).
 
 ### The emitted email-signature HTML is separate from the SPA UI
-`EmailSignatureGenerator.tsx` has two visual surfaces:
-- **SPA UI** — the form the user fills in. Restyled to the Mzizi mineral / dark design system.
-- **Emitted signature HTML** — the string this component copies into Gmail, built by `src/engines/signature/index.ts` (`buildSignatureHtml`). This uses the historical signature styling (Plus Jakarta Sans / Noto Serif, brand primary colors) and must match the two Apps Script files so signatures render consistently across every recipient's inbox. Change it only in the engine module, never per-surface.
+The signature page (`signature-generator/src/pages/signature/`) has two visual surfaces:
+- **SPA UI** — the panel + stage the user works in (studio layout pattern). Restyled to the Mzizi mineral / dark design system.
+- **Emitted signature HTML** — the string the page previews and copies into Gmail, built by `src/engines/signature/index.ts` (`buildSignatureHtml`). This uses the historical signature styling (Plus Jakarta Sans / Noto Serif, brand primary colors) and must match the two Apps Script files so signatures render consistently across every recipient's inbox. Change it only in the engine module, never per-surface. The page injects the engine output verbatim for the live preview, so preview and clipboard share one code path.
 
 Don't accidentally restyle the emitted HTML when working on the SPA UI. The distinction is important: the SPA is behind the studio's mineral tokens; the signature markup is brand-locked to the historical Nyuchi purple.
 
