@@ -103,7 +103,7 @@ clasp login --status`}</pre>
             <section>
               <h2 className="text-xl font-bold text-stone-900 mb-4">4. Clone the Repository</h2>
               <div className="bg-stone-900 rounded-xl p-4 font-mono text-sm text-stone-100 overflow-x-auto">
-                <pre>{`git clone https://github.com/nyuchitech/workspace-tools.git
+                <pre>{`git clone https://github.com/nyuchi/workspace-tools.git
 cd workspace-tools
 
 # Install dependencies
@@ -296,7 +296,7 @@ https://www.googleapis.com/auth/gmail.settings.sharing`}</pre>
           Check out the GitHub repository for more detailed documentation and to report issues.
         </p>
         <a
-          href="https://github.com/nyuchitech/workspace-tools/issues"
+          href="https://github.com/nyuchi/workspace-tools/issues"
           target="_blank"
           rel="noopener noreferrer"
           className="inline-block px-6 py-3 bg-stone-900 text-white rounded-xl font-medium hover:bg-stone-800 transition-colors"
