@@ -238,8 +238,9 @@ const Help = () => {
           <Section id="signature" index="01 · Email Signature Generator" title="Create and install a branded signature">
             <p style={bodyStyle}>
               The <Link to="/signature-generator" style={linkStyle}>Signature Generator</Link> builds
-              a branded HTML email signature for the Nyuchi ecosystem brands and copies it to your
-              clipboard, ready to paste into Gmail.
+              a branded HTML email signature for the Bundu-ecosystem brands — Bundu Foundation,
+              Nyuchi Africa, Mukoko, and Shamwari AI, plus the legacy Travel and Learning
+              signatures — and copies it to your clipboard, ready to paste into Gmail.
             </p>
 
             <h3 style={subHeadStyle}>Steps</h3>
@@ -430,10 +431,12 @@ const Help = () => {
                 web generator.
               </DefRow>
               <DefRow term={<code style={inlineCodeStyle}>generate_studio_card</code>}>
-                Returns SVG. Currently a placeholder render, pending the full Studio engine port.
+                Live. Returns SVG from the same Studio engine as the /studio page, plus JSON
+                metadata (size and seed). PNG output is a follow-up.
               </DefRow>
               <DefRow term={<code style={inlineCodeStyle}>generate_article_banner</code>}>
-                Returns SVG. Currently a placeholder render, pending the full banner engine port.
+                Live. Returns SVG from the same banner engine as the /banner page, plus JSON
+                metadata (size and seed). PNG output is a follow-up.
               </DefRow>
             </div>
 

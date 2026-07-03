@@ -2,6 +2,41 @@
    Pure functional: same seeded RNG, graph algorithm, and layouts as the
    original vanilla IIFE. Do not "improve" — keep pixel output identical. */
 
+import { measureWithMetrics } from '../metrics'
+import { TOP_BRANDS, type TopBrandKey } from '../brands'
+
+/* Structural DOM types so this module also typechecks in the Workers
+   tsconfig (no DOM lib). In the browser these resolve to the real DOM
+   globals; in Workers `DOM.document` is undefined and text measurement
+   falls back to the font-metrics table. */
+interface MeasureContext2D {
+  font: string
+  measureText(text: string): { width: number }
+}
+interface RasterContext2D {
+  imageSmoothingEnabled: boolean
+  imageSmoothingQuality: string
+  drawImage(image: unknown, dx: number, dy: number, dw: number, dh: number): void
+}
+interface CanvasLike {
+  width: number
+  height: number
+  getContext(kind: '2d'): (MeasureContext2D & RasterContext2D) | null
+  toBlob(cb: (b: Blob | null) => void, type?: string): void
+}
+interface HtmlImageLike {
+  crossOrigin: string
+  onload: (() => void) | null
+  onerror: (() => void) | null
+  src: string
+}
+interface DomGlobals {
+  document?: { createElement(tag: string): CanvasLike }
+  Image?: new () => HtmlImageLike
+  URL?: { createObjectURL(blob: Blob): string; revokeObjectURL(url: string): void }
+}
+const DOM = globalThis as unknown as DomGlobals
+
 export type Category =
   | 'cobalt'
   | 'sodalite'
@@ -15,7 +50,9 @@ export type FormatKey = '16x9' | 'og' | 'li' | 'ig' | 'story'
 
 export type ThemeKey = 'light' | 'dark'
 
-export type Brand = 'nyuchi' | 'bundu'
+/* The four top-level Bundu-ecosystem brands ('nyuchi' | 'bundu' | 'mukoko' |
+   'shamwari') — from the canonical registry in engines/brands. */
+export type Brand = TopBrandKey
 
 export type Facet = 'diagonal' | 'steep' | 'chevron'
 
@@ -90,13 +127,22 @@ export const SURFACE: Record<ThemeKey, Surface> = {
   dark:  { bg: '#0F0E0C', fg: '#FAF9F5', mut: '#B2AFA8', edge: 'rgba(255,255,255,.08)', mark: '#FFD740' },
 }
 
-/* Optional data-URI icons per brand (populated at runtime by the app). */
-const BRAND_ICONS: Partial<Record<Brand, string>> = {}
-export function setBrandIcon(brand: Brand, dataUri: string): void {
-  BRAND_ICONS[brand] = dataUri
+/* Optional data-URI icons per brand and theme (populated at runtime by the
+   app). The bundu-ecosystem-icons collection has a light- and a dark-surface
+   variant per brand; registering without a theme sets BOTH variants, so
+   existing single-icon call sites behave exactly as before. */
+const BRAND_ICONS: Partial<Record<Brand, { light?: string; dark?: string }>> = {}
+export function setBrandIcon(brand: Brand, dataUri: string, theme?: ThemeKey): void {
+  const entry = BRAND_ICONS[brand] ?? (BRAND_ICONS[brand] = {})
+  if (theme === undefined || theme === 'light') entry.light = dataUri
+  if (theme === undefined || theme === 'dark') entry.dark = dataUri
 }
-export function getBrandIcon(brand: Brand): string | undefined {
-  return BRAND_ICONS[brand]
+export function getBrandIcon(brand: Brand, theme?: ThemeKey): string | undefined {
+  const entry = BRAND_ICONS[brand]
+  if (!entry) return undefined
+  if (theme === undefined) return entry.light ?? entry.dark
+  /* Fall back to the other variant when only one icon is registered. */
+  return entry[theme] ?? (theme === 'light' ? entry.dark : entry.light)
 }
 
 export const MINERAL_LAYOUT = 5
@@ -242,14 +288,18 @@ function drawGraph(graph: Graph, opts?: DrawGraphOpts): string {
 }
 
 /* ── Text helpers (lazy canvas init so module load is SSR-safe) ─────────── */
-let _mx: CanvasRenderingContext2D | null = null
-function ctx2d(): CanvasRenderingContext2D {
+let _mx: MeasureContext2D | null = null
+function ctx2d(): MeasureContext2D {
   if (!_mx) {
-    _mx = document.createElement('canvas').getContext('2d')!
+    _mx = DOM.document!.createElement('canvas').getContext('2d')!
   }
   return _mx
 }
 function measure(text: string, font: string): number {
+  /* No DOM (Cloudflare Workers / plain node): measure from font metrics.
+     When a document exists the canvas path stays the first choice, so SPA
+     output is byte-identical to before. */
+  if (DOM.document === undefined) return measureWithMetrics(text, font)
   const cx = ctx2d()
   cx.font = font
   return cx.measureText(text).width
@@ -300,18 +350,18 @@ function drawMark(x: number, y: number, size: number, color: string): string {
   return s + '</g>'
 }
 
-interface LockupOpts { align?: 'left' | 'center'; brand?: Brand }
+interface LockupOpts { align?: 'left' | 'center'; brand?: Brand; theme?: ThemeKey }
 function drawLockup(x: number, y: number, size: number, surface: Surface, opts?: LockupOpts): string {
   const o = opts || {}
   const align = o.align || 'left'
   const brand: Brand = o.brand || 'nyuchi'
-  const url = brand === 'bundu' ? 'bundu.org' : 'nyuchi.com'
+  const url = TOP_BRANDS[brand].lockupLabel
   const fs = Math.round(size * 0.5)
   const gap = Math.round(size * 0.22)
   const tw = measure(url, `400 ${fs}px "JetBrains Mono",monospace`)
   const totalW = size + gap + tw
   const sx = align === 'center' ? x - totalW / 2 : x
-  const icon = BRAND_ICONS[brand]
+  const icon = getBrandIcon(brand, o.theme)
   const mark = icon
     ? `<image href="${icon}" x="${sx}" y="${y}" width="${size}" height="${size}" preserveAspectRatio="xMidYMid meet"/>`
     : drawMark(sx, y, size, surface.mark)
@@ -377,6 +427,7 @@ interface Ctx {
     lattice: boolean
     lockup: boolean
     brand: Brand
+    theme: ThemeKey
     index: string
     footnote: string
     facet: Facet
@@ -416,7 +467,7 @@ function layoutType(ctx: Ctx): string {
 
   if (opts.lockup) {
     const ms = Math.round(h * 0.055)
-    svg += drawLockup(pad, h - pad - ms, ms, surface, { brand: opts.brand })
+    svg += drawLockup(pad, h - pad - ms, ms, surface, { brand: opts.brand, theme: opts.theme })
   }
   return svg
 }
@@ -448,7 +499,7 @@ function layoutAnchor(ctx: Ctx): string {
   const dfit = fitText(dek || '', colW, 4, '400 __SZ__ "Noto Serif",Georgia,serif', dfs, Math.round(dfs * 0.8))
   svg = drawDek(svg, dfit.lines, pad, dfit.size, endY + Math.round(h * 0.015), dfit.size * 1.3, surface.mut, sb)
 
-  if (opts.lockup) { const ms = Math.round(h * 0.05); svg += drawLockup(pad, h - pad - ms, ms, surface, { brand: opts.brand }) }
+  if (opts.lockup) { const ms = Math.round(h * 0.05); svg += drawLockup(pad, h - pad - ms, ms, surface, { brand: opts.brand, theme: opts.theme }) }
   return svg
 }
 
@@ -469,7 +520,7 @@ function layoutSplit(ctx: Ctx): string {
   if (opts.lockup) {
     const ms = Math.round(h * 0.05)
     const inv: Surface = { ...surface, mark: surface.bg, fg: surface.bg }
-    svg += drawLockup(pad * 0.7, h - pad * 0.7 - ms, ms, inv, { brand: opts.brand })
+    svg += drawLockup(pad * 0.7, h - pad * 0.7 - ms, ms, inv, { brand: opts.brand, theme: opts.theme })
   }
 
   const tx = bw + pad, colW = w - bw - pad * 2
@@ -529,7 +580,7 @@ function layoutHalo(ctx: Ctx): string {
     dy += dfit.size * 1.3
   }
 
-  if (opts.lockup) { const ms = Math.round(h * 0.05); svg += drawLockup(w / 2, h - pad - ms, ms, surface, { align: 'center', brand: opts.brand }) }
+  if (opts.lockup) { const ms = Math.round(h * 0.05); svg += drawLockup(w / 2, h - pad - ms, ms, surface, { align: 'center', brand: opts.brand, theme: opts.theme }) }
   return svg
 }
 
@@ -563,7 +614,7 @@ function sqType(ctx: Ctx): string {
   const g = makeGraph(seed, 7, { x: w - pad - gw, y: gTop, w: gw, h: gh }, { k: 2, minDist: Math.min(gw, gh) * 0.28, inset: cr + 4 })
   svg += drawGraph(g, { color: cat.color, edgeOpacity: 0.65, nodeOpacity: 0.95, strokeWidth: Math.max(4, w / 360), nodeRadius: nr, coreRadius: cr })
 
-  if (opts.lockup) { const ms = Math.round(h * 0.058); svg += drawLockup(pad, h - pad - ms, ms, surface, { brand: opts.brand }) }
+  if (opts.lockup) { const ms = Math.round(h * 0.058); svg += drawLockup(pad, h - pad - ms, ms, surface, { brand: opts.brand, theme: opts.theme }) }
   return svg
 }
 
@@ -593,7 +644,7 @@ function sqAnchor(ctx: Ctx): string {
   const dfit = fitText(dek || '', iw, 3, '400 __SZ__ "Noto Serif",Georgia,serif', dfs, Math.round(dfs * 0.8))
   svg = drawDek(svg, dfit.lines, pad, dfit.size, endY + Math.round(h * 0.012), dfit.size * 1.3, surface.mut, sb)
 
-  if (opts.lockup) { const ms = Math.round(h * 0.055); svg += drawLockup(pad, h - pad - ms, ms, surface, { brand: opts.brand }) }
+  if (opts.lockup) { const ms = Math.round(h * 0.055); svg += drawLockup(pad, h - pad - ms, ms, surface, { brand: opts.brand, theme: opts.theme }) }
   return svg
 }
 
@@ -621,7 +672,7 @@ function sqSplit(ctx: Ctx): string {
   const dfit = fitText(dek || '', iw, 3, '400 __SZ__ "Noto Serif",Georgia,serif', dfs, Math.round(dfs * 0.8))
   svg = drawDek(svg, dfit.lines, pad, dfit.size, endY + Math.round(h * 0.015), dfit.size * 1.3, surface.mut, sb)
 
-  if (opts.lockup) { const ms = Math.round(h * 0.05); svg += drawLockup(pad, h - pad - ms, ms, surface, { brand: opts.brand }) }
+  if (opts.lockup) { const ms = Math.round(h * 0.05); svg += drawLockup(pad, h - pad - ms, ms, surface, { brand: opts.brand, theme: opts.theme }) }
   return svg
 }
 
@@ -664,7 +715,7 @@ function sqHalo(ctx: Ctx): string {
     dy += dfit.size * 1.3
   }
 
-  if (opts.lockup) { const ms = Math.round(h * 0.05); svg += drawLockup(w / 2, h - pad - ms, ms, surface, { align: 'center', brand: opts.brand }) }
+  if (opts.lockup) { const ms = Math.round(h * 0.05); svg += drawLockup(w / 2, h - pad - ms, ms, surface, { align: 'center', brand: opts.brand, theme: opts.theme }) }
   return svg
 }
 
@@ -760,9 +811,9 @@ function layoutMineral(ctx: Ctx): string {
   }
   if (opts.lockup) {
     const ms = Math.round(h * 0.05), fs = Math.round(ms * 0.5), gap = Math.round(ms * 0.22)
-    const url = opts.brand === 'bundu' ? 'bundu.org' : 'nyuchi.com'
+    const url = TOP_BRANDS[opts.brand].lockupLabel
     const tw = measure(url, `400 ${fs}px "JetBrains Mono",monospace`)
-    svg += drawLockup(w - pad - (ms + gap + tw), h - pad - ms, ms, surface, { brand: opts.brand })
+    svg += drawLockup(w - pad - (ms + gap + tw), h - pad - ms, ms, surface, { brand: opts.brand, theme: opts.theme })
   }
   return svg
 }
@@ -794,6 +845,8 @@ export function buildSVG(p: Params): BuildResult {
       lattice: !!p.lattice,
       lockup: !!p.lockup,
       brand: p.brand || 'nyuchi',
+      /* Theme picks the brand-icon variant when both are registered. */
+      theme: p.theme === 'dark' ? 'dark' : 'light',
       index: p.index || '',
       footnote: p.footnote || '',
       facet: p.facet || 'diagonal',
@@ -813,17 +866,19 @@ export function buildSVG(p: Params): BuildResult {
 }
 
 export async function exportPNG(svgStr: string, fmt: Format, scale = 2): Promise<Blob> {
+  const { document: doc, Image: Img, URL: objectUrl } = DOM
+  if (!doc || !Img || !objectUrl) throw new Error('exportPNG requires a browser environment')
   const blob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' })
-  const url = URL.createObjectURL(blob)
+  const url = objectUrl.createObjectURL(blob)
   try {
-    const img = new Image()
+    const img = new Img()
     img.crossOrigin = 'anonymous'
     await new Promise<void>((resolve, reject) => {
       img.onload = () => resolve()
       img.onerror = () => reject(new Error('SVG image load failed'))
       img.src = url
     })
-    const canvas = document.createElement('canvas')
+    const canvas = doc.createElement('canvas')
     canvas.width = fmt.w * scale
     canvas.height = fmt.h * scale
     const cx = canvas.getContext('2d')!
@@ -834,6 +889,6 @@ export async function exportPNG(svgStr: string, fmt: Format, scale = 2): Promise
       canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('canvas toBlob returned null'))), 'image/png')
     })
   } finally {
-    URL.revokeObjectURL(url)
+    objectUrl.revokeObjectURL(url)
   }
 }
