@@ -57,6 +57,41 @@ const Home = () => {
       href: '/gmail-addon#dashboard',
       color: '#4285F4',
     },
+    {
+      name: 'Nyuchi Studio',
+      description: 'Generative social cards in the Bundu mineral design language. Seven mineral palettes, five formats, five layouts — export as SVG or PNG.',
+      icon: (
+        <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 3l7 6-7 12L5 9l7-6z" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5 9h14M12 3l-3 6 3 12 3-12-3-6z" />
+        </svg>
+      ),
+      href: '/studio',
+      color: '#4B0082',
+    },
+    {
+      name: 'Article Banner Generator',
+      description: 'Seeded banner art for articles and link shares. Four aspect ratios from 16:9 headers to OG and LinkedIn cards, in the same mineral palettes.',
+      icon: (
+        <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+        </svg>
+      ),
+      href: '/banner',
+      color: '#BF5A36',
+    },
+    {
+      name: 'MCP Server',
+      description: 'Connect AI agents like Claude to these tools via the Model Context Protocol at tools.nyuchi.com/mcp — generate signatures and design assets from a conversation.',
+      icon: (
+        <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 3v2m6-2v2M9 19v2m6-2v2M3 9h2m-2 6h2m14-6h2m-2 6h2M7 5h10a2 2 0 012 2v10a2 2 0 01-2 2H7a2 2 0 01-2-2V7a2 2 0 012-2z" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.5 12l1.75 1.75L14.5 10.5" />
+        </svg>
+      ),
+      href: '/help#mcp',
+      color: '#283593',
+    },
   ]
 
   const brands = [
@@ -85,6 +120,14 @@ const Home = () => {
       title: 'Automatic Updates',
       description: 'Schedule daily signature updates to keep user information current.',
     },
+    {
+      title: 'Brand Design Studio',
+      description: 'Social cards and article banners generated in the Bundu mineral design system.',
+    },
+    {
+      title: 'MCP for AI Agents',
+      description: 'An MCP server at tools.nyuchi.com/mcp lets Claude and other agents use these tools.',
+    },
   ]
 
   return (
@@ -106,7 +149,7 @@ const Home = () => {
               workspace tools
             </h1>
             <p className="text-lg md:text-xl text-stone-600 max-w-2xl mx-auto mb-8">
-              Google Workspace email signature management for Nyuchi Africa and the Bundu Family ecosystem.
+              Email signature management and brand design tools for Nyuchi Africa and the Bundu Family ecosystem.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Link
@@ -190,7 +233,7 @@ const Home = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 text-center">
           <h2 className="text-2xl md:text-3xl font-bold mb-4">Ready to Get Started?</h2>
           <p className="text-amber-100 mb-8 max-w-xl mx-auto">
-            Follow our setup guide to install the Gmail Add-on or start generating signatures now.
+            Follow our setup guide to install the Gmail Add-on, browse the help docs, or start generating signatures now.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link
@@ -199,8 +242,14 @@ const Home = () => {
             >
               View Setup Guide
             </Link>
+            <Link
+              to="/help"
+              className="px-8 py-4 rounded-xl font-semibold hover:opacity-90 transition-colors min-h-[56px] text-base md:text-lg border-2 border-amber-200 text-amber-100 hover:bg-amber-900/20"
+            >
+              Browse Help
+            </Link>
             <a
-              href="https://github.com/nyuchitech/workspace-tools"
+              href="https://github.com/nyuchi/workspace-tools"
               target="_blank"
               rel="noopener noreferrer"
               className="px-8 py-4 rounded-xl font-semibold hover:opacity-90 transition-colors min-h-[56px] text-base md:text-lg border-2 border-amber-200 text-amber-100 hover:bg-amber-900/20"
