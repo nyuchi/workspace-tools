@@ -4,6 +4,7 @@ import {
   CATEGORIES,
   FORMATS,
   hash,
+  type Brand,
   type Category,
   type FormatKey,
   type Params,
@@ -117,6 +118,38 @@ describe('buildSVG — escaping', () => {
     expect(svg).not.toContain('<style>')
     expect(svg).toContain('&amp; b &lt;i&gt;')
     expect(svg).toContain('&lt;STYLE&gt;')
+  })
+})
+
+describe('buildSVG — lockup brands', () => {
+  const LOCKUPS: [Brand, string][] = [
+    ['nyuchi', 'nyuchi.com'],
+    ['bundu', 'bundu.org'],
+    ['mukoko', 'mukoko.com'],
+    ['shamwari', 'shamwari.ai'],
+  ]
+
+  for (const [brand, label] of LOCKUPS) {
+    it(`brand ${brand} renders the ${label} lockup wordmark deterministically`, () => {
+      const params = baseParams({ brand, lockup: true })
+      const { svg } = buildSVG(params)
+      expect(svg).toContain(`>${label}</text>`)
+      expect(buildSVG(params).svg).toBe(svg)
+    })
+  }
+
+  it('brands without a registered icon fall back to the drawn o2 mark', () => {
+    // No icons are registered in this suite, so every lockup uses the mark.
+    const { svg } = buildSVG(baseParams({ brand: 'shamwari', lockup: true }))
+    expect(svg).not.toContain('<image')
+    expect(svg).toContain('>shamwari.ai</text>')
+  })
+
+  it('the mineral layout (5) places the lockup for every brand', () => {
+    for (const [brand, label] of LOCKUPS) {
+      const { svg } = buildSVG(baseParams({ brand, lockup: true, layout: 5 }))
+      expect(svg).toContain(`>${label}</text>`)
+    }
   })
 })
 

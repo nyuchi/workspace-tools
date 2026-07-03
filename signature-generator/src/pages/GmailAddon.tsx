@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom'
 
 const GmailAddon = () => {
   const userFeatures = [
-    'Select from 9 Nyuchi ecosystem brands',
+    'Select from the Bundu-ecosystem brands and their divisions',
     'Personal information (name, title, email, phone)',
     'Profile image support',
     'Social media links (LinkedIn, X, Facebook, Instagram, WhatsApp)',
