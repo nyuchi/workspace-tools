@@ -57,7 +57,11 @@ npm run typecheck:worker  # tsc against mcp/tsconfig.json
 `wrangler` reads `CLOUDFLARE_API_TOKEN` from the environment; the account id is pinned in `wrangler.toml`. `tools.nyuchi.com` is a Workers Custom Domain on the `nyuchi.com` zone.
 
 ### Tests
-There is **no automated test runner**. The Apps Script "tests" are exported functions run manually from the Apps Script editor:
+Two **Vitest** suites (node environment, no jsdom); `npm test` at the repo root runs both. CI (`.github/workflows/ci.yml`) runs lint, `typecheck:worker`, the SPA build, and both suites on Node 22.
+- `signature-generator/`: `npm test` (`vitest.config.ts`, tests in `tests/`) — unit tests for the three pure engines (`signature`, `nyuchi`, `banner`). The nyuchi/banner engines measure text via a lazily created canvas 2d context; `tests/setup.canvas.ts` installs a deterministic `document`/canvas stub (8px per character) before any engine import — keep that stub if you add engine tests.
+- Repo root: `npm run test:worker` (`vitest.worker.config.ts`, tests in `mcp/tests/`) — HTTP-level tests of the `nyuchi-tools` Worker, exercising the default export via `worker.fetch(new Request(...), env)`. These live at the root because the Worker's deps are root dependencies and `mcp/` intentionally has no package.json; `mcp/tsconfig.json` only includes `src/**`, so `typecheck:worker` never sees them.
+
+The Apps Script "tests" remain exported functions run manually from the Apps Script editor:
 - `email-signature/Code.js`: `runAllTests()`, `testSignatureGeneration()`, `testDivisionDetection()`, `testFlagColors()`, `testMySignature()`, plus dry-run `listAllUsersAndAliases()` and `updateSingleUserSignature(email)` before a full `updateAllUserSignatures()`.
 - `gmail-addon/Code.js`: `testSignatureGeneration()`, `testAdminSignature()`.
 
