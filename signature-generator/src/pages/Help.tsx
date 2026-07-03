@@ -238,8 +238,9 @@ const Help = () => {
           <Section id="signature" index="01 · Email Signature Generator" title="Create and install a branded signature">
             <p style={bodyStyle}>
               The <Link to="/signature-generator" style={linkStyle}>Signature Generator</Link> builds
-              a branded HTML email signature for the Nyuchi ecosystem brands and copies it to your
-              clipboard, ready to paste into Gmail.
+              a branded HTML email signature for the Bundu-ecosystem brands — Bundu Foundation,
+              Nyuchi Africa, Mukoko, and Shamwari AI, plus the legacy Travel and Learning
+              signatures — and copies it to your clipboard, ready to paste into Gmail.
             </p>
 
             <h3 style={subHeadStyle}>Steps</h3>

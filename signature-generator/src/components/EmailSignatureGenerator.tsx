@@ -190,6 +190,8 @@ const EmailSignatureGenerator = () => {
     mukoko: 'tanzanite',
     travel: 'malachite',
     learning: 'cobalt',
+    bundu: 'copper',
+    shamwari: 'sodalite',
   };
   const activeMineral = brandMineral[brand] || 'cobalt';
   const mineralColor = `var(--color-${activeMineral})`;
@@ -211,7 +213,9 @@ const EmailSignatureGenerator = () => {
     nyuchi: 'Nyuchi',
     mukoko: 'Mukoko',
     travel: 'Travel',
-    learning: 'Learning'
+    learning: 'Learning',
+    bundu: 'Bundu',
+    shamwari: 'Shamwari'
   };
 
   // Reusable inline styles for SPA chrome. Kept inside render so tokens are

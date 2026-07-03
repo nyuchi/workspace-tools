@@ -80,8 +80,23 @@ export interface SignatureBrand {
   socials: Record<string, string>;
 }
 
-/** Brand slugs, usable as a zod enum (z.enum(BRAND_KEYS)) on the MCP side. */
-export const BRAND_KEYS = ['nyuchi', 'mukoko', 'travel', 'learning'] as const;
+/**
+ * Signature brand slugs, usable as a zod enum (z.enum(BRAND_KEYS)) on the
+ * MCP side.
+ *
+ * `nyuchi`, `mukoko`, `bundu`, and `shamwari` are the four top-level
+ * Bundu-ecosystem brands — see src/engines/brands (the canonical registry).
+ * `travel` and `learning` stay as LEGACY signature keys:
+ * - `travel`   → Zimbabwe Information Platform, a Bundu Foundation
+ *   initiative (still emitted under its historical "Zimbabwe Travel
+ *   Information" signature identity).
+ * - `learning` → Nyuchi Learning, a Nyuchi Africa division.
+ *
+ * The entries below are the historical signature copies: emitted HTML for
+ * the pre-existing keys is byte-locked, so do not re-sync their wording or
+ * colors to the registry.
+ */
+export const BRAND_KEYS = ['nyuchi', 'mukoko', 'travel', 'learning', 'bundu', 'shamwari'] as const;
 
 export type BrandKey = (typeof BRAND_KEYS)[number];
 
@@ -134,6 +149,26 @@ export const BRANDS: Record<BrandKey, SignatureBrand> = {
       linkedin: 'https://www.linkedin.com/company/nyuchi/',
       instagram: 'https://instagram.com/nyuchi.africa'
     }
+  },
+  bundu: {
+    name: 'Bundu Foundation',
+    tagline: 'The wilderness holds the hive',
+    website: 'bundu.org',
+    websiteUrl: 'https://bundu.org',
+    // TODO(brand): confirm — copper mineral (light/dark) as Bundu's colors.
+    primaryColor: '#BF5A36',
+    primaryColorDark: '#FF8A65',
+    socials: {}
+  },
+  shamwari: {
+    name: 'Shamwari AI',
+    tagline: 'AI that actually works for Africa',
+    website: 'shamwari.ai',
+    websiteUrl: 'https://shamwari.ai',
+    // TODO(brand): confirm — sodalite mineral (light/dark) as Shamwari's colors.
+    primaryColor: '#283593',
+    primaryColorDark: '#3D5AFE',
+    socials: {}
   }
 };
 
