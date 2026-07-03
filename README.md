@@ -126,8 +126,8 @@ claude mcp add --transport http nyuchi-tools https://tools.nyuchi.com/mcp
 | Tool | Status |
 |------|--------|
 | `generate_email_signature` | Live — same engine as the web generator, byte-identical HTML output |
-| `generate_studio_card` | Returns SVG — placeholder render, pending the full Studio engine port |
-| `generate_article_banner` | Returns SVG — placeholder render, pending the full banner engine port |
+| `generate_studio_card` | Live — SVG from the same Studio engine as the `/studio` page, plus JSON metadata (size, seed) |
+| `generate_article_banner` | Live — SVG from the same banner engine as the `/banner` page, plus JSON metadata (size, seed) |
 
 The endpoint is currently open (no authentication). OAuth via WorkOS may be
 enabled later — clients will then be prompted to sign in when connecting.
