@@ -11,6 +11,7 @@ import {
   type Params,
   type ThemeKey,
 } from '../../engines/nyuchi'
+import { loadBrandIcons } from '../../lib/loadBrandIcons'
 import ControlPanel from './ControlPanel'
 import Preview from './Preview'
 import { MINERALS } from './minerals'
@@ -85,17 +86,13 @@ const StudioPage = () => {
     }
   }, [])
 
-  /* Fetch bee icon → data URI, register in engine so lockup renders it. */
+  /* Register every per-theme brand icon from the registry so lockups render
+   * the right mark for the card's theme (e.g. gold bee on dark cards). */
   useEffect(() => {
     let cancelled = false
-    fetch('/assets/nyuchi-bee.b64.txt')
-      .then((r) => (r.ok ? r.text() : Promise.reject(new Error('bee 404'))))
-      .then((txt) => {
-        if (cancelled) return
-        setBrandIcon('nyuchi', 'data:image/png;base64,' + txt.trim())
-        setIconReady(true)
-      })
-      .catch(() => { /* fall back to drawn mark */ })
+    loadBrandIcons(setBrandIcon).then(() => {
+      if (!cancelled) setIconReady(true)
+    })
     return () => { cancelled = true }
   }, [])
 
