@@ -1,0 +1,13 @@
+---
+import Base from '../layouts/Base.astro'
+import StudioPage from './studio/StudioPage'
+---
+
+<Base
+  title="Nyuchi Studio — Nyuchi workspace tools"
+  description="Generative social cards in the Bundu mineral design language. Seven mineral palettes, five formats, five layouts — export as SVG or PNG."
+>
+  {/* client:only — the studio measures text via a canvas 2d context and
+      reads document/localStorage; SSR would crash at module scope. */}
+  <StudioPage client:only="react" />
+</Base>
