@@ -28,8 +28,8 @@ custom_domain = true
 
 [vars]
 MCP_RESOURCE = "https://tools.nyuchi.com"
-# WorkOS Connect (OAuth for the MCP endpoint) activates when AUTHKIT_DOMAIN is
-# set — until then /mcp is open. Configure in the WorkOS dashboard first:
-# Connect → Configuration → enable client registration (CIMD), and add
-# MCP_RESOURCE above as a resource indicator. Then uncomment with your domain:
-# AUTHKIT_DOMAIN = "<your-workspace>.authkit.app"
+# WorkOS Connect hosted auth (Connect app client_01KVTX0V2K1VM3PSC0DJ9VZWTV).
+# /mcp requires bearer JWTs issued by this authorization server; MCP clients
+# discover it via /.well-known/oauth-protected-resource and self-register
+# through its dynamic client registration. Unset to run the MCP open.
+AUTHKIT_DOMAIN = "identity.nyuchi.com"
