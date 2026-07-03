@@ -48,6 +48,9 @@ export function protectedResourceMetadata(env: AuthEnv): Record<string, unknown>
     resource: resourceUrl(env),
     authorization_servers: [issuerUrl(env)],
     bearer_methods_supported: ["header"],
+    // Honest, not aspirational: we only check issuer + audience today, no
+    // scope-based authorization, so there is nothing to advertise here yet.
+    scopes_supported: [],
   };
 }
 

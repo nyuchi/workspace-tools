@@ -14,6 +14,7 @@
  */
 
 import { Hono } from "hono";
+import type { Context } from "hono";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import type { JSONRPCMessage } from "@modelcontextprotocol/sdk/types.js";
@@ -21,10 +22,14 @@ import { z } from "zod";
 import {
   type AuthEnv,
   authConfigured,
+  issuerUrl,
   protectedResourceMetadata,
   verifyBearer,
   wwwAuthenticateHeader,
 } from "./auth.js";
+import { fetchMetadata } from "./as-metadata-proxy.js";
+import { authMd } from "./auth-md.js";
+import { buildServerCard } from "./server-card.js";
 import {
   BRAND_KEYS,
   buildSignatureHtml,
@@ -323,6 +328,37 @@ function buildServer(): McpServer {
 // Hono HTTP surface.
 // -----------------------------------------------------------------------------
 
+/**
+ * Builds a route handler that mirrors one of the WorkOS Connect authorization
+ * server's `.well-known` discovery documents onto this domain, so agents
+ * that only probe the resource server's own well-known paths still find it.
+ *
+ * - Auth OFF (no AUTHKIT_DOMAIN): there is no authorization server to
+ *   mirror, so this keeps returning the same JSON 404 as before.
+ * - Auth ON: fetches (never fabricates) the real document from
+ *   identity.nyuchi.com and passes it through; a fetch failure or a
+ *   non-200 upstream response becomes a 502 — never fake metadata.
+ */
+function authorizationServerMetadataHandler(wellKnownPath: "oauth-authorization-server" | "openid-configuration") {
+  return async (c: Context<{ Bindings: AuthEnv }>) => {
+    if (!authConfigured(c.env)) {
+      return c.json(
+        {
+          error: "no_authorization_server",
+          detail: "Authorization is handled by WorkOS; see oauth-protected-resource metadata.",
+        },
+        404,
+      );
+    }
+    const upstream = `${issuerUrl(c.env)}/.well-known/${wellKnownPath}`;
+    const result = await fetchMetadata(upstream);
+    if (!result.ok) {
+      return c.json({ error: "upstream_fetch_failed", detail: result.message }, 502);
+    }
+    return c.json(result.data as Record<string, unknown>);
+  };
+}
+
 const app = new Hono<{ Bindings: AuthEnv }>();
 
 // OAuth surface. Behavior is driven by the AUTHKIT_DOMAIN Worker var:
@@ -334,7 +370,12 @@ const app = new Hono<{ Bindings: AuthEnv }>();
 //
 //   set → WorkOS Connect protects /mcp. The protected-resource metadata
 //     advertises the WorkOS authorization server; client registration and
-//     the actual OAuth flow happen on WorkOS, not here.
+//     the actual OAuth flow happen on WorkOS, not here. The authorization
+//     server's own discovery documents (oauth-authorization-server,
+//     openid-configuration) are mirrored — fetched from identity.nyuchi.com
+//     and passed through, never fabricated — onto this domain's
+//     `.well-known` paths so agents that only probe the resource server
+//     still find them.
 //
 // These paths reach the Worker via assets.run_worker_first in wrangler.toml.
 app.all("/.well-known/oauth-protected-resource", (c) => {
@@ -351,15 +392,22 @@ app.all("/.well-known/oauth-protected-resource/*", (c) => {
     404,
   );
 });
-app.all("/.well-known/oauth-authorization-server", (c) =>
-  c.json({ error: "no_authorization_server", detail: "Authorization is handled by WorkOS; see oauth-protected-resource metadata." }, 404),
-);
-app.all("/.well-known/oauth-authorization-server/*", (c) =>
-  c.json({ error: "no_authorization_server", detail: "Authorization is handled by WorkOS; see oauth-protected-resource metadata." }, 404),
-);
+app.all("/.well-known/oauth-authorization-server", authorizationServerMetadataHandler("oauth-authorization-server"));
+app.all("/.well-known/oauth-authorization-server/*", authorizationServerMetadataHandler("oauth-authorization-server"));
+app.all("/.well-known/openid-configuration", authorizationServerMetadataHandler("openid-configuration"));
 app.all("/register", (c) =>
   c.json({ error: "registration_not_supported", detail: "Client registration is handled by the WorkOS authorization server." }, 404),
 );
+
+// MCP Server Card — static discovery document for agent-readiness scanners
+// and MCP clients (see server-card.ts). Reached via the existing
+// `/.well-known/*` entry in wrangler.toml's assets.run_worker_first.
+app.get("/.well-known/mcp/server-card.json", (c) => c.json(buildServerCard(SERVER_NAME, SERVER_VERSION)));
+
+// auth.md — human/agent-readable description of the OAuth architecture
+// (see auth-md.ts). Reached via the `/auth.md` entry in
+// wrangler.toml's assets.run_worker_first.
+app.get("/auth.md", (c) => c.text(authMd(), 200, { "Content-Type": "text/markdown; charset=utf-8" }));
 
 // Bearer-token gate for /mcp — no-op until AUTHKIT_DOMAIN is configured.
 app.use("/mcp", async (c, next) => {
