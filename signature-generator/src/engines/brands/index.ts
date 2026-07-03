@@ -137,8 +137,12 @@ export const TOP_BRANDS: Record<TopBrandKey, TopBrand> = {
     tagline: 'AI that actually works for Africa',
     lockupLabel: 'shamwari.ai',
     pillar: 'community',
-    // TODO(brand): confirm — icons + socials pending (bundu-ecosystem-icons upload).
-    icon: {},
+    // TODO(brand): shamwari's own mark is pending — these files are copies of
+    // the nyuchi bee per the owner's interim direction. Socials pending.
+    icon: {
+      light: '/assets/brand-icons/shamwari-icon-light.png',
+      dark: '/assets/brand-icons/shamwari-icon-dark.png',
+    },
     socials: {},
   },
 }
@@ -211,6 +215,8 @@ export interface Initiative {
   shortLabel?: string
   domain?: string
   url?: string
+  /** Per-theme initiative icon, same convention as TopBrand.icon. */
+  icon?: { light?: string; dark?: string }
 }
 
 /** Bundu Foundation initiatives — projects under the foundation, NOT brands. */
@@ -221,6 +227,10 @@ export const INITIATIVES = {
     name: 'Zimbabwe Information Platform',
     domain: 'travel-info.co.zw',
     url: 'https://travel-info.co.zw',
+    icon: {
+      light: '/assets/brand-icons/travel-icon-light.png',
+      dark: '/assets/brand-icons/travel-icon-dark.png',
+    },
   },
   // Renamed from "Technology Leaders of Africa" (techdirectors.africa);
   // gmail-addon/Code.js still uses the legacy `techLeaders` slug.
@@ -231,6 +241,10 @@ export const INITIATIVES = {
     shortLabel: 'TELIA',
     domain: 'telia.bundu.org',
     url: 'https://telia.bundu.org',
+    icon: {
+      light: '/assets/brand-icons/telia-icon-light.png',
+      dark: '/assets/brand-icons/telia-icon-dark.png',
+    },
   },
   // Bundu.org-based home like TELIA; its commercial product is Nyuchi
   // Learning (the nyuchi division).
