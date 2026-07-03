@@ -35,9 +35,13 @@ Cloudflare (Workers Custom Domain on the `nyuchi.com` zone).
 - `generate_email_signature` imports the shared pure engine at
   `signature-generator/src/engines/signature` (the same module the SPA uses),
   so both surfaces emit byte-identical signature HTML.
-- The studio/banner MCP tools still return placeholder output. Wiring the real
-  `signature-generator/src/engines/nyuchi` `buildSVG` into
-  `generate_studio_card` is blocked on a Workers-safe text-measurement
-  fallback (the engine uses canvas `measureText`, which Workers lack).
+- `generate_studio_card` and `generate_article_banner` import the real SVG
+  engines (`signature-generator/src/engines/nyuchi` and `.../banner`) — the
+  same modules the `/studio` and `/banner` pages render with. Workers have no
+  canvas, so text measurement falls back to a committed font-metrics table
+  (`signature-generator/src/engines/metrics/`, regenerated with
+  `node scripts/extract-font-metrics.mjs` from `signature-generator/`).
+  Each tool returns the SVG plus a second JSON content item:
+  `{format: {w, h}, seed}`.
 - PNG output is deferred: either `resvg-wasm` in the Worker or client-side
   canvas rasterization of the returned SVG.
