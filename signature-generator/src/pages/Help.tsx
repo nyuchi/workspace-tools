@@ -430,10 +430,12 @@ const Help = () => {
                 web generator.
               </DefRow>
               <DefRow term={<code style={inlineCodeStyle}>generate_studio_card</code>}>
-                Returns SVG. Currently a placeholder render, pending the full Studio engine port.
+                Live. Returns SVG from the same Studio engine as the /studio page, plus JSON
+                metadata (size and seed). PNG output is a follow-up.
               </DefRow>
               <DefRow term={<code style={inlineCodeStyle}>generate_article_banner</code>}>
-                Returns SVG. Currently a placeholder render, pending the full banner engine port.
+                Live. Returns SVG from the same banner engine as the /banner page, plus JSON
+                metadata (size and seed). PNG output is a follow-up.
               </DefRow>
             </div>
 
