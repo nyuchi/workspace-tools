@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import {
+  BRANDS,
   buildSVG,
   CATEGORIES,
   FORMATS,
   hashString,
   LAYOUTS,
+  type Brand,
   type Category,
   type FormatKey,
   type Params,
@@ -116,6 +118,38 @@ describe('buildSVG — escaping', () => {
     const { svg } = buildSVG(baseParams({ dek: 'a & b <img src=x onerror=alert(1)>' }))
     expect(svg).not.toContain('<img')
     expect(svg).toContain('&amp; b &lt;img')
+  })
+})
+
+describe('buildSVG — lockup brands', () => {
+  const LOCKUPS: [Brand, string][] = [
+    ['nyuchi', 'nyuchi.com'],
+    ['bundu', 'bundu.org'],
+    ['mukoko', 'mukoko.com'],
+    ['shamwari', 'shamwari.ai'],
+  ]
+
+  it('BRANDS covers exactly the four top-level brands with their lockup URLs', () => {
+    expect(Object.keys(BRANDS).sort()).toEqual(['bundu', 'mukoko', 'nyuchi', 'shamwari'])
+    for (const [brand, label] of LOCKUPS) {
+      expect(BRANDS[brand].url).toBe(label)
+    }
+  })
+
+  for (const [brand, label] of LOCKUPS) {
+    it(`brand ${brand} renders the ${label} lockup wordmark deterministically`, () => {
+      const params = baseParams({ brand, lockup: true })
+      const { svg } = buildSVG(params)
+      expect(svg).toContain(`>${label}</text>`)
+      expect(buildSVG(params).svg).toBe(svg)
+    })
+  }
+
+  it('brands without a registered icon fall back to the drawn o2 mark', () => {
+    // No icons are registered in this suite, so every lockup uses the mark.
+    const { svg } = buildSVG(baseParams({ brand: 'mukoko', lockup: true }))
+    expect(svg).not.toContain('<image')
+    expect(svg).toContain('>mukoko.com</text>')
   })
 })
 

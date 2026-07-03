@@ -30,6 +30,7 @@ import {
   buildSignatureHtml,
   type SignatureParams,
 } from "../../signature-generator/src/engines/signature";
+import { TOP_BRAND_KEYS } from "../../signature-generator/src/engines/brands";
 import {
   buildSVG as buildStudioCard,
   type Params as StudioParams,
@@ -38,6 +39,11 @@ import {
   buildSVG as buildArticleBanner,
   type Params as BannerParams,
 } from "../../signature-generator/src/engines/banner";
+
+/** One-line brand taxonomy, appended to every `brand` param description. */
+const BRAND_TAXONOMY =
+  "Top-level Bundu-ecosystem brand: bundu (foundation), nyuchi (commercial), " +
+  "mukoko (consumer), shamwari (community AI).";
 
 /** The seven Mzizi mineral palettes shared by both SVG engines. */
 const MINERALS = [
@@ -119,7 +125,12 @@ function buildServer(): McpServer {
       title: "Generate email signature",
       description: "Generate a branded Nyuchi email signature as HTML.",
       inputSchema: {
-        brand: z.enum(BRAND_KEYS).describe("Brand slug."),
+        brand: z
+          .enum(BRAND_KEYS)
+          .describe(
+            `Brand slug. ${BRAND_TAXONOMY} travel and learning are legacy ` +
+              "signature keys (Zimbabwe Information Platform initiative / Nyuchi Learning division).",
+          ),
         name: z.string().describe("Full name of the signer."),
         email: z.string().describe("Email address."),
         title: z.string().optional().describe("Job title / role."),
@@ -173,7 +184,11 @@ function buildServer(): McpServer {
         index: z.string().optional().describe("Big index numeral on the mineral swatch (layout 5)."),
         footnote: z.string().optional().describe("Small mono footnote (layout 5)."),
         role: z.string().optional().describe("Role label; defaults to the mineral's role."),
-        brand: z.enum(["nyuchi", "bundu"]).optional().default("nyuchi").describe("Lockup brand."),
+        brand: z
+          .enum(TOP_BRAND_KEYS)
+          .optional()
+          .default("nyuchi")
+          .describe(`Lockup brand. ${BRAND_TAXONOMY}`),
         seedKey: z
           .string()
           .optional()
@@ -255,7 +270,11 @@ function buildServer(): McpServer {
           .default(1)
           .describe("Layout: 1 type-forward, 2 anchor, 3 split block, 4 centered halo."),
         theme: z.enum(["light", "dark"]).optional().default("dark").describe("Surface theme."),
-        brand: z.enum(["nyuchi", "bundu"]).optional().default("nyuchi").describe("Lockup brand."),
+        brand: z
+          .enum(TOP_BRAND_KEYS)
+          .optional()
+          .default("nyuchi")
+          .describe(`Lockup brand. ${BRAND_TAXONOMY}`),
         seedKey: z
           .string()
           .optional()

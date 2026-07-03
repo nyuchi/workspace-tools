@@ -95,18 +95,20 @@ const Home = () => {
   ]
 
   const brands = [
+    { name: 'Bundu Foundation', domain: 'bundu.org', color: '#BF5A36' },
     { name: 'Nyuchi Africa', domain: 'nyuchi.com', color: '#5D4037' },
     { name: 'Mukoko', domain: 'mukoko.com', color: '#4B0082' },
+    { name: 'Shamwari AI', domain: 'shamwari.ai', color: '#283593' },
     { name: 'Zimbabwe Travel', domain: 'travel-info.co.zw', color: '#004D40' },
     { name: 'Nyuchi Learning', domain: 'learning.nyuchi.com', color: '#0047AB' },
     { name: 'Nyuchi Lingo', domain: 'lingo.nyuchi.com', color: '#7B341E' },
-    { name: 'Tech Leaders', domain: 'techdirectors.africa', color: '#1A202C' },
+    { name: 'TELIA', domain: 'telia.bundu.org', color: '#1A202C' },
   ]
 
   const features = [
     {
       title: 'Multi-Brand Support',
-      description: '9 Nyuchi ecosystem brands with consistent branding and customizable templates.',
+      description: 'The four Bundu-ecosystem brands plus their divisions, with consistent branding and customizable templates.',
     },
     {
       title: 'Domain-Wide Deployment',

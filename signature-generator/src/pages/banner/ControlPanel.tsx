@@ -26,8 +26,10 @@ const LAYOUT_OPTIONS: { v: number; label: string }[] = [
 ]
 
 const BRAND_OPTIONS: { v: Brand; label: string }[] = [
-  { v: 'nyuchi', label: 'nyuchi.com' },
-  { v: 'bundu',  label: 'bundu.org' },
+  { v: 'nyuchi',   label: 'nyuchi.com' },
+  { v: 'bundu',    label: 'bundu.org' },
+  { v: 'mukoko',   label: 'mukoko.com' },
+  { v: 'shamwari', label: 'shamwari.ai' },
 ]
 
 const SURFACE_OPTIONS: { v: SurfaceMode; label: string }[] = [

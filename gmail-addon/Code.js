@@ -7,11 +7,15 @@
  * - User Tab: Individual users generate and apply their own signatures
  * - Admin Tab: Admins push signatures to all domain users
  *
- * Supported Brands:
+ * Supported Brands (see signature-generator/src/engines/brands/index.ts —
+ * the canonical Bundu-ecosystem brand registry; this file is a hand-synced
+ * copy because Apps Script cannot import npm modules):
+ * - Bundu Foundation (bundu.org — the parent)
  * - Nyuchi Africa (and divisions: Lingo, Learning, Development, Foundation)
  * - Mukoko (and Mukoko News, Mukoko ID)
+ * - Shamwari AI
  * - Zimbabwe Travel Information
- * - Technology Leaders of Africa
+ * - TELIA — Technology Leaders in Africa
  */
 
 // ============================================================================
@@ -112,14 +116,31 @@ const BRANDS = {
     }
   },
   techLeaders: {
-    name: 'Technology Leaders of Africa',
+    // Renamed from "Technology Leaders of Africa" (techdirectors.africa).
+    name: 'TELIA — Technology Leaders in Africa',
     tagline: 'Leading African Innovation',
-    website: 'techdirectors.africa',
-    websiteUrl: 'https://techdirectors.africa',
+    website: 'telia.bundu.org',
+    websiteUrl: 'https://telia.bundu.org',
     logo: 'https://assets.nyuchi.com/logos/technology-leaders/Technology_Leaders_Logo_dark.png',
     socials: {
       linkedin: 'https://www.linkedin.com/company/technology-leaders-africa/'
     }
+  },
+  bundu: {
+    name: 'Bundu Foundation',
+    tagline: 'The wilderness holds the hive',
+    website: 'bundu.org',
+    websiteUrl: 'https://bundu.org',
+    logo: 'https://assets.nyuchi.com/logos/bundu/Bundu_Foundation_Logo_dark.svg', // TODO(brand): confirm logo asset
+    socials: {} // TODO(brand): confirm socials
+  },
+  shamwari: {
+    name: 'Shamwari AI',
+    tagline: 'AI that actually works for Africa',
+    website: 'shamwari.ai',
+    websiteUrl: 'https://shamwari.ai',
+    logo: 'https://assets.nyuchi.com/logos/shamwari/Shamwari_AI_Logo_dark.svg', // TODO(brand): confirm logo asset
+    socials: {} // TODO(brand): confirm socials
   }
 };
 
@@ -147,7 +168,10 @@ const ADMIN_CONFIG = {
     'news.mukoko.com': { brandKey: 'mukokoNews' },
     'nyuchi.com': { brandKey: 'nyuchi' },
     'foundation.nyuchi.com': { brandKey: 'foundation' },
-    'techdirectors.africa': { brandKey: 'techLeaders' }
+    'bundu.org': { brandKey: 'bundu' },
+    'shamwari.ai': { brandKey: 'shamwari' },
+    'telia.bundu.org': { brandKey: 'techLeaders' },
+    'techdirectors.africa': { brandKey: 'techLeaders' } // legacy TELIA domain
   }
 };
 
@@ -309,6 +333,7 @@ function addUserTabContent(card) {
     .setOnChangeAction(CardService.newAction().setFunctionName('onBrandChange'));
 
   // Add brand options grouped by parent
+  brandDropdown.addItem('Bundu Foundation', 'bundu', settings.brand === 'bundu');
   brandDropdown.addItem('Nyuchi Africa', 'nyuchi', settings.brand === 'nyuchi');
   brandDropdown.addItem('  - Nyuchi Lingo', 'lingo', settings.brand === 'lingo');
   brandDropdown.addItem('  - Nyuchi Learning', 'learning', settings.brand === 'learning');
@@ -316,8 +341,9 @@ function addUserTabContent(card) {
   brandDropdown.addItem('  - Nyuchi Foundation', 'foundation', settings.brand === 'foundation');
   brandDropdown.addItem('Mukoko', 'mukoko', settings.brand === 'mukoko');
   brandDropdown.addItem('  - Mukoko News', 'mukokoNews', settings.brand === 'mukokoNews');
+  brandDropdown.addItem('Shamwari AI', 'shamwari', settings.brand === 'shamwari');
   brandDropdown.addItem('Zimbabwe Travel', 'travel', settings.brand === 'travel');
-  brandDropdown.addItem('Tech Leaders of Africa', 'techLeaders', settings.brand === 'techLeaders');
+  brandDropdown.addItem('TELIA — Tech Leaders in Africa', 'techLeaders', settings.brand === 'techLeaders');
 
   brandSection.addWidget(brandDropdown);
   card.addSection(brandSection);

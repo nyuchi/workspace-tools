@@ -128,6 +128,46 @@ describe('POST /mcp — JSON-RPC', () => {
     expect(html).toContain('color: #5D4037;">Nyuchi Africa</span>')
   })
 
+  it('tools/call generate_email_signature accepts the new bundu brand', async () => {
+    const res = await post(
+      '/mcp',
+      rpc(
+        'tools/call',
+        {
+          name: 'generate_email_signature',
+          arguments: { brand: 'bundu', name: 'Tariro Chikafu', email: 'tariro@bundu.org' },
+        },
+        30,
+      ),
+    )
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as JsonRpcResponse
+    expect(body.error).toBeUndefined()
+    const html = (body.result as { content: { text: string }[] }).content[0].text
+    expect(html).toContain('color: #BF5A36;">Bundu Foundation</span>')
+    expect(html).toContain('"The wilderness holds the hive"')
+    expect(html).toContain('>bundu.org</a>')
+  })
+
+  it('tools/call generate_email_signature accepts the new shamwari brand', async () => {
+    const res = await post(
+      '/mcp',
+      rpc(
+        'tools/call',
+        {
+          name: 'generate_email_signature',
+          arguments: { brand: 'shamwari', name: 'Farai Gumbo', email: 'farai@shamwari.ai' },
+        },
+        31,
+      ),
+    )
+    const body = (await res.json()) as JsonRpcResponse
+    expect(body.error).toBeUndefined()
+    const html = (body.result as { content: { text: string }[] }).content[0].text
+    expect(html).toContain('color: #283593;">Shamwari AI</span>')
+    expect(html).toContain('>shamwari.ai</a>')
+  })
+
   it('tools/call with an unknown brand surfaces a tool error', async () => {
     const res = await post(
       '/mcp',
@@ -228,6 +268,43 @@ describe('POST /mcp — JSON-RPC', () => {
     expect(b[1].text).toBe(a[1].text)
   })
 
+  it('generate_studio_card renders a bundu-branded card (lockup wordmark)', async () => {
+    const res = await post(
+      '/mcp',
+      rpc(
+        'tools/call',
+        {
+          name: 'generate_studio_card',
+          arguments: { title: 'The wilderness holds the hive', category: 'copper', brand: 'bundu' },
+        },
+        32,
+      ),
+    )
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as JsonRpcResponse
+    expect(body.error).toBeUndefined()
+    const svg = (body.result as { content: { text: string }[] }).content[0].text
+    expect(svg.startsWith('<svg')).toBe(true)
+    expect(svg).toContain('>bundu.org</text>')
+    expect(svg).not.toContain('>nyuchi.com</text>')
+  })
+
+  it('generate_studio_card rejects an unknown brand', async () => {
+    const res = await post(
+      '/mcp',
+      rpc(
+        'tools/call',
+        { name: 'generate_studio_card', arguments: { title: 'X', category: 'gold', brand: 'acme' } },
+        33,
+      ),
+    )
+    const body = (await res.json()) as JsonRpcResponse
+    const result = body.result as { isError: boolean; content: { text: string }[] }
+    expect(body.error).toBeUndefined()
+    expect(result.isError).toBe(true)
+    expect(result.content[0].text).toContain('-32602')
+  })
+
   it('generate_studio_card rejects an unknown format', async () => {
     const res = await post(
       '/mcp',
@@ -305,6 +382,43 @@ describe('POST /mcp — JSON-RPC', () => {
     expect(svg).toContain('&lt;script&gt;')
     const meta = JSON.parse(content[1].text) as { format: { w: number; h: number } }
     expect(meta.format).toEqual({ w: 1600, h: 900 })
+  })
+
+  it('generate_article_banner renders a shamwari-branded banner (lockup wordmark)', async () => {
+    const res = await post(
+      '/mcp',
+      rpc(
+        'tools/call',
+        {
+          name: 'generate_article_banner',
+          arguments: { title: 'AI that actually works for Africa', category: 'sodalite', brand: 'shamwari' },
+        },
+        34,
+      ),
+    )
+    const body = (await res.json()) as JsonRpcResponse
+    expect(body.error).toBeUndefined()
+    const svg = (body.result as { content: { text: string }[] }).content[0].text
+    expect(svg).toContain('>shamwari.ai</text>')
+    expect(svg).not.toContain('>nyuchi.com</text>')
+  })
+
+  it('generate_article_banner rejects an unknown brand', async () => {
+    const res = await post(
+      '/mcp',
+      rpc(
+        'tools/call',
+        {
+          name: 'generate_article_banner',
+          arguments: { title: 'X', category: 'gold', brand: 'travel' },
+        },
+        35,
+      ),
+    )
+    const body = (await res.json()) as JsonRpcResponse
+    const result = body.result as { isError: boolean; content: { text: string }[] }
+    expect(result.isError).toBe(true)
+    expect(result.content[0].text).toContain('-32602')
   })
 
   it('generate_article_banner rejects layout 5 (banner engine has layouts 1-4)', async () => {

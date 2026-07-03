@@ -74,6 +74,18 @@ const CONFIG = {
       logo: 'https://raw.githubusercontent.com/nyuchitech/nyuchi-brand-assets/main/assets/logos/Nyuchi_Africa_Logo_dark.png',
       website: 'nyuchi.com',
       hideAttribution: true  // Don't show "A division of" for corporate emails
+    },
+    // Bundu-ecosystem pillar brands — hand-synced from
+    // signature-generator/src/engines/brands/index.ts (the canonical registry).
+    'bundu.org': {
+      name: 'Bundu Foundation',
+      logo: 'https://raw.githubusercontent.com/nyuchitech/nyuchi-brand-assets/main/assets/logos/Bundu_Foundation_Logo_dark.png', // TODO(brand): confirm logo asset
+      website: 'bundu.org'
+    },
+    'shamwari.ai': {
+      name: 'Shamwari AI',
+      logo: 'https://raw.githubusercontent.com/nyuchitech/nyuchi-brand-assets/main/assets/logos/Shamwari_AI_Logo_dark.png', // TODO(brand): confirm logo asset
+      website: 'shamwari.ai'
     }
   },
 
