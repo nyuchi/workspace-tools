@@ -1145,7 +1145,9 @@
                 <option value="mukoko">Mukoko</option>
                 <option value="mukokoNews">Mukoko News</option>
                 <option value="travel">Zimbabwe Travel Information</option>
-                <option value="techLeaders">Technology Leaders of Africa</option>
+                <option value="techLeaders">TELIA — Technology Leaders in Africa</option>
+                <option value="bundu">Bundu Foundation</option>
+                <option value="shamwari">Shamwari AI</option>
               </select>
             </div>
 
@@ -1316,10 +1318,22 @@
         logo: 'https://assets.nyuchi.com/logos/zti/Zimbabwe_Travel_Information_Logo_dark.png'
       },
       techLeaders: {
-        name: 'Technology Leaders of Africa',
+        name: 'TELIA — Technology Leaders in Africa',
         tagline: 'Leading African Innovation',
-        website: 'techdirectors.africa',
+        website: 'telia.bundu.org',
         logo: 'https://assets.nyuchi.com/logos/technology-leaders/Technology_Leaders_Logo_dark.png'
+      },
+      bundu: {
+        name: 'Bundu Foundation',
+        tagline: 'The wilderness holds the hive',
+        website: 'bundu.org',
+        logo: 'https://assets.nyuchi.com/logos/bundu/Bundu_Foundation_Logo_dark.svg' // TODO(brand): confirm logo asset
+      },
+      shamwari: {
+        name: 'Shamwari AI',
+        tagline: 'AI that actually works for Africa',
+        website: 'shamwari.ai',
+        logo: 'https://assets.nyuchi.com/logos/shamwari/Shamwari_AI_Logo_dark.svg' // TODO(brand): confirm logo asset
       }
     };
 
@@ -1499,7 +1513,10 @@
         'mukoko.com': 'mukoko',
         'hararemetro.co.zw': 'mukokoNews',
         'news.mukoko.com': 'mukokoNews',
-        'techdirectors.africa': 'techLeaders',
+        'telia.bundu.org': 'techLeaders',
+        'techdirectors.africa': 'techLeaders', // legacy TELIA domain
+        'bundu.org': 'bundu',
+        'shamwari.ai': 'shamwari',
         'nyuchi.com': 'nyuchi'
       };
       return BRANDS[domainMap[domain] || 'nyuchi'];

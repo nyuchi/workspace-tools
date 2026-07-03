@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-Sub-projects for managing Nyuchi Africa email signatures and design assets. They share branding but **no code** — each maintains its own copy of the brand list.
+Sub-projects for managing Nyuchi Africa email signatures and design assets. They share branding but **no code** — the TypeScript side shares one brand registry (`signature-generator/src/engines/brands`); the Apps Script projects each maintain a hand-synced copy of the brand list.
 
 | Directory | Stack | Purpose | Deploy target |
 |-----------|-------|---------|---------------|
@@ -75,19 +75,43 @@ The React app's design system is a mirror of the Mzizi brand registry (Bundu eco
 
 Nyuchi's canonical mineral is **gold** (`#FFD740`). Every other brand has its own — the mapping lives in `EmailSignatureGenerator.tsx`.
 
-### Brand config is duplicated across the Apps Script side, not shared
-The TypeScript side has ONE canonical brand config + signature template:
-`signature-generator/src/engines/signature/index.ts` (`BRANDS`,
-`buildSignatureHtml`, `buildSignatureText`) — a pure module imported by both
-the SPA component and the Worker's `generate_email_signature` MCP tool. The
-two Apps Script projects still hardcode their own brand/division list (Apps
-Script cannot import npm modules):
-- `gmail-addon/Code.js` → `BRANDS` object (keyed by brand slug, e.g. `nyuchi`, `mukoko`).
-- `email-signature/Code.js` → `CONFIG.divisions` (keyed by **email domain**, e.g. `lingo.nyuchi.com`).
+### The brand registry is the canonical source; Apps Script copies are hand-synced
+`signature-generator/src/engines/brands/index.ts` is THE canonical brand
+registry — a pure module holding the Bundu-ecosystem taxonomy:
 
-A brand or social-link change must be applied in the engine module and both
-Apps Script files. The two Apps Script files also differ in shape (slug-keyed
-vs domain-keyed) and in logo URLs (`assets.nyuchi.com` CDN vs raw GitHub).
+- **Bundu Foundation** (`bundu`, bundu.org) is the parent; the other three
+  top-level brands are its pillars: **Nyuchi Africa** (`nyuchi`, commercial),
+  **Mukoko** (`mukoko`, consumer), **Shamwari AI** (`shamwari`, community).
+- `DIVISIONS` (keyed by parent): nyuchi → lingo/learning/development/foundation,
+  mukoko → mukokoNews.
+- `INITIATIVES` under bundu (projects, NOT brands): Zimbabwe Information
+  Platform (travel-info.co.zw), TELIA — Technology Leaders in Africa
+  (telia.bundu.org), Bundu Education.
+- Per-brand `lockupLabel` drives the studio/banner lockups; per-theme `icon`
+  pairs come from the bundu-ecosystem-icons collection (only nyuchi's
+  light-surface bee is vendored today).
+
+Consumers:
+- `signature-generator/src/engines/signature/index.ts` (`BRANDS`,
+  `buildSignatureHtml`, `buildSignatureText`) — the signature template +
+  the **historical signature copies** of the brand data, imported by both the
+  SPA component and the Worker's `generate_email_signature` MCP tool. Its
+  `travel`/`learning` keys are legacy signature identities; emitted HTML for
+  pre-existing keys is byte-locked, so never re-sync its wording/colors to
+  the registry.
+- `engines/nyuchi` + `engines/banner` re-export `Brand` from the registry and
+  read `lockupLabel` from it.
+- The two Apps Script projects still hardcode their own brand/division list
+  (Apps Script cannot import npm modules):
+  - `gmail-addon/Code.js` → `BRANDS` object (keyed by brand slug, e.g. `nyuchi`, `bundu`)
+    plus a second copy in `Dashboard.html`.
+  - `email-signature/Code.js` → `CONFIG.divisions` (keyed by **email domain**, e.g. `lingo.nyuchi.com`, `bundu.org`).
+
+A brand or social-link change must be applied in the registry first, then in
+the signature engine (new keys only — existing output is byte-locked) and
+both Apps Script files. The two Apps Script files also differ in shape
+(slug-keyed vs domain-keyed) and in logo URLs (`assets.nyuchi.com` CDN vs raw
+GitHub).
 
 ### The emitted email-signature HTML is separate from the SPA UI
 `EmailSignatureGenerator.tsx` has two visual surfaces:
