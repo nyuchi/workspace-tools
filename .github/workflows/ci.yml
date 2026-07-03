@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# CI only reads the repo; never expose write scopes to the GITHUB_TOKEN.
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            signature-generator/package-lock.json
+
+      # Root project: Worker deps (hono, MCP SDK) + worker test runner.
+      - name: Install root dependencies
+        run: npm ci
+
+      # signature-generator is its own npm project with its own lockfile.
+      - name: Install signature-generator dependencies
+        run: npm ci
+        working-directory: signature-generator
+
+      - name: Lint (signature-generator)
+        run: npm run lint
+        working-directory: signature-generator
+
+      - name: Typecheck Worker
+        run: npm run typecheck:worker
+
+      # tsc -b && vite build — type-check is part of the build.
+      - name: Build SPA
+        run: npm run build
+        working-directory: signature-generator
+
+      # Runs both suites: signature-generator engines + Worker HTTP tests.
+      - name: Test
+        run: npm test

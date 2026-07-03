@@ -1,0 +1,330 @@
+/**
+ * Nyuchi MCP Worker.
+ *
+ * Deployed at https://tools.nyuchi.com/mcp/* via a Cloudflare Workers route
+ * (see wrangler.toml). Inside this Worker, Hono routes are matched against
+ * the ORIGINAL request URL (Workers do not strip the route prefix), so the
+ * Hono route path is `/mcp` — the same path the route pattern matches.
+ *
+ * Transport: streamable-HTTP (per MCP 2024-11-05). We implement a minimal
+ * per-request transport because the SDK's built-in `StreamableHTTPServerTransport`
+ * (v1.29.x) targets Node.js req/res, not the fetch API used by Workers.
+ * For our stateless single-JSON-RPC-request-per-POST use case this is enough;
+ * SSE / server-initiated streaming is not required by the current tool set.
+ */
+
+import { Hono } from "hono";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
+import type { JSONRPCMessage } from "@modelcontextprotocol/sdk/types.js";
+import { z } from "zod";
+import {
+  type AuthEnv,
+  authConfigured,
+  protectedResourceMetadata,
+  verifyBearer,
+  wwwAuthenticateHeader,
+} from "./auth.js";
+import {
+  BRAND_KEYS,
+  buildSignatureHtml,
+  type SignatureParams,
+} from "../../signature-generator/src/engines/signature";
+
+const SERVER_NAME = "nyuchi-tools";
+const SERVER_VERSION = "0.1.0";
+const MCP_PROTOCOL_VERSION = "2024-11-05";
+
+// -----------------------------------------------------------------------------
+// Minimal per-request streamable-HTTP transport.
+// -----------------------------------------------------------------------------
+
+/**
+ * Single-shot transport: feeds one incoming JSON-RPC message into the server,
+ * captures the first outgoing message, and resolves with it. Notifications
+ * (no `id`) get a 202 with no body — handled at the fetch layer, not here.
+ */
+class WorkerHttpTransport implements Transport {
+  onmessage?: (message: JSONRPCMessage) => void;
+  onclose?: () => void;
+  onerror?: (error: Error) => void;
+  sessionId?: string;
+
+  private _resolveResponse!: (message: JSONRPCMessage) => void;
+  private _responsePromise: Promise<JSONRPCMessage>;
+
+  constructor() {
+    this._responsePromise = new Promise<JSONRPCMessage>((resolve) => {
+      this._resolveResponse = resolve;
+    });
+  }
+
+  async start(): Promise<void> {
+    // No-op: connection is a single HTTP request.
+  }
+
+  async send(message: JSONRPCMessage): Promise<void> {
+    this._resolveResponse(message);
+  }
+
+  async close(): Promise<void> {
+    this.onclose?.();
+  }
+
+  /** Dispatch a decoded JSON-RPC message and await the server's reply. */
+  dispatch(message: JSONRPCMessage): Promise<JSONRPCMessage> {
+    if (!this.onmessage) {
+      throw new Error("Transport not connected to a server");
+    }
+    this.onmessage(message);
+    return this._responsePromise;
+  }
+}
+
+// -----------------------------------------------------------------------------
+// MCP server + tool registrations.
+// -----------------------------------------------------------------------------
+
+function buildServer(): McpServer {
+  const server = new McpServer({
+    name: SERVER_NAME,
+    version: SERVER_VERSION,
+  });
+
+  // --- generate_email_signature -------------------------------------------
+  // Shares the pure signature engine with the SPA so both surfaces emit
+  // byte-identical signature HTML.
+  server.registerTool(
+    "generate_email_signature",
+    {
+      title: "Generate email signature",
+      description: "Generate a branded Nyuchi email signature as HTML.",
+      inputSchema: {
+        brand: z.enum(BRAND_KEYS).describe("Brand slug."),
+        name: z.string().describe("Full name of the signer."),
+        email: z.string().describe("Email address."),
+        title: z.string().optional().describe("Job title / role."),
+        phone: z.string().optional().describe("Phone number in international format."),
+        whatsapp: z.string().optional().describe("WhatsApp number, digits with country code."),
+        profileImage: z.string().optional().describe("Profile image URL."),
+        linkedin: z.string().optional().describe("LinkedIn profile URL."),
+        twitter: z.string().optional().describe("X / Twitter profile URL."),
+        facebook: z.string().optional().describe("Facebook page URL."),
+        instagram: z.string().optional().describe("Instagram profile URL."),
+        promoBanner: z.string().optional().describe("Promo banner image URL."),
+        promoLink: z.string().optional().describe("Promo banner target URL."),
+      },
+    },
+    async (args: SignatureParams) => {
+      const html = buildSignatureHtml(args);
+      return { content: [{ type: "text", text: html }] };
+    },
+  );
+
+  // --- generate_studio_card -----------------------------------------------
+  server.registerTool(
+    "generate_studio_card",
+    {
+      title: "Generate Nyuchi Studio social card",
+      description:
+        "Generate a Nyuchi Studio social card as an SVG string. PNG rasterization is a follow-up.",
+      inputSchema: {
+        title: z.string(),
+        dek: z.string().optional(),
+        category: z.enum([
+          "cobalt",
+          "sodalite",
+          "tanzanite",
+          "malachite",
+          "gold",
+          "copper",
+          "terracotta",
+        ]),
+        format: z.enum(["ig", "story", "16x9", "og", "li"]).optional(),
+        layout: z.number().int().optional().default(5),
+      },
+    },
+    async (args: {
+      title: string;
+      dek?: string;
+      category: string;
+      format?: string;
+      layout?: number;
+    }) => {
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1080">` +
+        `<!-- placeholder studio card: category=${escapeHtml(args.category)} ` +
+        `format=${escapeHtml(args.format ?? "ig")} layout=${args.layout ?? 5} -->` +
+        `<rect width="1080" height="1080" fill="#5f5873"/>` +
+        `<text x="60" y="540" fill="#fff" font-family="Plus Jakarta Sans" font-size="72">${escapeHtml(args.title)}</text>` +
+        (args.dek
+          ? `<text x="60" y="640" fill="#fff" font-family="Plus Jakarta Sans" font-size="36">${escapeHtml(args.dek)}</text>`
+          : "") +
+        `</svg>`;
+      return { content: [{ type: "text", text: svg }] };
+    },
+  );
+
+  // --- generate_article_banner --------------------------------------------
+  server.registerTool(
+    "generate_article_banner",
+    {
+      title: "Generate article banner",
+      description: "Generate an article banner as an SVG string.",
+      inputSchema: {
+        title: z.string(),
+        dek: z.string().optional(),
+        category: z.string(),
+        format: z.string().optional(),
+        layout: z.number().int().optional().default(5),
+      },
+    },
+    async (args: {
+      title: string;
+      dek?: string;
+      category: string;
+      format?: string;
+      layout?: number;
+    }) => {
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900">` +
+        `<!-- placeholder article banner: category=${escapeHtml(args.category)} ` +
+        `format=${escapeHtml(args.format ?? "16x9")} layout=${args.layout ?? 5} -->` +
+        `<rect width="1600" height="900" fill="#5f5873"/>` +
+        `<text x="80" y="460" fill="#fff" font-family="Plus Jakarta Sans" font-size="96">${escapeHtml(args.title)}</text>` +
+        (args.dek
+          ? `<text x="80" y="560" fill="#fff" font-family="Plus Jakarta Sans" font-size="40">${escapeHtml(args.dek)}</text>`
+          : "") +
+        `</svg>`;
+      return { content: [{ type: "text", text: svg }] };
+    },
+  );
+
+  return server;
+}
+
+function escapeHtml(input: string): string {
+  return input
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+// -----------------------------------------------------------------------------
+// Hono HTTP surface.
+// -----------------------------------------------------------------------------
+
+const app = new Hono<{ Bindings: AuthEnv }>();
+
+// OAuth surface. Behavior is driven by the AUTHKIT_DOMAIN Worker var:
+//
+//   unset → the MCP server is OPEN. Discovery endpoints return JSON 404s so
+//     MCP clients (e.g. claude.ai connectors) conclude "no sign-in needed"
+//     instead of hitting the SPA fallback's 200 text/html and inventing a
+//     broken sign-in service.
+//
+//   set → WorkOS Connect protects /mcp. The protected-resource metadata
+//     advertises the WorkOS authorization server; client registration and
+//     the actual OAuth flow happen on WorkOS, not here.
+//
+// These paths reach the Worker via assets.run_worker_first in wrangler.toml.
+app.all("/.well-known/oauth-protected-resource", (c) => {
+  if (authConfigured(c.env)) return c.json(protectedResourceMetadata(c.env));
+  return c.json(
+    { error: "no_protected_resource_metadata", detail: "This MCP server does not require authentication." },
+    404,
+  );
+});
+app.all("/.well-known/oauth-protected-resource/*", (c) => {
+  if (authConfigured(c.env)) return c.json(protectedResourceMetadata(c.env));
+  return c.json(
+    { error: "no_protected_resource_metadata", detail: "This MCP server does not require authentication." },
+    404,
+  );
+});
+app.all("/.well-known/oauth-authorization-server", (c) =>
+  c.json({ error: "no_authorization_server", detail: "Authorization is handled by WorkOS; see oauth-protected-resource metadata." }, 404),
+);
+app.all("/.well-known/oauth-authorization-server/*", (c) =>
+  c.json({ error: "no_authorization_server", detail: "Authorization is handled by WorkOS; see oauth-protected-resource metadata." }, 404),
+);
+app.all("/register", (c) =>
+  c.json({ error: "registration_not_supported", detail: "Client registration is handled by the WorkOS authorization server." }, 404),
+);
+
+// Bearer-token gate for /mcp — no-op until AUTHKIT_DOMAIN is configured.
+app.use("/mcp", async (c, next) => {
+  if (!authConfigured(c.env)) return next();
+  const verified = await verifyBearer(c.env, c.req.header("Authorization"));
+  if (!verified) {
+    return c.json(
+      { error: "unauthorized", detail: "Valid bearer token required." },
+      401,
+      { "WWW-Authenticate": wwwAuthenticateHeader(c.env) },
+    );
+  }
+  return next();
+});
+
+// Discovery: cheap identity ping for clients probing the endpoint.
+app.get("/mcp", (c) => {
+  return c.json({
+    name: SERVER_NAME,
+    version: SERVER_VERSION,
+    protocol: `mcp/${MCP_PROTOCOL_VERSION}`,
+    endpoint: "/mcp",
+  });
+});
+
+// JSON-RPC entry: one request per POST (stateless streamable-HTTP).
+app.post("/mcp", async (c) => {
+  let body: unknown;
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json(
+      {
+        jsonrpc: "2.0",
+        id: null,
+        error: { code: -32700, message: "Parse error" },
+      },
+      400,
+    );
+  }
+
+  const messages = Array.isArray(body) ? body : [body];
+  const server = buildServer();
+  const transport = new WorkerHttpTransport();
+  await server.connect(transport);
+
+  try {
+    // MCP HTTP requests batching is rare; we support only single-request payloads.
+    // Notifications (no `id`) get an empty 202 per JSON-RPC + MCP HTTP spec.
+    const first = messages[0] as { id?: unknown };
+    if (first == null || typeof first !== "object") {
+      return c.json(
+        { jsonrpc: "2.0", id: null, error: { code: -32600, message: "Invalid Request" } },
+        400,
+      );
+    }
+    const isNotification = !("id" in first) || first.id === undefined || first.id === null;
+    if (isNotification) {
+      transport.dispatch(first as JSONRPCMessage).catch(() => {
+        /* fire-and-forget; server may still process */
+      });
+      return new Response(null, { status: 202 });
+    }
+
+    const response = await transport.dispatch(first as JSONRPCMessage);
+    return c.json(response);
+  } finally {
+    await transport.close();
+  }
+});
+
+// Anything else under /mcp/*: 404 with a hint.
+app.all("/mcp/*", (c) => c.json({ error: "not found", hint: "POST /mcp for JSON-RPC" }, 404));
+
+export default {
+  fetch: app.fetch,
+};

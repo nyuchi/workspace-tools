@@ -22,3 +22,10 @@ npm-debug.log*
 
 # clasp
 .clasprc.json
+
+# wrangler
+.wrangler/
+.dev.vars
+
+# Claude Code agent worktrees (transient)
+.claude/worktrees/

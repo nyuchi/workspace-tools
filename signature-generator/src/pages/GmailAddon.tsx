@@ -59,7 +59,7 @@ const GmailAddon = () => {
             Installation Guide
           </Link>
           <a
-            href="https://github.com/nyuchitech/workspace-tools/tree/main/gmail-addon"
+            href="https://github.com/nyuchi/workspace-tools/tree/main/gmail-addon"
             target="_blank"
             rel="noopener noreferrer"
             className="px-4 py-2 bg-white text-stone-700 rounded-lg font-medium border border-stone-300 hover:bg-stone-50 transition-colors"
