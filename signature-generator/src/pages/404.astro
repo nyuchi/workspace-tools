@@ -1,0 +1,19 @@
+---
+import Base from '../layouts/Base.astro'
+import Container from '@bundu/ui/Container.astro'
+import { Button } from '@bundu/ui/ui/button'
+---
+
+<Base title="Page not found — Nyuchi workspace tools" description="That page does not exist.">
+  <Container size="narrow" as="div" class="py-24 text-center">
+    <p class="eyebrow">404</p>
+    <h1 class="font-serif text-h1 text-foreground text-balance mb-4">Page not found</h1>
+    <p class="text-body-lg text-muted-foreground mb-8">
+      The page you're looking for doesn't exist — it may have moved, or the address has a typo.
+    </p>
+    <div class="flex flex-wrap items-center justify-center gap-3">
+      <Button href="/">Back to Home</Button>
+      <Button href="/help" variant="ghost" arrow>Browse Help</Button>
+    </div>
+  </Container>
+</Base>

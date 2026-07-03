@@ -1,0 +1,212 @@
+---
+/**
+ * Gmail Add-on — ported from the old React GmailAddon.tsx. The #dashboard
+ * anchor is load-bearing (the home page's "Web Dashboard" card links to it).
+ */
+import Base from '../layouts/Base.astro'
+import Container from '@bundu/ui/Container.astro'
+import Breadcrumb from '@bundu/ui/Breadcrumb.astro'
+import Icon from '@bundu/ui/Icon.astro'
+import { Button } from '@bundu/ui/ui/button'
+import { deriveBreadcrumbs } from '@bundu/ui'
+
+/* build.format 'file' yields "/gmail-addon.html" at build time — normalize first. */
+const crumbs = deriveBreadcrumbs(
+  Astro.url.pathname.replace(/\.html$/, ''),
+  { 'gmail-addon': 'Gmail Add-on' },
+  'Home',
+)
+
+const userFeatures = [
+  'Select from the Bundu-ecosystem brands and their divisions',
+  'Personal information (name, title, email, phone)',
+  'Profile image support',
+  'Social media links (LinkedIn, X, Facebook, Instagram, WhatsApp)',
+  'Promotional banner with custom links',
+  'One-click Gmail signature application',
+  'Compose trigger for signature insertion',
+]
+
+const adminFeatures = [
+  'Push signatures to all domain users',
+  'Single user signature preview and update',
+  'List all users and their email aliases',
+  'Bulk signature deployment',
+  'Scheduled daily automatic updates (2 AM)',
+  'Full web dashboard access',
+]
+
+const dashboardFeatures = [
+  { name: 'Overview', description: 'Statistics, quick actions, activity logging' },
+  { name: 'User Management', description: 'Searchable user table with preview/update actions' },
+  { name: 'Signature Templates', description: 'Live preview by brand' },
+  { name: 'Brand Configuration', description: 'Visual display of all 9 brands' },
+  { name: 'Settings', description: 'Domain config, scheduling, banner management' },
+]
+
+const apiReference = [
+  { fn: 'onHomepage(e)', description: 'Gmail add-on entry point' },
+  { fn: 'buildTabbedCard(tab)', description: 'Render User/Admin tabs' },
+  { fn: 'generateUserSignatureHtml(settings)', description: 'User self-service signature' },
+  { fn: 'getAllDomainUsers()', description: 'Fetch all domain users' },
+  { fn: 'updateAllFromDashboard()', description: 'Bulk signature deployment' },
+]
+
+const h2 = 'font-serif text-h3 font-bold text-foreground mb-6'
+---
+
+<Base
+  title="Gmail Add-on — Nyuchi workspace tools"
+  description="A Gmail sidebar add-on with User and Admin interfaces for managing email signatures across your Google Workspace organization."
+>
+  <Container size="narrow" as="div" class="py-12">
+    <Breadcrumb items={crumbs} origin={Astro.site?.toString()} class="mb-8" />
+
+    {/* Header */}
+    <div class="text-center mb-12">
+      <div class="inline-flex items-center justify-center w-16 h-16 bg-terracotta-container text-terracotta rounded-lg mb-4">
+        <svg class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
+        </svg>
+      </div>
+      <h1 class="font-serif text-h2 font-bold text-foreground mb-3">Gmail Add-on</h1>
+      <p class="text-body-lg text-muted-foreground max-w-2xl mx-auto text-pretty">
+        A powerful Gmail sidebar add-on with User and Admin interfaces for managing email
+        signatures across your organization.
+      </p>
+    </div>
+
+    {/* Quick Install */}
+    <div class="card p-6 mb-8 wash-gold">
+      <h2 class="text-h6 font-sans text-foreground mb-3">Quick Install</h2>
+      <p class="text-body text-muted-foreground mb-4">
+        The Gmail Add-on can be installed from your Google Workspace admin console or directly in
+        Gmail.
+      </p>
+      <div class="flex flex-wrap gap-3">
+        <Button href="/setup" size="sm">Installation Guide</Button>
+        <Button
+          href="https://github.com/nyuchi/workspace-tools/tree/main/gmail-addon"
+          external
+          variant="outline"
+          size="sm"
+        >
+          View Source
+        </Button>
+      </div>
+    </div>
+
+    {/* Tabbed interface */}
+    <div class="grid md:grid-cols-2 gap-6 mb-12">
+      <div class="card p-6">
+        <div class="flex items-center gap-3 mb-4">
+          <div class="w-10 h-10 bg-cobalt-container text-cobalt rounded-md flex items-center justify-center">
+            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+            </svg>
+          </div>
+          <h3 class="text-h6 font-sans text-foreground">User Tab</h3>
+        </div>
+        <p class="text-body-sm text-muted-foreground mb-4">
+          Self-service signature generation for individual users.
+        </p>
+        <ul class="space-y-2">
+          {userFeatures.map((feature) => (
+            <li class="flex items-start gap-2 text-body-sm text-muted-foreground">
+              <Icon name="check" class="h-4 w-4 mt-1 shrink-0 text-malachite" />
+              {feature}
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      <div class="card p-6">
+        <div class="flex items-center gap-3 mb-4">
+          <div class="w-10 h-10 bg-tanzanite-container text-tanzanite rounded-md flex items-center justify-center">
+            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
+            </svg>
+          </div>
+          <h3 class="text-h6 font-sans text-foreground">Admin Tab</h3>
+        </div>
+        <p class="text-body-sm text-muted-foreground mb-4">
+          Enterprise signature deployment for Workspace admins.
+        </p>
+        <ul class="space-y-2">
+          {adminFeatures.map((feature) => (
+            <li class="flex items-start gap-2 text-body-sm text-muted-foreground">
+              <Icon name="check" class="h-4 w-4 mt-1 shrink-0 text-malachite" />
+              {feature}
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
+
+    {/* Web Dashboard */}
+    <div id="dashboard" class="mb-12 scroll-mt-20">
+      <h2 class={h2}>Web Dashboard</h2>
+      <p class="text-body text-muted-foreground mb-6">
+        Full-scale administrative dashboard with Nyuchi branding for enterprise signature
+        management.
+      </p>
+      <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {dashboardFeatures.map((feature) => (
+          <div class="card p-4">
+            <h4 class="text-body-sm font-semibold font-sans text-foreground mb-1">{feature.name}</h4>
+            <p class="text-body-sm text-muted-foreground">{feature.description}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+
+    {/* OAuth Scopes */}
+    <div class="mb-12">
+      <h2 class={h2}>Required Permissions</h2>
+      <pre class="bg-muted border border-border rounded-md p-4 font-mono text-body-sm text-foreground overflow-x-auto whitespace-pre">{`{
+  "oauthScopes": [
+    "https://www.googleapis.com/auth/gmail.settings.basic",
+    "https://www.googleapis.com/auth/gmail.settings.sharing",
+    "https://www.googleapis.com/auth/admin.directory.user.readonly",
+    "https://www.googleapis.com/auth/script.external_request",
+    "https://www.googleapis.com/auth/script.scriptapp",
+    "https://www.googleapis.com/auth/userinfo.email"
+  ]
+}`}</pre>
+    </div>
+
+    {/* API Reference */}
+    <div class="mb-12">
+      <h2 class={h2}>API Reference</h2>
+      <div class="card p-0 overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full text-body-sm">
+            <thead class="bg-muted">
+              <tr class="border-b border-border">
+                <th class="text-left py-3 px-4 font-semibold text-foreground">Function</th>
+                <th class="text-left py-3 px-4 font-semibold text-foreground">Description</th>
+              </tr>
+            </thead>
+            <tbody>
+              {apiReference.map((row) => (
+                <tr class="border-b border-border last:border-b-0">
+                  <td class="py-3 px-4 font-mono text-foreground whitespace-nowrap">{row.fn}</td>
+                  <td class="py-3 px-4 text-muted-foreground">{row.description}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    {/* CTA */}
+    <div class="card p-8 text-center bg-secondary border-none">
+      <h2 class="text-h5 font-sans text-foreground mb-3">Ready to Install?</h2>
+      <p class="text-body text-muted-foreground mb-6">
+        Follow our step-by-step guide to deploy the Gmail Add-on to your organization.
+      </p>
+      <Button href="/setup" variant="secondary">View Setup Guide</Button>
+    </div>
+  </Container>
+</Base>

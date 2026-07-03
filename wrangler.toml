@@ -12,11 +12,11 @@ command = "npm --prefix signature-generator ci && npm --prefix signature-generat
 
 # This Worker serves ALL of tools.nyuchi.com:
 #   - /mcp            → MCP JSON-RPC endpoint (run_worker_first bypasses assets)
-#   - everything else → the built signature-generator SPA as static assets
-#     (single-page-application fallback rewrites unknown paths to index.html)
+#   - everything else → the built signature-generator Astro site as static
+#     assets (every route is a real HTML file; unknown paths get dist/404.html)
 [assets]
 directory = "signature-generator/dist"
-not_found_handling = "single-page-application"
+not_found_handling = "404-page"
 run_worker_first = ["/mcp", "/mcp/*", "/.well-known/*", "/register"]
 
 # Workers Custom Domain: Cloudflare creates and manages the DNS record and
