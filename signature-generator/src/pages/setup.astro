@@ -1,0 +1,294 @@
+---
+/**
+ * Setup guide — ported from the old React Setup.tsx. The three client-side
+ * tabs (CLASP / Add-on / Admin) are now stacked, anchor-linkable sections.
+ */
+import Base from '../layouts/Base.astro'
+import Container from '@bundu/ui/Container.astro'
+import Breadcrumb from '@bundu/ui/Breadcrumb.astro'
+import SectionHeader from '@bundu/ui/SectionHeader.astro'
+import Icon from '@bundu/ui/Icon.astro'
+import { Button } from '@bundu/ui/ui/button'
+import { deriveBreadcrumbs } from '@bundu/ui'
+
+/* build.format 'file' yields "/setup.html" at build time — normalize first. */
+const crumbs = deriveBreadcrumbs(
+  Astro.url.pathname.replace(/\.html$/, ''),
+  { setup: 'Setup Guide' },
+  'Home',
+)
+
+const cliCommands = [
+  { command: 'npm run push:gmail', description: 'Push Gmail Add-on to Apps Script' },
+  { command: 'npm run push:signature', description: 'Push Email Signature Generator' },
+  { command: 'npm run push:all', description: 'Push both projects' },
+  { command: 'npm run deploy:gmail', description: 'Deploy Gmail Add-on' },
+  { command: 'npm run open:gmail', description: 'Open Gmail Add-on in browser' },
+]
+
+const h2 = 'font-serif text-h4 font-bold text-foreground mb-4'
+const body = 'text-body text-muted-foreground mb-4'
+const codeBlock =
+  'bg-muted border border-border rounded-md p-4 font-mono text-body-sm text-foreground overflow-x-auto whitespace-pre mb-2'
+const orderedList = 'list-decimal list-outside pl-5 space-y-2 text-body text-muted-foreground'
+const link = 'text-primary underline underline-offset-[3px]'
+const sectionAnchor = 'scroll-mt-20'
+---
+
+<Base
+  title="Setup Guide — Nyuchi workspace tools"
+  description="Step-by-step instructions for installing and configuring Nyuchi Workspace Tools — clasp, the Gmail Add-on, and admin domain-wide delegation."
+>
+  <Container size="narrow" as="div" class="py-12">
+    <Breadcrumb items={crumbs} origin={Astro.site?.toString()} class="mb-8" />
+
+    <SectionHeader
+      eyebrow="Documentation"
+      title="Setup Guide"
+      description="Step-by-step instructions for installing and configuring Nyuchi Workspace Tools."
+      as="h1"
+      size="h2"
+      class="mb-10"
+    />
+
+    {/* Prerequisites */}
+    <div class="card p-6 mb-8 bg-gold-container border-none">
+      <h2 class="text-h6 font-sans text-gold-on-container mb-3">Prerequisites</h2>
+      <ul class="space-y-2 text-body-sm text-gold-on-container">
+        <li class="flex items-center gap-2">
+          <Icon name="check" class="h-4 w-4 shrink-0" /> Node.js 18+ installed
+        </li>
+        <li class="flex items-center gap-2">
+          <Icon name="check" class="h-4 w-4 shrink-0" /> Google Account with Apps Script access
+        </li>
+        <li class="flex items-center gap-2">
+          <Icon name="check" class="h-4 w-4 shrink-0" /> Google Workspace admin access (for Admin features)
+        </li>
+      </ul>
+    </div>
+
+    {/* On-page contents */}
+    <nav aria-label="Setup sections" class="flex flex-wrap gap-2 mb-8">
+      <a href="#clasp" class="font-mono text-caption uppercase tracking-[0.08em] text-muted-foreground bg-card border border-border rounded-full px-4 py-2 no-underline hover:text-foreground transition-colors">CLASP Setup</a>
+      <a href="#addon" class="font-mono text-caption uppercase tracking-[0.08em] text-muted-foreground bg-card border border-border rounded-full px-4 py-2 no-underline hover:text-foreground transition-colors">Gmail Add-on</a>
+      <a href="#admin" class="font-mono text-caption uppercase tracking-[0.08em] text-muted-foreground bg-card border border-border rounded-full px-4 py-2 no-underline hover:text-foreground transition-colors">Admin Features</a>
+    </nav>
+
+    {/* ── CLASP Setup ── */}
+    <section id="clasp" class={`card p-6 mb-8 space-y-8 ${sectionAnchor}`}>
+      <div>
+        <h2 class={h2}>1. Install Google CLASP CLI</h2>
+        <p class={body}>
+          CLASP (Command Line Apps Script Projects) is Google's official tool for developing Apps
+          Script projects locally.
+        </p>
+        <pre class={codeBlock}>{`# Install clasp globally
+npm install -g @google/clasp
+
+# Verify installation
+clasp --version`}</pre>
+      </div>
+
+      <div>
+        <h2 class={h2}>2. Enable Apps Script API</h2>
+        <p class={body}>Before using CLASP, you must enable the Apps Script API in your Google account:</p>
+        <ol class={orderedList}>
+          <li>
+            Go to{' '}
+            <a href="https://script.google.com/home/usersettings" target="_blank" rel="noopener noreferrer" class={link}>script.google.com/home/usersettings</a>
+          </li>
+          <li>Toggle <strong>Google Apps Script API</strong> to <strong>ON</strong></li>
+        </ol>
+      </div>
+
+      <div>
+        <h2 class={h2}>3. Login to CLASP</h2>
+        <pre class={codeBlock}>{`# Login to your Google account
+clasp login
+
+# This opens a browser window for OAuth authorization
+# Grant permissions and return to your terminal
+
+# Verify login status
+clasp login --status`}</pre>
+      </div>
+
+      <div>
+        <h2 class={h2}>4. Clone the Repository</h2>
+        <pre class={codeBlock}>{`git clone https://github.com/nyuchi/workspace-tools.git
+cd workspace-tools
+
+# Install dependencies
+npm install`}</pre>
+      </div>
+
+      <div>
+        <h2 class={h2}>5. Create Apps Script Projects</h2>
+        <pre class={codeBlock}>{`# For Gmail Add-on
+cd gmail-addon
+clasp create --title "Nyuchi Email Signature" --type standalone
+clasp push
+
+# For Email Signature Generator
+cd ../email-signature
+clasp create --title "Nyuchi Signature Generator" --type standalone
+clasp push`}</pre>
+      </div>
+    </section>
+
+    {/* ── Gmail Add-on ── */}
+    <section id="addon" class={`card p-6 mb-8 space-y-8 ${sectionAnchor}`}>
+      <div>
+        <h2 class={h2}>1. Push Code to Apps Script</h2>
+        <pre class={codeBlock}>{`cd gmail-addon
+clasp push`}</pre>
+      </div>
+
+      <div>
+        <h2 class={h2}>2. Test Deployment (Development)</h2>
+        <ol class={orderedList}>
+          <li>
+            Open Apps Script editor:
+            <pre class={`${codeBlock} mt-2`}>clasp open</pre>
+          </li>
+          <li>Click <strong>Deploy</strong> &gt; <strong>Test deployments</strong></li>
+          <li>Under <strong>Gmail Add-on</strong>, click <strong>Install</strong></li>
+          <li>Open Gmail and refresh — the add-on appears in the right sidebar</li>
+        </ol>
+      </div>
+
+      <div>
+        <h2 class={h2}>3. Production Deployment</h2>
+        <ol class={orderedList}>
+          <li>In Apps Script editor, click <strong>Deploy</strong> &gt; <strong>New deployment</strong></li>
+          <li>Click the gear icon, select <strong>Add-on</strong></li>
+          <li>Fill in the deployment details (e.g., "Nyuchi Email Signature v1.0")</li>
+          <li>Click <strong>Deploy</strong></li>
+          <li>Copy the <strong>Deployment ID</strong></li>
+        </ol>
+      </div>
+
+      <div>
+        <h2 class={h2}>4. Install for Google Workspace Domain</h2>
+        <p class="badge-info mb-4">For Workspace Admins</p>
+        <ol class={orderedList}>
+          <li>
+            Go to{' '}
+            <a href="https://admin.google.com" target="_blank" rel="noopener noreferrer" class={link}>Google Admin Console</a>
+          </li>
+          <li>Navigate to <strong>Apps</strong> &gt; <strong>Google Workspace Marketplace apps</strong> &gt; <strong>Apps list</strong></li>
+          <li>Click <strong>Add app</strong> &gt; <strong>Add internal app</strong></li>
+          <li>Enter your <strong>Deployment ID</strong></li>
+          <li>Configure installation settings (automatic or manual)</li>
+          <li>Click <strong>Finish</strong></li>
+        </ol>
+      </div>
+
+      <div>
+        <h2 class={h2}>5. Verify Installation</h2>
+        <ol class={orderedList}>
+          <li>Open Gmail in a browser (not mobile)</li>
+          <li>Look for the Nyuchi bee icon in the right sidebar</li>
+          <li>Click to open and test the User/Admin tabs</li>
+        </ol>
+      </div>
+    </section>
+
+    {/* ── Admin Features ── */}
+    <section id="admin" class={`card p-6 mb-8 space-y-8 ${sectionAnchor}`}>
+      <div>
+        <h2 class={h2}>Configure Google Cloud Project</h2>
+        <p class={body}>For Gmail Add-on Admin functionality, you need to configure a Google Cloud project:</p>
+        <ol class={orderedList}>
+          <li>
+            Go to{' '}
+            <a href="https://console.cloud.google.com" target="_blank" rel="noopener noreferrer" class={link}>Google Cloud Console</a>
+          </li>
+          <li>Create or select a project</li>
+          <li>
+            Enable these APIs:
+            <ul class="list-disc list-outside pl-5 mt-2 space-y-1">
+              <li><strong>Gmail API</strong></li>
+              <li><strong>Admin SDK Directory API</strong></li>
+            </ul>
+          </li>
+          <li>Configure <strong>OAuth consent screen</strong></li>
+          <li>Link to Apps Script (Project Settings &gt; GCP Project)</li>
+        </ol>
+      </div>
+
+      <div>
+        <h2 class={h2}>Domain-Wide Delegation</h2>
+        <p class={body}>Required for setting signatures for other users in your domain:</p>
+        <ol class={orderedList}>
+          <li>In Apps Script, go to <strong>Project Settings</strong></li>
+          <li>Copy the <strong>Script ID</strong></li>
+          <li>
+            In{' '}
+            <a href="https://admin.google.com" target="_blank" rel="noopener noreferrer" class={link}>Google Admin Console</a>:
+            <ul class="list-disc list-outside pl-5 mt-2 space-y-1">
+              <li>Go to <strong>Security &gt; API Controls &gt; Domain-wide Delegation</strong></li>
+              <li>Click <strong>Add new</strong></li>
+              <li>Paste the Client ID</li>
+              <li>Add the required scopes (see below)</li>
+            </ul>
+          </li>
+        </ol>
+      </div>
+
+      <div>
+        <h2 class={h2}>Required OAuth Scopes</h2>
+        <pre class={codeBlock}>{`https://www.googleapis.com/auth/admin.directory.user.readonly
+https://www.googleapis.com/auth/gmail.settings.basic
+https://www.googleapis.com/auth/gmail.settings.sharing`}</pre>
+      </div>
+
+      <div>
+        <h2 class={h2}>Web Dashboard Deployment</h2>
+        <ol class={orderedList}>
+          <li>In Apps Script editor, click <strong>Deploy</strong> &gt; <strong>New deployment</strong></li>
+          <li>Select type: <strong>Web app</strong></li>
+          <li>Execute as: "User accessing the web app"</li>
+          <li>Who has access: "Anyone within [your domain]"</li>
+          <li>Click <strong>Deploy</strong> and copy the URL</li>
+        </ol>
+      </div>
+    </section>
+
+    {/* CLI Commands Reference */}
+    <div class="mb-8">
+      <h2 class={h2}>CLI Commands Reference</h2>
+      <div class="card p-0 overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full text-body-sm">
+            <thead class="bg-muted">
+              <tr class="border-b border-border">
+                <th class="text-left py-3 px-4 font-semibold text-foreground">Command</th>
+                <th class="text-left py-3 px-4 font-semibold text-foreground">Description</th>
+              </tr>
+            </thead>
+            <tbody>
+              {cliCommands.map((row) => (
+                <tr class="border-b border-border last:border-b-0">
+                  <td class="py-3 px-4 font-mono text-foreground whitespace-nowrap">{row.command}</td>
+                  <td class="py-3 px-4 text-muted-foreground">{row.description}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    {/* Help CTA */}
+    <div class="card p-6 text-center bg-secondary border-none">
+      <h2 class="text-h6 font-sans text-foreground mb-2">Need Help?</h2>
+      <p class="text-body text-muted-foreground mb-4">
+        Check out the GitHub repository for more detailed documentation and to report issues.
+      </p>
+      <Button href="https://github.com/nyuchi/workspace-tools/issues" external variant="secondary">
+        Open an Issue
+      </Button>
+    </div>
+  </Container>
+</Base>

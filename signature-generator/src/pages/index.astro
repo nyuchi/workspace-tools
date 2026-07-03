@@ -1,0 +1,179 @@
+---
+import Base from '../layouts/Base.astro'
+import Hero from '@bundu/ui/Hero.astro'
+import Section from '@bundu/ui/Section.astro'
+import SectionHeader from '@bundu/ui/SectionHeader.astro'
+import MineralStrip from '@bundu/ui/MineralStrip.astro'
+import { Button } from '@bundu/ui/ui/button'
+
+/* Tool catalogue — icon backgrounds/tints use mineral tokens only.
+   Class lists are complete literal strings (not `bg-${mineral}` composed)
+   so Tailwind's source scanner generates every utility. */
+const tools = [
+  {
+    name: 'Gmail Add-on',
+    description:
+      'A powerful Gmail sidebar add-on with User and Admin tabs for managing email signatures across your organization.',
+    href: '/gmail-addon',
+    tint: 'bg-terracotta-container text-terracotta',
+    icon: 'M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z',
+  },
+  {
+    name: 'Signature Generator',
+    description:
+      'Interactive web tool for generating branded email signatures. Supports multiple Nyuchi brands with live preview.',
+    href: '/signature-generator',
+    tint: 'bg-gold-container text-gold',
+    icon: 'M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z',
+  },
+  {
+    name: 'Web Dashboard',
+    description:
+      'Full-featured admin dashboard for enterprise signature management. Bulk deploy, preview templates, and manage users.',
+    href: '/gmail-addon#dashboard',
+    tint: 'bg-cobalt-container text-cobalt',
+    icon: 'M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2',
+  },
+  {
+    name: 'Nyuchi Studio',
+    description:
+      'Generative social cards in the Bundu mineral design language. Seven mineral palettes, five formats, five layouts — export as SVG or PNG.',
+    href: '/studio',
+    tint: 'bg-tanzanite-container text-tanzanite',
+    icon: 'M12 3l7 6-7 12L5 9l7-6z M5 9h14 M12 3l-3 6 3 12 3-12-3-6z',
+  },
+  {
+    name: 'Article Banner Generator',
+    description:
+      'Seeded banner art for articles and link shares. Four aspect ratios from 16:9 headers to OG and LinkedIn cards, in the same mineral palettes.',
+    href: '/banner',
+    tint: 'bg-copper-container text-copper',
+    icon: 'M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z',
+  },
+  {
+    name: 'MCP Server',
+    description:
+      'Connect AI agents like Claude to these tools via the Model Context Protocol at tools.nyuchi.com/mcp — generate signatures and design assets from a conversation.',
+    href: '/help#mcp',
+    tint: 'bg-sodalite-container text-sodalite',
+    icon: 'M9 3v2m6-2v2M9 19v2m6-2v2M3 9h2m-2 6h2m14-6h2m-2 6h2M7 5h10a2 2 0 012 2v10a2 2 0 01-2 2H7a2 2 0 01-2-2V7a2 2 0 012-2z M9.5 12l1.75 1.75L14.5 10.5',
+  },
+]
+
+const features = [
+  {
+    title: 'Multi-Brand Support',
+    description:
+      'The four Bundu-ecosystem brands plus their divisions, with consistent branding and customizable templates.',
+  },
+  {
+    title: 'Domain-Wide Deployment',
+    description: 'Push signatures to all users in your Google Workspace domain with one click.',
+  },
+  {
+    title: 'Self-Service Generation',
+    description: 'Users can generate their own signatures with the interactive web tool.',
+  },
+  {
+    title: 'Automatic Updates',
+    description: 'Schedule daily signature updates to keep user information current.',
+  },
+  {
+    title: 'Brand Design Studio',
+    description: 'Social cards and article banners generated in the Bundu mineral design system.',
+  },
+  {
+    title: 'MCP for AI Agents',
+    description: 'An MCP server at tools.nyuchi.com/mcp lets Claude and other agents use these tools.',
+  },
+]
+
+const brands = [
+  { name: 'Bundu Foundation', domain: 'bundu.org', dot: 'bg-copper' },
+  { name: 'Nyuchi Africa', domain: 'nyuchi.com', dot: 'bg-gold' },
+  { name: 'Mukoko', domain: 'mukoko.com', dot: 'bg-tanzanite' },
+  { name: 'Shamwari AI', domain: 'shamwari.ai', dot: 'bg-sodalite' },
+  { name: 'Zimbabwe Travel', domain: 'travel-info.co.zw', dot: 'bg-malachite' },
+  { name: 'Nyuchi Learning', domain: 'learning.nyuchi.com', dot: 'bg-cobalt' },
+  { name: 'Nyuchi Lingo', domain: 'lingo.nyuchi.com', dot: 'bg-terracotta' },
+  { name: 'TELIA', domain: 'telia.bundu.org', dot: 'bg-sodalite' },
+]
+---
+
+<Base title="Nyuchi workspace tools">
+  <MineralStrip />
+
+  <Hero
+    title="Workspace tools for the Bundu family"
+    subtitle="nyuchi · workspace tools"
+    description="Email signature management and brand design tools for Nyuchi Africa and the Bundu Family ecosystem — signatures, social cards, banners, and an MCP server for AI agents."
+    primaryCTA={{ text: 'Generate Signature', href: '/signature-generator' }}
+    secondaryCTA={{ text: 'Setup Guide', href: '/setup' }}
+    variant="gradient"
+  />
+
+  <Section border>
+    <SectionHeader eyebrow="Tools" title="Available tools" as="h2" class="mb-10" />
+    <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {tools.map((tool) => (
+        <a
+          href={tool.href}
+          class="card card-hover p-6 group"
+        >
+          <div
+            class={`w-14 h-14 rounded-lg flex items-center justify-center mb-4 ${tool.tint} group-hover:scale-110 transition-transform duration-200 ease-soft`}
+          >
+            <svg class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d={tool.icon}></path>
+            </svg>
+          </div>
+          <h3 class="text-h5 font-sans text-foreground mb-2">{tool.name}</h3>
+          <p class="text-body-sm text-muted-foreground">{tool.description}</p>
+        </a>
+      ))}
+    </div>
+  </Section>
+
+  <Section bg="secondary" border>
+    <SectionHeader eyebrow="Features" title="What it does" as="h2" class="mb-10" />
+    <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-10">
+      {features.map((feature) => (
+        <div>
+          <h3 class="text-h6 font-sans text-foreground mb-2">{feature.title}</h3>
+          <p class="text-body-sm text-muted-foreground">{feature.description}</p>
+        </div>
+      ))}
+    </div>
+  </Section>
+
+  <Section border>
+    <SectionHeader eyebrow="Brands" title="Supported brands" as="h2" class="mb-10" />
+    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+      {brands.map((brand) => (
+        <div class="card p-4 text-center">
+          <span class={`inline-block w-3 h-3 rounded-full mb-3 ${brand.dot}`}></span>
+          <h3 class="text-body-sm font-medium font-sans text-foreground mb-1">{brand.name}</h3>
+          <p class="text-caption text-muted-foreground font-mono">{brand.domain}</p>
+        </div>
+      ))}
+    </div>
+  </Section>
+
+  <Section space="loose" class="wash-gold">
+    <div class="max-w-2xl mx-auto text-center">
+      <SectionHeader
+        title="Ready to get started?"
+        description="Follow the setup guide to install the Gmail Add-on, browse the help docs, or start generating signatures now."
+        as="h2"
+        align="center"
+      />
+      <div class="mt-8 flex flex-wrap items-center justify-center gap-3">
+        <Button href="/setup">View Setup Guide</Button>
+        <Button href="/help" variant="outline">Browse Help</Button>
+        <Button href="https://github.com/nyuchi/workspace-tools" external variant="ghost" arrow>
+          View on GitHub
+        </Button>
+      </div>
+    </div>
+  </Section>
+</Base>

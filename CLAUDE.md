@@ -10,8 +10,8 @@ Sub-projects for managing Nyuchi Africa email signatures and design assets. They
 |-----------|-------|---------|---------------|
 | `gmail-addon/` | Google Apps Script (V8) | Gmail Add-on (CardService UI) + admin web dashboard | Apps Script via clasp |
 | `email-signature/` | Google Apps Script (V8) | Admin batch script: push signatures to all domain users & aliases | Apps Script via clasp |
-| `signature-generator/` | React 19 + TypeScript + Vite | Standalone web app: signature builder, Nyuchi Studio (social cards), banner generator, setup docs | Bundled into the `nyuchi-tools` Worker as static assets |
-| `mcp/src/` | Cloudflare Workers + Hono + `@modelcontextprotocol/sdk` | Source of the `nyuchi-tools` Worker: serves the built SPA **and** the MCP HTTP server | Workers Custom Domain `tools.nyuchi.com` (config: root `wrangler.toml`) |
+| `signature-generator/` | Astro (static) + React 19 islands + TypeScript + `@bundu/ui` | Standalone web app: signature builder, Nyuchi Studio (social cards), banner generator, setup docs | Bundled into the `nyuchi-tools` Worker as static assets |
+| `mcp/src/` | Cloudflare Workers + Hono + `@modelcontextprotocol/sdk` | Source of the `nyuchi-tools` Worker: serves the built static site **and** the MCP HTTP server | Workers Custom Domain `tools.nyuchi.com` (config: root `wrangler.toml`) |
 
 The repo root package.json carries the Apps Script npm workspace **and** the Worker's dependencies + deploy scripts; `signature-generator/` is a separate npm project with its own lockfile. `mcp/` holds only Worker source and its tsconfig — no package.json.
 
@@ -20,9 +20,9 @@ The repo root package.json carries the Apps Script npm workspace **and** the Wor
 One Cloudflare Worker (`nyuchi-tools`, defined in `mcp/`) serves the whole hostname via the route `tools.nyuchi.com/*`:
 
 - `/mcp` and `/mcp/*` → MCP JSON-RPC handler (`assets.run_worker_first` sends these to the Worker script)
-- everything else → the built SPA from `signature-generator/dist` as static assets, with `single-page-application` fallback for client-side routes
+- everything else → the built Astro site from `signature-generator/dist` as static assets. Every route is a real HTML file (`build.format: 'file'` → `/studio` serves `studio.html` with no trailing-slash redirect); unknown paths get `404-page` handling (the built `404.html`). Do not switch back to `single-page-application` fallback — there is no client-side router anymore.
 
-GitHub Pages is **no longer used** — the DNS record is a proxied Workers-only placeholder (`AAAA 100::`), not a CNAME to GitHub. **The SPA must be built before deploying the Worker** (`cd signature-generator && npm run build`), since `mcp/wrangler.toml` points its assets directory at `../signature-generator/dist`.
+GitHub Pages is **no longer used** — the DNS record is a proxied Workers-only placeholder (`AAAA 100::`), not a CNAME to GitHub. **The site must be built before deploying the Worker** (`cd signature-generator && npm run build`), since the root `wrangler.toml` points its assets directory at `signature-generator/dist`.
 
 ## Commands
 
@@ -36,20 +36,20 @@ npm run deploy:gmail      # clasp deploy
 npm run open:gmail        # open in Apps Script editor
 ```
 
-### React app (`signature-generator/`)
+### Web app (`signature-generator/`, Astro)
 ```bash
 cd signature-generator
-npm run dev      # vite dev server
-npm run build    # tsc -b && vite build  (type-check is part of the build)
-npm run lint     # eslint
-npm run preview
+npm run dev      # astro dev server
+npm run build    # tsc -b && astro build  (type-check is part of the build)
+npm run lint     # eslint (React/TS sources; .astro files are not linted)
+npm run preview  # astro preview — serves the built dist/
 ```
 
 ### The `nyuchi-tools` Worker (root `wrangler.toml`, source in `mcp/src/`)
 Deployment lives at the **repo root** — there is no per-directory package for the Worker.
 ```bash
 npm install               # root deps include wrangler + the Worker's runtime deps
-npm run build:web         # build the SPA into signature-generator/dist (required before deploy)
+npm run build:web         # build the site into signature-generator/dist (required before deploy)
 npm run dev:tools         # wrangler dev — local Worker at http://localhost:8787
 npm run deploy:tools      # build:web + wrangler deploy
 npm run typecheck:worker  # tsc against mcp/tsconfig.json
@@ -57,8 +57,8 @@ npm run typecheck:worker  # tsc against mcp/tsconfig.json
 `wrangler` reads `CLOUDFLARE_API_TOKEN` from the environment; the account id is pinned in `wrangler.toml`. `tools.nyuchi.com` is a Workers Custom Domain on the `nyuchi.com` zone.
 
 ### Tests
-Two **Vitest** suites (node environment, no jsdom); `npm test` at the repo root runs both. CI (`.github/workflows/ci.yml`) runs lint, `typecheck:worker`, the SPA build, and both suites on Node 22.
-- `signature-generator/`: `npm test` (`vitest.config.ts`, tests in `tests/`) — unit tests for the three pure engines (`signature`, `nyuchi`, `banner`). The nyuchi/banner engines measure text via a lazily created canvas 2d context; `tests/setup.canvas.ts` installs a deterministic `document`/canvas stub (8px per character) before any engine import — keep that stub if you add engine tests.
+Two **Vitest** suites (node environment, no jsdom); `npm test` at the repo root runs both. CI (`.github/workflows/ci.yml`) runs lint, `typecheck:worker`, the site build, and both suites on Node 22.
+- `signature-generator/`: `npm test` (`vitest.config.ts`, tests in `tests/`) — unit tests for the three pure engines (`signature`, `nyuchi`, `banner`) plus the signature-page helpers (`tests/signature-page.test.ts` imports `src/pages/signature/helpers.ts` — keep that file at that path with those exports). The nyuchi/banner engines measure text via a lazily created canvas 2d context; `tests/setup.canvas.ts` installs a deterministic `document`/canvas stub (8px per character) before any engine import — keep that stub if you add engine tests.
 - Repo root: `npm run test:worker` (`vitest.worker.config.ts`, tests in `mcp/tests/`) — HTTP-level tests of the `nyuchi-tools` Worker, exercising the default export via `worker.fetch(new Request(...), env)`. These live at the root because the Worker's deps are root dependencies and `mcp/` intentionally has no package.json; `mcp/tsconfig.json` only includes `src/**`, so `typecheck:worker` never sees them.
 
 The Apps Script "tests" remain exported functions run manually from the Apps Script editor:
@@ -67,13 +67,23 @@ The Apps Script "tests" remain exported functions run manually from the Apps Scr
 
 ## Architecture notes
 
-### Design tokens live in Mzizi; `tokens.css` mirrors them
-The React app's design system is a mirror of the Mzizi brand registry (Bundu ecosystem's design-system source of truth). The canonical values — 7 mineral palettes (cobalt/tanzanite/malachite/gold/terracotta/sodalite/copper), semantic surfaces, type scale, radius (**pill for buttons/inputs**, 14px for cards), spacing — are exposed via the Mzizi MCP server. `signature-generator/src/design-system/tokens.css` is a hand-mirrored CSS-var version of those tokens. Two rules:
+### Astro islands architecture
+`signature-generator/` is a static **Astro** site (no SSR adapter; `astro.config.ts` at the project root):
 
-1. When changing colors, radius, spacing, or type scale, update Mzizi first, then reflect in `tokens.css`. Do not invent values.
-2. Fonts are Noto Sans (body/UI), Noto Serif (headlines), JetBrains Mono (labels/code). Noto Sans and JetBrains Mono are vendored as variable fonts under `signature-generator/public/fonts/`; Noto Serif still loads from Google Fonts.
+- Routes are `src/pages/*.astro` (`/`, `/signature-generator`, `/studio`, `/banner`, `/help`, `/setup`, `/gmail-addon`, `404`), all sharing `src/layouts/Base.astro` — html shell, theme bootstrap (`localStorage['nyuchi-theme']`, default **dark**, sets `data-theme` before first paint), sticky 4rem nav (the tool panels' `top: 4rem` sticky math depends on that height), theme toggle, footer.
+- The three tool pages mount the pre-existing React components as **`client:only="react"` islands** (`src/pages/signature/SignaturePage`, `src/pages/studio/StudioPage`, `src/pages/banner/BannerPage`) — they touch `document`/`localStorage`/canvas, so they must not be server-rendered.
+- The React `.tsx`/`.ts` modules live **inside `src/pages/`** next to the routes. Astro only routes `.astro` files; it warns about `src/pages/signature/helpers.ts` and `src/pages/studio/minerals.ts` at build ("No API Route handler") and skips them — that warning is expected and harmless. `helpers.ts` must stay at that exact path (the vitest suite imports it).
+- Content pages (`/`, `/help`, `/setup`, `/gmail-addon`, 404) are native Astro composed from `@bundu/ui` Astro components; there is no client-side router (react-router is gone).
 
-Nyuchi's canonical mineral is **gold** (`#FFD740`). Every other brand has its own — the mapping lives in `EmailSignatureGenerator.tsx`.
+### Design tokens live in Mzizi; `@bundu/ui` ships them
+The web app's design system is **`@bundu/ui`** (npm) — the canonical Mzizi implementation: 7 mineral palettes (cobalt/tanzanite/malachite/gold/terracotta/sodalite/copper), semantic tokens, type scale, radius (**pill for buttons/inputs**, 14px for cards), a Tailwind preset, and Astro/React components. Wiring lives in `src/styles/global.css`: Tailwind 4 → `@bundu/ui/styles/globals.css` → `brand-nyuchi.css` (site primary = gold) → `fonts.css` → `compat.css`, plus `@config "../../tailwind.config.mjs"` (loads the preset and adds `node_modules/@bundu/ui/src` to the content globs — required so the package's own utility classes compile). Rules:
+
+1. When changing colors, radius, spacing, or type scale, update Mzizi/@bundu/ui first. Do not invent values or redefine canonical vars locally.
+2. `src/styles/compat.css` maps the legacy vars the tool islands still consume (`--fs-*`, `--space-*`, `--lh-*`, `--surface`, `--overlay`, `--ring-1`, `--h-*`, `--container-*`, `--color-*-raw`, font stacks) onto canonical tokens/values — extend it rather than re-adding a local tokens file.
+3. Fonts are Noto Sans (body/UI), Noto Serif (headlines), JetBrains Mono (labels/code). Noto Sans and JetBrains Mono are vendored as variable fonts under `signature-generator/public/fonts/` (`src/styles/fonts.css`); Noto Serif and Plus Jakarta Sans (signature preview) load from Google Fonts via `<link>` in `Base.astro`.
+4. Tailwind class names must appear as complete literal strings in source (no `bg-${mineral}` composition) or the scanner won't generate them.
+
+Nyuchi's canonical mineral is **gold** (`#FFD740`). Every other brand has its own — the signature-page mapping lives in `signature-generator/src/pages/signature/helpers.ts` (`BRAND_MINERAL`).
 
 ### The brand registry is the canonical source; Apps Script copies are hand-synced
 `signature-generator/src/engines/brands/index.ts` is THE canonical brand
@@ -95,7 +105,7 @@ Consumers:
 - `signature-generator/src/engines/signature/index.ts` (`BRANDS`,
   `buildSignatureHtml`, `buildSignatureText`) — the signature template +
   the **historical signature copies** of the brand data, imported by both the
-  SPA component and the Worker's `generate_email_signature` MCP tool. Its
+  signature island and the Worker's `generate_email_signature` MCP tool. Its
   `travel`/`learning` keys are legacy signature identities; emitted HTML for
   pre-existing keys is byte-locked, so never re-sync its wording/colors to
   the registry.
@@ -113,12 +123,12 @@ both Apps Script files. The two Apps Script files also differ in shape
 (slug-keyed vs domain-keyed) and in logo URLs (`assets.nyuchi.com` CDN vs raw
 GitHub).
 
-### The emitted email-signature HTML is separate from the SPA UI
-`EmailSignatureGenerator.tsx` has two visual surfaces:
-- **SPA UI** — the form the user fills in. Restyled to the Mzizi mineral / dark design system.
-- **Emitted signature HTML** — the string this component copies into Gmail, built by `src/engines/signature/index.ts` (`buildSignatureHtml`). This uses the historical signature styling (Plus Jakarta Sans / Noto Serif, brand primary colors) and must match the two Apps Script files so signatures render consistently across every recipient's inbox. Change it only in the engine module, never per-surface.
+### The emitted email-signature HTML is separate from the web-app UI
+The signature page (`signature-generator/src/pages/signature/`) has two visual surfaces:
+- **Web-app UI** — the panel + stage the user works in (studio layout pattern). Styled to the Mzizi mineral / dark design system.
+- **Emitted signature HTML** — the string the page previews and copies into Gmail, built by `src/engines/signature/index.ts` (`buildSignatureHtml`). This uses the historical signature styling (Plus Jakarta Sans / Noto Serif, brand primary colors) and must match the two Apps Script files so signatures render consistently across every recipient's inbox. Change it only in the engine module, never per-surface. The page injects the engine output verbatim for the live preview, so preview and clipboard share one code path.
 
-Don't accidentally restyle the emitted HTML when working on the SPA UI. The distinction is important: the SPA is behind the studio's mineral tokens; the signature markup is brand-locked to the historical Nyuchi purple.
+Don't accidentally restyle the emitted HTML when working on the web-app UI. The distinction is important: the UI is behind the studio's mineral tokens; the signature markup is brand-locked to the historical Nyuchi purple.
 
 ### Apps Script global functions are the API contract
 In `gmail-addon/`, top-level function names are referenced by string elsewhere, so renaming one silently breaks it:
@@ -136,13 +146,13 @@ The add-on has two tabs built by `buildTabbedCard`: a **User tab** (self-service
 ### The Nyuchi Studio & Banner generators
 `/studio` and `/banner` are React ports of two vanilla-JS/HTML tools originally built in Claude Design. The ported SVG-generation engines live under `signature-generator/src/engines/nyuchi/` and `signature-generator/src/engines/banner/` respectively. They are **pure functions** — `buildSVG(params) → { svg, format, seed }` — so the same code paths can be imported by the MCP server tools (`generate_studio_card`, `generate_article_banner`) without duplication.
 
-PNG rasterization is done client-side via `<canvas>` in the SPA. On the MCP side, tools currently return SVG only; PNG output is a follow-up (either `resvg-wasm` inside the Worker or letting the client rasterize).
+PNG rasterization is done client-side via `<canvas>` in the web app. On the MCP side, tools currently return SVG only; PNG output is a follow-up (either `resvg-wasm` inside the Worker or letting the client rasterize).
 
 ### HTML generation & XSS
 All signature HTML is assembled from user input by hand. Both Apps Script files have an `escapeHtml()` helper; the React component additionally uses `@braintree/sanitize-url` plus `escapeHtml`/`createMailtoUrl`/`createTelUrl`/`createWhatsAppUrl` helpers. **Preserve this escaping when editing signature templates** — these strings end up as raw HTML in users' mailboxes.
 
 ## Deployment
 
-- The whole web surface deploys as one Worker: `cd signature-generator && npm run build`, then `cd ../mcp && npm run deploy` (wrangler picks up `CLOUDFLARE_API_TOKEN`; the account is pinned in `wrangler.toml`). Workers Builds (GitHub app) is the intended CI path — root dir `mcp`, deploy `npx wrangler deploy`, watch paths `mcp/**` and `signature-generator/**`.
+- The whole web surface deploys as one Worker: `cd signature-generator && npm run build`, then `npm run deploy:tools` at the repo root (wrangler picks up `CLOUDFLARE_API_TOKEN`; the account is pinned in `wrangler.toml`). Workers Builds (GitHub app) is the intended CI path — root dir `mcp`, deploy `npx wrangler deploy`, watch paths `mcp/**` and `signature-generator/**`.
 - There is no GitHub Pages deployment anymore; don't resurrect `.github/workflows/deploy.yml` or `public/CNAME`.
 - Apps Script projects deploy manually with the clasp `deploy:*` scripts; there is no CI for them.

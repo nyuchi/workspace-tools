@@ -1,0 +1,229 @@
+---
+/**
+ * Base — the html shell shared by every route: theme bootstrap (localStorage
+ * `nyuchi-theme`, default dark), fonts, sticky 4rem nav (the tool islands'
+ * sticky side panels assume `top: 4rem`), footer, and the global stylesheet
+ * (@bundu/ui tokens + Tailwind).
+ */
+import '../styles/global.css'
+import BeeIcon from '../components/BeeIcon.astro'
+import Icon from '@bundu/ui/Icon.astro'
+
+interface Props {
+  title: string
+  description?: string
+}
+
+const {
+  title,
+  description = 'Email signature management and brand design tools for Nyuchi Africa and the Bundu Family ecosystem.',
+} = Astro.props
+
+const NAV = [
+  { name: 'Home', href: '/' },
+  { name: 'Gmail Add-on', href: '/gmail-addon' },
+  { name: 'Signature', href: '/signature-generator' },
+  { name: 'Studio', href: '/studio' },
+  { name: 'Banner', href: '/banner' },
+  { name: 'Setup', href: '/setup' },
+  { name: 'Help', href: '/help' },
+]
+
+/* Normalize the build-time pathname (`build.format: 'file'` yields e.g.
+   "/index.html", "/help.html") back to the public URL form. */
+const path =
+  Astro.url.pathname
+    .replace(/\/index\.html$/, '/')
+    .replace(/\.html$/, '')
+    .replace(/\/+$/, '') || '/'
+const isActive = (href: string) => (href === '/' ? path === '/' : path.startsWith(href))
+
+const navLinkClass = (href: string) =>
+  [
+    'px-4 py-2 rounded-full text-body-sm font-medium transition-colors duration-200 ease-soft',
+    isActive(href)
+      ? 'bg-gold-container text-gold-on-container'
+      : 'text-muted-foreground hover:text-foreground hover:bg-muted',
+  ].join(' ')
+
+const mobileLinkClass = (href: string) =>
+  [
+    'block px-4 py-3 rounded-full text-body font-medium min-h-[48px]',
+    isActive(href)
+      ? 'bg-gold-container text-gold-on-container'
+      : 'text-muted-foreground hover:text-foreground hover:bg-muted',
+  ].join(' ')
+---
+
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link
+      rel="icon"
+      href="https://assets.nyuchi.com/logos/nyuchi/Nyuchi_Africa_Logo_icon.svg"
+      type="image/svg+xml"
+    />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Noto+Serif:ital,wght@0,400;0,600;0,700;1,400&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <script is:inline>
+      /* Theme before first paint: localStorage `nyuchi-theme`, default dark. */
+      ;(function () {
+        var theme = 'dark'
+        try {
+          if (localStorage.getItem('nyuchi-theme') === 'light') theme = 'light'
+        } catch (_) {
+          /* storage unavailable → default dark */
+        }
+        document.documentElement.setAttribute('data-theme', theme)
+      })()
+    </script>
+  </head>
+
+  <body class="min-h-dvh flex flex-col bg-background text-foreground font-sans antialiased">
+    <header class="sticky top-0 z-50 h-16 bg-background border-b border-border">
+      <div class="container-custom h-full flex items-center justify-between gap-4">
+        <a href="/" class="flex items-center gap-2" aria-label="Nyuchi workspace tools — home">
+          <BeeIcon class="h-8 w-8" />
+          <span class="flex flex-col leading-none">
+            <span class="font-serif font-bold tracking-tight text-xl text-gold">nyuchi</span>
+            <span class="text-caption text-muted-foreground font-medium">workspace tools</span>
+          </span>
+        </a>
+
+        <nav class="hidden md:flex items-center gap-1" aria-label="Main">
+          {NAV.map((item) => (
+            <a
+              href={item.href}
+              class={navLinkClass(item.href)}
+              aria-current={isActive(item.href) ? 'page' : undefined}
+            >
+              {item.name}
+            </a>
+          ))}
+          <a
+            href="https://github.com/nyuchi/workspace-tools"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="ml-3 inline-flex items-center px-4 h-10 rounded-full bg-foreground text-background text-body-sm font-medium hover:opacity-90 transition-opacity duration-200 ease-soft"
+          >
+            GitHub
+          </a>
+          <button
+            type="button"
+            id="theme-toggle"
+            class="ml-1 inline-flex items-center justify-center w-10 h-10 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            aria-label="Toggle light/dark theme"
+          >
+            <svg class="theme-icon-sun h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="4"></circle>
+              <path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4L7 17M17 7l1.4-1.4"></path>
+            </svg>
+            <svg class="theme-icon-moon h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"></path>
+            </svg>
+          </button>
+        </nav>
+
+        <button
+          type="button"
+          id="menu-toggle"
+          class="md:hidden inline-flex items-center justify-center w-12 h-12 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted"
+          aria-label="Toggle menu"
+          aria-expanded="false"
+          aria-controls="mobile-menu"
+        >
+          <Icon name="menu" class="h-6 w-6" />
+        </button>
+      </div>
+
+      <div id="mobile-menu" class="hidden md:hidden bg-background border-b border-border px-6 py-3 space-y-1">
+        {NAV.map((item) => (
+          <a href={item.href} class={mobileLinkClass(item.href)}>{item.name}</a>
+        ))}
+        <a
+          href="https://github.com/nyuchi/workspace-tools"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="block px-4 py-3 rounded-full text-body font-medium bg-foreground text-background min-h-[48px]"
+        >
+          GitHub →
+        </a>
+        <button
+          type="button"
+          id="theme-toggle-mobile"
+          class="block w-full text-left px-4 py-3 rounded-full text-body font-medium text-muted-foreground hover:text-foreground hover:bg-muted min-h-[48px]"
+        >
+          ◐ Toggle theme
+        </button>
+      </div>
+    </header>
+
+    <main class="flex-grow">
+      <slot />
+    </main>
+
+    <footer class="bg-background border-t border-border">
+      <div class="container-custom py-8">
+        <div class="flex flex-col md:flex-row justify-between items-center gap-6">
+          <div class="flex items-center gap-3 text-muted-foreground">
+            <BeeIcon class="h-6 w-6" />
+            <span class="font-serif font-bold tracking-tight text-lg text-gold">nyuchi</span>
+            <span class="hidden sm:inline mx-2 text-border">|</span>
+            <span class="hidden sm:inline italic text-body-sm">
+              &ldquo;Ndiri nekuti tiri&rdquo; — I am because we are
+            </span>
+          </div>
+          <div class="flex flex-wrap items-center justify-center gap-4 sm:gap-6 text-body-sm text-muted-foreground">
+            <a href="https://nyuchi.com" target="_blank" rel="noopener noreferrer" class="py-2 px-1 hover:text-gold transition-colors">nyuchi.com</a>
+            <a href="https://github.com/nyuchi" target="_blank" rel="noopener noreferrer" class="py-2 px-1 hover:text-gold transition-colors">GitHub</a>
+            <a href="https://services.nyuchi.com" target="_blank" rel="noopener noreferrer" class="py-2 px-1 hover:text-gold transition-colors">Web Services</a>
+          </div>
+        </div>
+        <div class="sm:hidden mt-4 text-center">
+          <span class="italic text-body-sm text-muted-foreground">&ldquo;Ndiri nekuti tiri&rdquo; — I am because we are</span>
+        </div>
+      </div>
+    </footer>
+
+    <style>
+      .theme-icon-moon {
+        display: none;
+      }
+      :global([data-theme='dark']) .theme-icon-moon {
+        display: block;
+      }
+      :global([data-theme='dark']) .theme-icon-sun {
+        display: none;
+      }
+    </style>
+
+    <script>
+      const toggleTheme = () => {
+        const next =
+          document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark'
+        document.documentElement.setAttribute('data-theme', next)
+        try {
+          localStorage.setItem('nyuchi-theme', next)
+        } catch {
+          /* storage unavailable — theme still flips for this page */
+        }
+      }
+      document.getElementById('theme-toggle')?.addEventListener('click', toggleTheme)
+      document.getElementById('theme-toggle-mobile')?.addEventListener('click', toggleTheme)
+
+      const menuButton = document.getElementById('menu-toggle')
+      const mobileMenu = document.getElementById('mobile-menu')
+      menuButton?.addEventListener('click', () => {
+        const open = mobileMenu?.classList.toggle('hidden') === false
+        menuButton.setAttribute('aria-expanded', String(open))
+      })
+    </script>
+  </body>
+</html>
