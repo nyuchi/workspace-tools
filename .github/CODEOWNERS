@@ -1,0 +1,3 @@
+# Default owner for everything in the repo. Add path-specific owners
+# above this line as the team grows (first match wins, later lines win).
+* @bryanfawcett
