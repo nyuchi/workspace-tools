@@ -1,0 +1,361 @@
+---
+/**
+ * Help — how to use every tool on tools.nyuchi.com. Ported from the old
+ * React Help.tsx; section ids (#signature, #studio, #banner, #workspace,
+ * #mcp) are load-bearing — the home page and the tool pages deep-link them.
+ */
+import Base from '../layouts/Base.astro'
+import Container from '@bundu/ui/Container.astro'
+import Breadcrumb from '@bundu/ui/Breadcrumb.astro'
+import { deriveBreadcrumbs } from '@bundu/ui'
+
+/* build.format 'file' yields "/help.html" at build time — normalize first. */
+const crumbs = deriveBreadcrumbs(
+  Astro.url.pathname.replace(/\.html$/, ''),
+  { help: 'Help' },
+  'Home',
+)
+
+const TOC = [
+  { href: '#signature', label: 'Email Signature' },
+  { href: '#studio', label: 'Nyuchi Studio' },
+  { href: '#banner', label: 'Article Banner' },
+  { href: '#workspace', label: 'Google Workspace' },
+  { href: '#mcp', label: 'MCP Server' },
+]
+
+const MINERAL_MEANINGS = [
+  { dot: 'bg-cobalt', name: 'Cobalt', role: 'Knowledge', desc: 'The mineral in every battery on earth. Our blue of learning and trust.' },
+  { dot: 'bg-sodalite', name: 'Sodalite', role: 'Intelligence', desc: "Cobalt's deeper cousin — the colour of a mind reasoning through a hard problem." },
+  { dot: 'bg-tanzanite', name: 'Tanzanite', role: 'Identity', desc: 'A thousand times rarer than diamond, found on a single hillside on earth.' },
+  { dot: 'bg-malachite', name: 'Malachite', role: 'Growth', desc: 'The oldest green in the human story. The signal that something is alive and working.' },
+  { dot: 'bg-gold', name: 'Gold', role: 'Value', desc: 'The metal and the honey. nyuchi means bee — the reward carried home to the hive.' },
+  { dot: 'bg-copper', name: 'Copper', role: 'Stewardship', desc: 'The metal that connects everything. bundu — the ground the rest are dug from.' },
+  { dot: 'bg-terracotta', name: 'Terracotta', role: 'Community', desc: 'Fired clay, the oldest material we build with. Ubuntu — I am because we are.' },
+]
+
+/* Shared class strings (mirror the old style constants). */
+const caption = 'font-mono text-caption uppercase tracking-[0.14em] text-muted-foreground'
+const heading = 'font-serif text-h4 font-bold text-foreground mt-1'
+const subHead = `${caption} mt-6 mb-2 pb-2 border-b border-border`
+const body = 'text-body-sm leading-relaxed text-foreground mb-3'
+const muted = 'text-body-sm leading-relaxed text-muted-foreground mb-3'
+const codeBlock =
+  'block font-mono text-caption leading-7 text-foreground bg-muted border border-border rounded-sm px-4 py-3 overflow-x-auto whitespace-pre mb-3'
+const inlineCode = 'font-mono text-[0.85em] bg-muted border border-border rounded-[4px] px-[5px] py-px'
+const list = 'text-body-sm leading-relaxed text-foreground pl-5 grid gap-1.5 mb-3'
+const link = 'text-primary underline underline-offset-[3px]'
+const sectionCard = 'card p-6 scroll-mt-20'
+const defRow =
+  'grid grid-cols-[minmax(9rem,12rem)_1fr] gap-3 py-2 border-b border-border text-body-sm leading-normal'
+---
+
+<Base
+  title="Help — Nyuchi workspace tools"
+  description="How to use every tool on tools.nyuchi.com — signatures, social cards, banners, the Google Workspace add-ons, and the MCP server for AI agents."
+>
+  <Container size="prose" as="div" class="py-12">
+    <Breadcrumb items={crumbs} origin={Astro.site?.toString()} class="mb-8" />
+
+    <div class="mb-8">
+      <p class={caption}>Documentation</p>
+      <h1 class="font-serif text-h3 font-bold text-foreground mt-1 mb-2">Help</h1>
+      <p class="text-body text-muted-foreground">
+        How to use every tool on tools.nyuchi.com — signatures, social cards, banners, the Google
+        Workspace add-ons, and the MCP server for AI agents.
+      </p>
+    </div>
+
+    <nav aria-label="Help sections" class="flex flex-wrap gap-2 mb-8">
+      {TOC.map((item) => (
+        <a
+          href={item.href}
+          class="font-mono text-caption uppercase tracking-[0.08em] text-muted-foreground bg-card border border-border rounded-full px-4 py-2 no-underline hover:text-foreground transition-colors"
+        >
+          {item.label}
+        </a>
+      ))}
+    </nav>
+
+    <div class="grid gap-6">
+      {/* ── 01 · Email Signature Generator ── */}
+      <section id="signature" class={sectionCard}>
+        <p class={caption}>01 · Email Signature Generator</p>
+        <h2 class={heading}>Create and install a branded signature</h2>
+        <div class="mt-4">
+          <p class={body}>
+            The <a href="/signature-generator" class={link}>Signature Generator</a> builds a branded
+            HTML email signature for the Bundu-ecosystem brands — Bundu Foundation, Nyuchi Africa,
+            Mukoko, and Shamwari AI, plus the legacy Travel and Learning signatures — and copies it
+            to your clipboard, ready to paste into Gmail.
+          </p>
+
+          <h3 class={subHead}>Steps</h3>
+          <ol class={`${list} list-decimal`}>
+            <li>Pick your brand — social links are prefilled per brand and stay editable.</li>
+            <li>Fill in the form. Only <strong>Full name</strong> and <strong>Email</strong> are required.</li>
+            <li>Press <strong>Generate Signature</strong> and check the live preview.</li>
+            <li>Press <strong>Copy Signature</strong> — the styled HTML is copied to your clipboard.</li>
+            <li>
+              In Gmail: gear icon → <strong>See all settings</strong> → <strong>General</strong> →{' '}
+              <strong>Signature</strong> → <strong>Create new</strong> → paste →{' '}
+              <strong>Save Changes</strong> at the bottom.
+            </li>
+          </ol>
+
+          <h3 class={subHead}>Fields</h3>
+          <div class="mb-3">
+            <div class={defRow}>
+              <div class="font-semibold text-foreground">Full name / Email</div>
+              <div class="text-muted-foreground">Required. Shown as the signature headline and mailto link.</div>
+            </div>
+            <div class={defRow}>
+              <div class="font-semibold text-foreground">Job title</div>
+              <div class="text-muted-foreground">Optional role line under your name.</div>
+            </div>
+            <div class={defRow}>
+              <div class="font-semibold text-foreground">Phone</div>
+              <div class="text-muted-foreground">International format, e.g. +263 77 123 4567. Rendered as a tap-to-call link.</div>
+            </div>
+            <div class={defRow}>
+              <div class="font-semibold text-foreground">WhatsApp</div>
+              <div class="text-muted-foreground">Digits with country code, e.g. 263771234567. Becomes a wa.me chat link.</div>
+            </div>
+            <div class={defRow}>
+              <div class="font-semibold text-foreground">Profile image</div>
+              <div class="text-muted-foreground">Public HTTPS image URL. Square images work best; shown as a rounded avatar.</div>
+            </div>
+            <div class={defRow}>
+              <div class="font-semibold text-foreground">Social links</div>
+              <div class="text-muted-foreground">LinkedIn, X, Facebook, Instagram. Prefilled from the brand — clear a field to drop that icon.</div>
+            </div>
+            <div class={defRow}>
+              <div class="font-semibold text-foreground">Promo banner</div>
+              <div class="text-muted-foreground">Optional banner image URL plus a target link, shown under the signature.</div>
+            </div>
+          </div>
+
+          <h3 class={subHead}>Troubleshooting</h3>
+          <ul class={`${list} list-disc`}>
+            <li>
+              <strong>Images don't show.</strong> Image URLs must be publicly reachable over HTTPS —
+              recipients' mail clients fetch them from the web. Google Drive share links, intranet
+              URLs, and local files won't render. If an image fails to load in the preview it is
+              automatically left out of the copied signature.
+            </li>
+            <li>
+              <strong>Copy fails.</strong> Modern browsers copy rich HTML directly. Older browsers
+              fall back to selecting the preview and issuing a copy command. If both fail, select
+              the signature preview by hand and press Ctrl+C (Cmd+C on Mac).
+            </li>
+            <li>
+              <strong>Paste looks unstyled.</strong> Paste straight into Gmail's signature box —
+              pasting through a plain-text editor strips the formatting.
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      {/* ── 02 · Nyuchi Studio ── */}
+      <section id="studio" class={sectionCard}>
+        <p class={caption}>02 · Nyuchi Studio</p>
+        <h2 class={heading}>Generative social cards in the mineral system</h2>
+        <div class="mt-4">
+          <p class={body}>
+            <a href="/studio" class={link}>Nyuchi Studio</a> composes social cards as SVG from your
+            text, one of seven mineral palettes, a format, a layout, and a seed. The same inputs
+            always produce the same card, so designs are reproducible.
+          </p>
+
+          <h3 class={subHead}>The seven minerals</h3>
+          <p class={muted}>
+            Each palette carries a meaning in the Bundu design language. The{' '}
+            <em>&ldquo;Load this mineral's copy&rdquo;</em> button fills the card with that
+            mineral's editorial story (index, role, description, origin) and switches to the
+            Mineral layout — a ready-made card about the palette itself.
+          </p>
+          <div class="mb-3">
+            {MINERAL_MEANINGS.map((m) => (
+              <div class={defRow}>
+                <div class="font-semibold text-foreground">
+                  <span class={`inline-block w-2.5 h-2.5 rounded-full mr-2 align-baseline ${m.dot}`} aria-hidden="true"></span>
+                  {m.name} · {m.role}
+                </div>
+                <div class="text-muted-foreground">{m.desc}</div>
+              </div>
+            ))}
+          </div>
+
+          <h3 class={subHead}>Formats</h3>
+          <ul class={`${list} list-disc`}>
+            <li><strong>Square 1:1</strong> — 1080 × 1080, Instagram feed and general social.</li>
+            <li><strong>Story 9:16</strong> — 1080 × 1920, Instagram/WhatsApp stories.</li>
+            <li><strong>16:9 header</strong> — 1600 × 900, article headers and slides.</li>
+            <li><strong>OG / share</strong> — 1200 × 630, link previews (Open Graph).</li>
+            <li><strong>LinkedIn</strong> — 1200 × 627, LinkedIn link posts.</li>
+          </ul>
+
+          <h3 class={subHead}>Layouts</h3>
+          <ul class={`${list} list-disc`}>
+            <li><strong>L1 · Type</strong> — type-forward; the headline carries the card.</li>
+            <li><strong>L2 · Anchor</strong> — composition anchored around the crystal mark.</li>
+            <li><strong>L3 · Split</strong> — split block; text and mineral field side by side.</li>
+            <li><strong>L4 · Halo</strong> — centered headline inside a radiating halo.</li>
+            <li><strong>L5 · Mineral</strong> — spec-sheet layout used by the mineral presets.</li>
+          </ul>
+
+          <h3 class={subHead}>Reshuffle, seed, and export</h3>
+          <ul class={`${list} list-disc`}>
+            <li>
+              The generative composition is seeded from your title, palette, and layout. The{' '}
+              <strong>↻</strong> button reshuffles to a new variation; the current seed is shown in
+              the meta bar (e.g. <code class={inlineCode}>seed 3fa9c210</code>) so a card can be
+              reproduced.
+            </li>
+            <li>
+              <strong>SVG</strong> downloads the exact vector — infinitely scalable, ideal for
+              editing or print. <strong>PNG</strong> rasterizes at 2× in your browser for platforms
+              that only accept bitmaps (the meta bar shows the export pixel size).
+            </li>
+            <li>
+              The <strong>◐ Theme</strong> button flips the light/dark surface; &ldquo;auto&rdquo;
+              follows the site theme.
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      {/* ── 03 · Article Banner Generator ── */}
+      <section id="banner" class={sectionCard}>
+        <p class={caption}>03 · Article Banner Generator</p>
+        <h2 class={heading}>Seeded banner art for articles and link shares</h2>
+        <div class="mt-4">
+          <p class={body}>
+            The <a href="/banner" class={link}>Banner generator</a> is Nyuchi Studio's sibling for
+            article headers: give it a title and an optional dek, pick a palette and a format, and
+            it composes seeded banner art around your words.
+          </p>
+
+          <h3 class={subHead}>Aspect ratios</h3>
+          <ul class={`${list} list-disc`}>
+            <li><strong>16:9 header</strong> — 1600 × 900, blog and article headers.</li>
+            <li><strong>OG / share</strong> — 1200 × 630, link-preview cards.</li>
+            <li><strong>LinkedIn</strong> — 1200 × 627, LinkedIn link posts.</li>
+            <li><strong>Instagram</strong> — 1080 × 1080, square social posts.</li>
+          </ul>
+
+          <h3 class={subHead}>Categories and layouts</h3>
+          <p class={muted}>
+            Categories are the same seven minerals as the Studio — use them to color-code content
+            (e.g. cobalt for learning pieces, malachite for growth updates). Four layouts are
+            available: <strong>type-forward</strong>, <strong>anchor</strong>,{' '}
+            <strong>split block</strong>, and <strong>centered halo</strong>; square formats use
+            dedicated 1:1 variants of each.
+          </p>
+
+          <h3 class={subHead}>Export</h3>
+          <p class={muted}>
+            Same as the Studio: shuffle for a new seeded variation, then download{' '}
+            <strong>SVG</strong> (vector) or <strong>PNG</strong> (2× raster). Light and dark
+            surfaces are supported, with &ldquo;auto&rdquo; following the site theme.
+          </p>
+        </div>
+      </section>
+
+      {/* ── 04 · Google Workspace ── */}
+      <section id="workspace" class={sectionCard}>
+        <p class={caption}>04 · Google Workspace</p>
+        <h2 class={heading}>Gmail Add-on and admin batch script</h2>
+        <div class="mt-4">
+          <p class={body}>
+            Two Google Apps Script projects apply the same signatures inside Google Workspace. The{' '}
+            <a href="/gmail-addon" class={link}>Gmail Add-on</a> lives in the Gmail sidebar with a
+            self-service <strong>User tab</strong> and a domain-wide <strong>Admin tab</strong> plus
+            a web dashboard. The <strong>email-signature batch script</strong> lets Workspace admins
+            push signatures to every user in the domain — including each user's send-as aliases — on
+            demand or on a daily schedule.
+          </p>
+          <p class={muted}>
+            Admin features read the directory and write other users' signatures, which requires
+            domain-wide delegation in the Google Admin Console. The{' '}
+            <a href="/setup" class={link}>Setup guide</a> walks through clasp, deployment, and
+            delegation; deeper docs live in the repo:{' '}
+            <a href="https://github.com/nyuchi/workspace-tools/tree/main/gmail-addon" target="_blank" rel="noopener noreferrer" class={link}>gmail-addon</a>{' '}
+            and{' '}
+            <a href="https://github.com/nyuchi/workspace-tools/tree/main/email-signature" target="_blank" rel="noopener noreferrer" class={link}>email-signature</a>.
+          </p>
+        </div>
+      </section>
+
+      {/* ── 05 · MCP Server ── */}
+      <section id="mcp" class={sectionCard}>
+        <p class={caption}>05 · MCP Server</p>
+        <h2 class={heading}>Use these tools from AI agents</h2>
+        <div class="mt-4">
+          <p class={body}>
+            MCP (Model Context Protocol) is an open standard that lets AI assistants like Claude
+            call external tools over HTTP. This site hosts an MCP server, so an agent connected to
+            it can generate Nyuchi email signatures and design assets directly in a conversation —
+            the signature tool runs the exact same engine as the web generator, so the output is
+            identical.
+          </p>
+
+          <h3 class={subHead}>Endpoint</h3>
+          <code class={codeBlock}>https://tools.nyuchi.com/mcp</code>
+
+          <h3 class={subHead}>Connect from claude.ai</h3>
+          <p class={muted}>
+            <strong>Settings → Connectors → Add custom connector</strong>, then paste the endpoint
+            URL above. The tools appear in Claude's tool menu once connected.
+          </p>
+
+          <h3 class={subHead}>Connect from Claude Code</h3>
+          <code class={codeBlock}>claude mcp add --transport http nyuchi-tools https://tools.nyuchi.com/mcp</code>
+
+          <h3 class={subHead}>Tools</h3>
+          <div class="mb-3">
+            <div class={defRow}>
+              <div class="font-semibold text-foreground"><code class={inlineCode}>generate_email_signature</code></div>
+              <div class="text-muted-foreground">
+                Live. Returns branded signature HTML — same engine and byte-identical output as the
+                web generator.
+              </div>
+            </div>
+            <div class={defRow}>
+              <div class="font-semibold text-foreground"><code class={inlineCode}>generate_studio_card</code></div>
+              <div class="text-muted-foreground">
+                Live. Returns SVG from the same Studio engine as the /studio page, plus JSON
+                metadata (size and seed). PNG output is a follow-up.
+              </div>
+            </div>
+            <div class={defRow}>
+              <div class="font-semibold text-foreground"><code class={inlineCode}>generate_article_banner</code></div>
+              <div class="text-muted-foreground">
+                Live. Returns SVG from the same banner engine as the /banner page, plus JSON
+                metadata (size and seed). PNG output is a follow-up.
+              </div>
+            </div>
+          </div>
+
+          <p class={muted}>
+            The endpoint is currently open — no sign-in required. Authentication via WorkOS (OAuth)
+            may be enabled later; MCP clients will then prompt you to sign in when connecting.
+          </p>
+        </div>
+      </section>
+    </div>
+
+    <p class="text-body-sm leading-relaxed text-muted-foreground mt-8 text-center">
+      Something missing or wrong?{' '}
+      <a
+        href="https://github.com/nyuchi/workspace-tools/issues"
+        target="_blank"
+        rel="noopener noreferrer"
+        class={link}
+      >
+        Open an issue on GitHub
+      </a>
+      .
+    </p>
+  </Container>
+</Base>

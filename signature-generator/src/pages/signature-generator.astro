@@ -1,0 +1,13 @@
+---
+import Base from '../layouts/Base.astro'
+import SignaturePage from './signature/SignaturePage'
+---
+
+<Base
+  title="Email Signature Generator — Nyuchi workspace tools"
+  description="Build a branded Gmail-ready HTML email signature for the Bundu-ecosystem brands, with live preview and one-click copy."
+>
+  {/* client:only — the page reads document/localStorage and probes images in
+      the browser; there is no meaningful server render for it. */}
+  <SignaturePage client:only="react" />
+</Base>

@@ -1,5 +1,4 @@
 import type { ChangeEvent } from 'react'
-import { Link } from 'react-router-dom'
 import { BRANDS, BRAND_KEYS, type BrandKey } from '../../engines/signature'
 import { CATEGORIES } from '../../engines/nyuchi'
 import { BRAND_LABELS, BRAND_MINERAL, type SignatureFormData } from './helpers'
@@ -128,7 +127,7 @@ const ControlPanel = ({ brand, form, imageErrors, onBrandChange, onField }: Prop
           clipboard — paste it into Gmail Settings → General → Signature and save.
         </div>
         <div className="sg-hint">
-          <Link to="/help#signature">Full setup guide →</Link>
+          <a href="/help#signature">Full setup guide →</a>
         </div>
       </div>
     </aside>
