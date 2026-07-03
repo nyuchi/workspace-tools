@@ -137,8 +137,8 @@ export const TOP_BRANDS: Record<TopBrandKey, TopBrand> = {
     tagline: 'AI that actually works for Africa',
     lockupLabel: 'shamwari.ai',
     pillar: 'community',
-    // TODO(brand): shamwari's own mark is pending — these files are copies of
-    // the nyuchi bee per the owner's interim direction. Socials pending.
+    // Hexagonal lattice mark in the sodalite pair (#3D5AFE dark / #283593
+    // light); source SVGs vendored beside the PNGs. TODO(brand): socials.
     icon: {
       light: '/assets/brand-icons/shamwari-icon-light.png',
       dark: '/assets/brand-icons/shamwari-icon-dark.png',
