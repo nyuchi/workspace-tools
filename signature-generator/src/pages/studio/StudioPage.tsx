@@ -171,6 +171,42 @@ const StudioPage = () => {
     }
   }, [built.svg, built.format, state.title, state.format, state.layout])
 
+  /* WebMCP: expose the same download actions the UI buttons already call, so
+   * an agent driving the browser can export a card without scraping the DOM.
+   * Feature-detected — a silent no-op wherever document.modelContext doesn't
+   * exist (i.e. every browser in this repo's test matrix today). */
+  useEffect(() => {
+    if (typeof document === 'undefined' || !('modelContext' in document)) return
+    const controller = new AbortController()
+    document.modelContext?.registerTool(
+      {
+        name: 'download_studio_card_svg',
+        description: 'Render and download the current Nyuchi Studio card as an SVG file.',
+        inputSchema: { type: 'object', properties: {} },
+        execute: async () => {
+          downloadSvg()
+          return { status: 'downloaded', format: 'svg' }
+        },
+        annotations: { readOnlyHint: false },
+      },
+      { signal: controller.signal },
+    )
+    document.modelContext?.registerTool(
+      {
+        name: 'download_studio_card_png',
+        description: 'Render and download the current Nyuchi Studio card as a PNG file.',
+        inputSchema: { type: 'object', properties: {} },
+        execute: async () => {
+          await downloadPng()
+          return { status: 'downloaded', format: 'png' }
+        },
+        annotations: { readOnlyHint: false },
+      },
+      { signal: controller.signal },
+    )
+    return () => controller.abort()
+  }, [downloadSvg, downloadPng])
+
   /* ── Load mineral copy into the fields ── */
   const loadMineral = useCallback(() => {
     setState((s) => {

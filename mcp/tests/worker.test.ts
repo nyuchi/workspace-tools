@@ -7,7 +7,7 @@
  * as the `env` argument.
  */
 
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import worker from '../src/index'
 
 const BASE = 'https://tools.nyuchi.com'
@@ -493,6 +493,7 @@ describe('OAuth discovery — auth ON (AUTHKIT_DOMAIN set)', () => {
       resource: 'https://tools.nyuchi.com',
       authorization_servers: ['https://x.authkit.app'],
       bearer_methods_supported: ['header'],
+      scopes_supported: [],
     })
   })
 
@@ -533,5 +534,129 @@ describe('OAuth discovery — auth ON (AUTHKIT_DOMAIN set)', () => {
     })
     const body = (await res.json()) as { resource: string }
     expect(body.resource).toBe('https://staging.example.com')
+  })
+})
+
+describe('GET /.well-known/mcp/server-card.json', () => {
+  it('returns the MCP server card', async () => {
+    const res = await get('/.well-known/mcp/server-card.json')
+    expect(res.status).toBe(200)
+    expect(res.headers.get('content-type')).toContain('application/json')
+    expect(await res.json()).toEqual({
+      serverInfo: { name: 'nyuchi-tools', version: '0.1.0' },
+      name: 'nyuchi-tools',
+      description:
+        'MCP server for Nyuchi Africa tools: email signatures, Nyuchi Studio social cards, and article banners.',
+      websiteUrl: 'https://tools.nyuchi.com',
+      remotes: [{ transportType: 'streamable-http', url: 'https://tools.nyuchi.com/mcp' }],
+      capabilities: { tools: { listChanged: true } },
+    })
+  })
+
+  it('is served the same way regardless of auth mode', async () => {
+    const res = await get('/.well-known/mcp/server-card.json', AUTH_ENV)
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { name: string }
+    expect(body.name).toBe('nyuchi-tools')
+  })
+})
+
+describe('GET /auth.md', () => {
+  it('serves markdown with an H1 that names auth.md', async () => {
+    const res = await get('/auth.md')
+    expect(res.status).toBe(200)
+    expect(res.headers.get('content-type')).toContain('text/markdown')
+    const body = await res.text()
+    expect(body).toMatch(/^# .*auth\.md/m)
+  })
+
+  it('describes the real architecture without fabricating an agent_auth block', async () => {
+    const res = await get('/auth.md')
+    const body = await res.text()
+    expect(body).toContain('https://identity.nyuchi.com')
+    expect(body).toContain('/.well-known/oauth-protected-resource')
+    expect(body).toContain('tools.nyuchi.com is a resource server')
+    expect(body).not.toContain('agent_auth')
+  })
+
+  it('is reachable the same way in auth-on mode too', async () => {
+    const res = await get('/auth.md', AUTH_ENV)
+    expect(res.status).toBe(200)
+    expect(res.headers.get('content-type')).toContain('text/markdown')
+  })
+})
+
+describe('Authorization server metadata mirror', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('auth OFF: oauth-authorization-server keeps the existing JSON 404 (nothing to mirror)', async () => {
+    const res = await get('/.well-known/oauth-authorization-server')
+    expect(res.status).toBe(404)
+    const body = (await res.json()) as { error: string }
+    expect(body.error).toBe('no_authorization_server')
+  })
+
+  it('auth OFF: openid-configuration also keeps the existing JSON 404', async () => {
+    const res = await get('/.well-known/openid-configuration')
+    expect(res.status).toBe(404)
+    const body = (await res.json()) as { error: string }
+    expect(body.error).toBe('no_authorization_server')
+  })
+
+  it('auth ON: oauth-authorization-server proxies the real upstream document', async () => {
+    const upstreamBody = {
+      issuer: 'https://mirror1.authkit.app',
+      authorization_endpoint: 'https://mirror1.authkit.app/oauth2/authorize',
+      registration_endpoint: 'https://mirror1.authkit.app/oauth2/register',
+    }
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response(JSON.stringify(upstreamBody), { status: 200 }))
+
+    const res = await get('/.well-known/oauth-authorization-server', { AUTHKIT_DOMAIN: 'mirror1.authkit.app' })
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual(upstreamBody)
+    expect(fetchSpy).toHaveBeenCalledWith(
+      'https://mirror1.authkit.app/.well-known/oauth-authorization-server',
+      expect.objectContaining({ signal: expect.anything() }),
+    )
+  })
+
+  it('auth ON: openid-configuration proxies the real upstream document', async () => {
+    const upstreamBody = { issuer: 'https://mirror2.authkit.app', userinfo_endpoint: 'https://mirror2.authkit.app/oauth2/userinfo' }
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify(upstreamBody), { status: 200 }))
+
+    const res = await get('/.well-known/openid-configuration', { AUTHKIT_DOMAIN: 'mirror2.authkit.app' })
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual(upstreamBody)
+  })
+
+  it('auth ON: the nested oauth-authorization-server path mirrors too', async () => {
+    const upstreamBody = { issuer: 'https://mirror3.authkit.app' }
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify(upstreamBody), { status: 200 }))
+
+    const res = await get('/.well-known/oauth-authorization-server/extra', { AUTHKIT_DOMAIN: 'mirror3.authkit.app' })
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual(upstreamBody)
+  })
+
+  it('auth ON: an upstream network failure becomes a 502, never fabricated metadata', async () => {
+    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('network down'))
+
+    const res = await get('/.well-known/oauth-authorization-server', { AUTHKIT_DOMAIN: 'mirror4.authkit.app' })
+    expect(res.status).toBe(502)
+    const body = (await res.json()) as { error: string }
+    expect(body.error).toBe('upstream_fetch_failed')
+  })
+
+  it('auth ON: an upstream non-200 (e.g. AS has no openid-configuration) becomes a 502', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('not found', { status: 404 }))
+
+    const res = await get('/.well-known/openid-configuration', { AUTHKIT_DOMAIN: 'mirror5.authkit.app' })
+    expect(res.status).toBe(502)
+    const body = (await res.json()) as { error: string }
+    expect(body.error).toBe('upstream_fetch_failed')
   })
 })

@@ -302,6 +302,12 @@ const defRow =
 
           <h3 class={subHead}>Endpoint</h3>
           <code class={codeBlock}>https://tools.nyuchi.com/mcp</code>
+          <p class={muted}>
+            Agent-readiness discovery documents are also published at{' '}
+            <code class={inlineCode}>/.well-known/mcp/server-card.json</code> (a static MCP Server
+            Card) and <code class={inlineCode}>/auth.md</code> (a plain-language description of the
+            OAuth architecture) for scanners and MCP clients that look there first.
+          </p>
 
           <h3 class={subHead}>Connect from claude.ai</h3>
           <p class={muted}>
@@ -338,8 +344,10 @@ const defRow =
           </div>
 
           <p class={muted}>
-            The endpoint is currently open — no sign-in required. Authentication via WorkOS (OAuth)
-            may be enabled later; MCP clients will then prompt you to sign in when connecting.
+            The endpoint is protected by WorkOS Connect (OAuth 2.1 + PKCE) — MCP clients discover
+            this automatically via <code class={inlineCode}>/.well-known/oauth-protected-resource</code>{' '}
+            and prompt you to sign in when connecting. See{' '}
+            <a href="/auth.md" class={link}>/auth.md</a> for the full authorization architecture.
           </p>
         </div>
       </section>

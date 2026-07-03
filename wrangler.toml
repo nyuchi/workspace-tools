@@ -11,13 +11,16 @@ compatibility_flags = ["nodejs_compat"]
 command = "npm --prefix signature-generator ci && npm --prefix signature-generator run build"
 
 # This Worker serves ALL of tools.nyuchi.com:
-#   - /mcp            → MCP JSON-RPC endpoint (run_worker_first bypasses assets)
-#   - everything else → the built signature-generator Astro site as static
-#     assets (every route is a real HTML file; unknown paths get dist/404.html)
+#   - /mcp                     → MCP JSON-RPC endpoint (run_worker_first bypasses assets)
+#   - /.well-known/*           → OAuth + MCP server-card discovery documents
+#   - /register                → OAuth dynamic client registration 404 stub
+#   - /auth.md                 → human/agent-readable auth architecture doc
+#   - everything else          → the built signature-generator Astro site as
+#     static assets (every route is a real HTML file; unknown paths get dist/404.html)
 [assets]
 directory = "signature-generator/dist"
 not_found_handling = "404-page"
-run_worker_first = ["/mcp", "/mcp/*", "/.well-known/*", "/register"]
+run_worker_first = ["/mcp", "/mcp/*", "/.well-known/*", "/register", "/auth.md"]
 
 # Workers Custom Domain: Cloudflare creates and manages the DNS record and
 # certificate for tools.nyuchi.com itself, and the Worker receives all paths
