@@ -148,6 +148,183 @@ describe('POST /mcp — JSON-RPC', () => {
     expect(result.content[0].text).toContain("received 'acme'")
   })
 
+  it('tools/call generate_studio_card returns a real Studio SVG plus JSON metadata', async () => {
+    const res = await post(
+      '/mcp',
+      rpc(
+        'tools/call',
+        {
+          name: 'generate_studio_card',
+          arguments: {
+            title: 'Seven minerals, one ecosystem',
+            dek: 'How the bundu palette carries meaning across every brand we build.',
+            category: 'gold',
+            format: 'og',
+          },
+        },
+        10,
+      ),
+    )
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as JsonRpcResponse
+    expect(body.error).toBeUndefined()
+    const content = (body.result as { content: { type: string; text: string }[] }).content
+    expect(content).toHaveLength(2)
+
+    const svg = content[0].text
+    expect(svg.startsWith('<svg')).toBe(true)
+    expect(svg.endsWith('</svg>')).toBe(true)
+    // og format → 1200 × 630
+    expect(svg).toContain('viewBox="0 0 1200 630"')
+    expect(svg).toContain('width="1200"')
+    expect(svg).toContain('height="630"')
+    // Real generative output: lattice + graph geometry, not a placeholder rect.
+    expect((svg.match(/<circle /g) ?? []).length).toBeGreaterThan(5)
+    expect((svg.match(/<line /g) ?? []).length).toBeGreaterThan(3)
+    expect(svg.length).toBeGreaterThan(5000)
+    expect(svg).not.toContain('placeholder')
+    expect(svg).toContain('Seven minerals, one ecosystem')
+
+    const meta = JSON.parse(content[1].text) as { format: { w: number; h: number }; seed: number }
+    expect(meta.format).toEqual({ w: 1200, h: 630 })
+    expect(typeof meta.seed).toBe('number')
+  })
+
+  it('generate_studio_card keeps markup in the title escaped', async () => {
+    const res = await post(
+      '/mcp',
+      rpc(
+        'tools/call',
+        {
+          name: 'generate_studio_card',
+          arguments: {
+            title: 'Attack <script>alert(1)</script> & Co',
+            category: 'cobalt',
+            format: 'ig',
+            layout: 1,
+          },
+        },
+        11,
+      ),
+    )
+    const body = (await res.json()) as JsonRpcResponse
+    expect(body.error).toBeUndefined()
+    const svg = (body.result as { content: { text: string }[] }).content[0].text
+    expect(svg).not.toContain('<script>')
+    expect(svg).toContain('&lt;script&gt;')
+  })
+
+  it('generate_studio_card is deterministic for identical arguments', async () => {
+    const args = { title: 'Determinism', category: 'malachite', format: '16x9', layout: 3 }
+    const first = (await (
+      await post('/mcp', rpc('tools/call', { name: 'generate_studio_card', arguments: args }, 12))
+    ).json()) as JsonRpcResponse
+    const second = (await (
+      await post('/mcp', rpc('tools/call', { name: 'generate_studio_card', arguments: args }, 13))
+    ).json()) as JsonRpcResponse
+    const a = (first.result as { content: { text: string }[] }).content
+    const b = (second.result as { content: { text: string }[] }).content
+    expect(b[0].text).toBe(a[0].text)
+    expect(b[1].text).toBe(a[1].text)
+  })
+
+  it('generate_studio_card rejects an unknown format', async () => {
+    const res = await post(
+      '/mcp',
+      rpc(
+        'tools/call',
+        { name: 'generate_studio_card', arguments: { title: 'X', category: 'gold', format: 'a4' } },
+        14,
+      ),
+    )
+    const body = (await res.json()) as JsonRpcResponse
+    const result = body.result as { isError: boolean; content: { text: string }[] }
+    expect(result.isError).toBe(true)
+    expect(result.content[0].text).toContain('-32602')
+  })
+
+  it('tools/call generate_article_banner returns a real banner SVG plus JSON metadata', async () => {
+    const res = await post(
+      '/mcp',
+      rpc(
+        'tools/call',
+        {
+          name: 'generate_article_banner',
+          arguments: {
+            title: 'Speed is rented. Truth is owned.',
+            dek: 'A note on local-first software and the cost of being online.',
+            category: 'cobalt',
+            format: 'og',
+          },
+        },
+        15,
+      ),
+    )
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as JsonRpcResponse
+    expect(body.error).toBeUndefined()
+    const content = (body.result as { content: { type: string; text: string }[] }).content
+    expect(content).toHaveLength(2)
+
+    const svg = content[0].text
+    expect(svg.startsWith('<svg')).toBe(true)
+    expect(svg.endsWith('</svg>')).toBe(true)
+    expect(svg).toContain('viewBox="0 0 1200 630"')
+    expect(svg).toContain('width="1200"')
+    expect(svg).toContain('height="630"')
+    expect((svg.match(/<circle /g) ?? []).length).toBeGreaterThan(5)
+    expect((svg.match(/<line /g) ?? []).length).toBeGreaterThan(3)
+    expect(svg.length).toBeGreaterThan(5000)
+    expect(svg).not.toContain('placeholder')
+    // The title may wrap across several <text> lines; check a fragment.
+    expect(svg).toContain('Speed is rented.')
+
+    const meta = JSON.parse(content[1].text) as { format: { w: number; h: number }; seed: number }
+    expect(meta.format).toEqual({ w: 1200, h: 630 })
+    expect(typeof meta.seed).toBe('number')
+  })
+
+  it('generate_article_banner defaults to 16x9 and keeps markup escaped', async () => {
+    const res = await post(
+      '/mcp',
+      rpc(
+        'tools/call',
+        {
+          name: 'generate_article_banner',
+          arguments: { title: 'Attack <script>alert(1)</script>', category: 'terracotta' },
+        },
+        16,
+      ),
+    )
+    const body = (await res.json()) as JsonRpcResponse
+    expect(body.error).toBeUndefined()
+    const content = (body.result as { content: { text: string }[] }).content
+    const svg = content[0].text
+    expect(svg).toContain('viewBox="0 0 1600 900"')
+    expect(svg).not.toContain('<script>')
+    expect(svg).toContain('&lt;script&gt;')
+    const meta = JSON.parse(content[1].text) as { format: { w: number; h: number } }
+    expect(meta.format).toEqual({ w: 1600, h: 900 })
+  })
+
+  it('generate_article_banner rejects layout 5 (banner engine has layouts 1-4)', async () => {
+    const res = await post(
+      '/mcp',
+      rpc(
+        'tools/call',
+        {
+          name: 'generate_article_banner',
+          arguments: { title: 'X', category: 'gold', layout: 5 },
+        },
+        17,
+      ),
+    )
+    const body = (await res.json()) as JsonRpcResponse
+    const result = body.result as { isError: boolean; content: { text: string }[] }
+    expect(result.isError).toBe(true)
+    expect(result.content[0].text).toContain('-32602')
+  })
+
   it('malformed JSON gets a -32700 parse error with HTTP 400', async () => {
     const res = await post('/mcp', '{not json')
     expect(res.status).toBe(400)

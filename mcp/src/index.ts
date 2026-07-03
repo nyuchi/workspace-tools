@@ -30,6 +30,25 @@ import {
   buildSignatureHtml,
   type SignatureParams,
 } from "../../signature-generator/src/engines/signature";
+import {
+  buildSVG as buildStudioCard,
+  type Params as StudioParams,
+} from "../../signature-generator/src/engines/nyuchi";
+import {
+  buildSVG as buildArticleBanner,
+  type Params as BannerParams,
+} from "../../signature-generator/src/engines/banner";
+
+/** The seven Mzizi mineral palettes shared by both SVG engines. */
+const MINERALS = [
+  "cobalt",
+  "sodalite",
+  "tanzanite",
+  "malachite",
+  "gold",
+  "copper",
+  "terracotta",
+] as const;
 
 const SERVER_NAME = "nyuchi-tools";
 const SERVER_VERSION = "0.1.0";
@@ -122,92 +141,163 @@ function buildServer(): McpServer {
   );
 
   // --- generate_studio_card -----------------------------------------------
+  // The real Studio engine — the same pure module the SPA's /studio page
+  // renders with. Text is measured from the committed font-metrics table
+  // (Workers have no canvas); all user input is escaped inside the engine.
   server.registerTool(
     "generate_studio_card",
     {
       title: "Generate Nyuchi Studio social card",
       description:
-        "Generate a Nyuchi Studio social card as an SVG string. PNG rasterization is a follow-up.",
+        "Generate a Nyuchi Studio social card as an SVG string (same engine as the /studio page). " +
+        "PNG rasterization is a follow-up. The second content item is JSON metadata: {format:{w,h}, seed}.",
       inputSchema: {
-        title: z.string(),
-        dek: z.string().optional(),
-        category: z.enum([
-          "cobalt",
-          "sodalite",
-          "tanzanite",
-          "malachite",
-          "gold",
-          "copper",
-          "terracotta",
-        ]),
-        format: z.enum(["ig", "story", "16x9", "og", "li"]).optional(),
-        layout: z.number().int().optional().default(5),
+        title: z.string().describe("Card title."),
+        dek: z.string().optional().describe("Supporting line under the title."),
+        category: z.enum(MINERALS).describe("Mineral palette."),
+        format: z
+          .enum(["ig", "story", "16x9", "og", "li"])
+          .optional()
+          .default("ig")
+          .describe("Canvas format (ig 1080x1080, story 1080x1920, 16x9 1600x900, og 1200x630, li 1200x627)."),
+        layout: z
+          .number()
+          .int()
+          .min(1)
+          .max(5)
+          .optional()
+          .default(5)
+          .describe("Layout: 1 type, 2 anchor, 3 split, 4 halo, 5 mineral."),
+        theme: z.enum(["light", "dark"]).optional().default("dark").describe("Surface theme."),
+        eyebrow: z.string().optional().describe("Kicker line; defaults to '<Mineral> · <role>'."),
+        index: z.string().optional().describe("Big index numeral on the mineral swatch (layout 5)."),
+        footnote: z.string().optional().describe("Small mono footnote (layout 5)."),
+        role: z.string().optional().describe("Role label; defaults to the mineral's role."),
+        brand: z.enum(["nyuchi", "bundu"]).optional().default("nyuchi").describe("Lockup brand."),
+        seedKey: z
+          .string()
+          .optional()
+          .describe("Seed for the generative graph; defaults to title+category+layout like the SPA."),
       },
     },
     async (args: {
       title: string;
       dek?: string;
-      category: string;
-      format?: string;
+      category: StudioParams["category"];
+      format?: StudioParams["format"];
       layout?: number;
+      theme?: StudioParams["theme"];
+      eyebrow?: string;
+      index?: string;
+      footnote?: string;
+      role?: string;
+      brand?: StudioParams["brand"];
+      seedKey?: string;
     }) => {
-      const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1080">` +
-        `<!-- placeholder studio card: category=${escapeHtml(args.category)} ` +
-        `format=${escapeHtml(args.format ?? "ig")} layout=${args.layout ?? 5} -->` +
-        `<rect width="1080" height="1080" fill="#5f5873"/>` +
-        `<text x="60" y="540" fill="#fff" font-family="Plus Jakarta Sans" font-size="72">${escapeHtml(args.title)}</text>` +
-        (args.dek
-          ? `<text x="60" y="640" fill="#fff" font-family="Plus Jakarta Sans" font-size="36">${escapeHtml(args.dek)}</text>`
-          : "") +
-        `</svg>`;
-      return { content: [{ type: "text", text: svg }] };
+      const layout = args.layout ?? 5;
+      const params: StudioParams = {
+        format: args.format ?? "ig",
+        layout,
+        theme: args.theme ?? "dark",
+        category: args.category,
+        title: args.title,
+        dek: args.dek,
+        eyebrow: args.eyebrow,
+        index: args.index,
+        footnote: args.footnote,
+        role: args.role,
+        brand: args.brand ?? "nyuchi",
+        // SPA defaults (StudioPage INITIAL state).
+        facet: "diagonal",
+        angle: 62,
+        cleave: true,
+        lattice: true,
+        lockup: true,
+        // Same derivation as the SPA (salt 0).
+        seedKey: args.seedKey ?? `${args.title}${args.category}${layout}0`,
+      };
+      const { svg, format, seed } = buildStudioCard(params);
+      return {
+        content: [
+          { type: "text", text: svg },
+          { type: "text", text: JSON.stringify({ format: { w: format.w, h: format.h }, seed }) },
+        ],
+      };
     },
   );
 
   // --- generate_article_banner --------------------------------------------
+  // The real banner engine — the same pure module the SPA's /banner page
+  // renders with. Note the banner engine has no 'story' format and only
+  // layouts 1–4.
   server.registerTool(
     "generate_article_banner",
     {
       title: "Generate article banner",
-      description: "Generate an article banner as an SVG string.",
+      description:
+        "Generate an article banner as an SVG string (same engine as the /banner page). " +
+        "PNG rasterization is a follow-up. The second content item is JSON metadata: {format:{w,h}, seed}.",
       inputSchema: {
-        title: z.string(),
-        dek: z.string().optional(),
-        category: z.string(),
-        format: z.string().optional(),
-        layout: z.number().int().optional().default(5),
+        title: z.string().describe("Banner title."),
+        dek: z.string().optional().describe("Supporting line under the title."),
+        category: z.enum(MINERALS).describe("Mineral palette."),
+        format: z
+          .enum(["16x9", "og", "li", "ig"])
+          .optional()
+          .default("16x9")
+          .describe("Canvas format (16x9 1600x900, og 1200x630, li 1200x627, ig 1080x1080)."),
+        layout: z
+          .number()
+          .int()
+          .min(1)
+          .max(4)
+          .optional()
+          .default(1)
+          .describe("Layout: 1 type-forward, 2 anchor, 3 split block, 4 centered halo."),
+        theme: z.enum(["light", "dark"]).optional().default("dark").describe("Surface theme."),
+        brand: z.enum(["nyuchi", "bundu"]).optional().default("nyuchi").describe("Lockup brand."),
+        seedKey: z
+          .string()
+          .optional()
+          .describe("Seed for the generative graph; defaults to title·category·layout like the SPA."),
       },
     },
     async (args: {
       title: string;
       dek?: string;
-      category: string;
-      format?: string;
+      category: BannerParams["category"];
+      format?: BannerParams["format"];
       layout?: number;
+      theme?: BannerParams["theme"];
+      brand?: BannerParams["brand"];
+      seedKey?: string;
     }) => {
-      const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900">` +
-        `<!-- placeholder article banner: category=${escapeHtml(args.category)} ` +
-        `format=${escapeHtml(args.format ?? "16x9")} layout=${args.layout ?? 5} -->` +
-        `<rect width="1600" height="900" fill="#5f5873"/>` +
-        `<text x="80" y="460" fill="#fff" font-family="Plus Jakarta Sans" font-size="96">${escapeHtml(args.title)}</text>` +
-        (args.dek
-          ? `<text x="80" y="560" fill="#fff" font-family="Plus Jakarta Sans" font-size="40">${escapeHtml(args.dek)}</text>`
-          : "") +
-        `</svg>`;
-      return { content: [{ type: "text", text: svg }] };
+      const layout = args.layout ?? 1;
+      const params: BannerParams = {
+        format: args.format ?? "16x9",
+        layout,
+        theme: args.theme ?? "dark",
+        category: args.category,
+        title: args.title,
+        dek: args.dek,
+        // SPA defaults (BannerPage INITIAL state).
+        lattice: true,
+        lockup: true,
+        brand: args.brand ?? "nyuchi",
+        // Same derivation as the SPA (seedSalt 0).
+        seedKey: args.seedKey ?? `${args.title}·${args.category}·${layout}·0`,
+      };
+      const { svg, format, seed } = buildArticleBanner(params);
+      return {
+        content: [
+          { type: "text", text: svg },
+          { type: "text", text: JSON.stringify({ format: { w: format.w, h: format.h }, seed }) },
+        ],
+      };
     },
   );
 
   return server;
-}
-
-function escapeHtml(input: string): string {
-  return input
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
 }
 
 // -----------------------------------------------------------------------------

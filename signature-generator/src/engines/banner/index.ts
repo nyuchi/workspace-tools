@@ -4,6 +4,40 @@
    emission as the original vanilla IIFE. Do not "improve" — SVG output must
    stay byte-identical to the source for identical params. */
 
+import { measureWithMetrics } from '../metrics'
+
+/* Structural DOM types so this module also typechecks in the Workers
+   tsconfig (no DOM lib). In the browser these resolve to the real DOM
+   globals; in Workers `DOM.document` is undefined and text measurement
+   falls back to the font-metrics table. */
+interface MeasureContext2D {
+  font: string
+  measureText(text: string): { width: number }
+}
+interface RasterContext2D {
+  imageSmoothingEnabled: boolean
+  imageSmoothingQuality: string
+  drawImage(image: unknown, dx: number, dy: number, dw: number, dh: number): void
+}
+interface CanvasLike {
+  width: number
+  height: number
+  getContext(kind: '2d'): (MeasureContext2D & RasterContext2D) | null
+  toBlob(cb: (b: Blob | null) => void, type?: string): void
+}
+interface HtmlImageLike {
+  crossOrigin: string
+  onload: (() => void) | null
+  onerror: (() => void) | null
+  src: string
+}
+interface DomGlobals {
+  document?: { createElement(tag: string): CanvasLike }
+  Image?: new () => HtmlImageLike
+  URL?: { createObjectURL(blob: Blob): string; revokeObjectURL(url: string): void }
+}
+const DOM = globalThis as unknown as DomGlobals
+
 export type Category =
   | 'cobalt'
   | 'sodalite'
@@ -216,15 +250,19 @@ function renderGraph(graph: Graph, opts?: RenderGraphOpts): string {
    Canvas-based measurement so we get accurate wrap + auto-size.
    (Lazy canvas init so module load is SSR/Worker-safe.)               */
 
-let _measureCtx: CanvasRenderingContext2D | null = null
-function measureCtx(): CanvasRenderingContext2D {
+let _measureCtx: MeasureContext2D | null = null
+function measureCtx(): MeasureContext2D {
   if (!_measureCtx) {
-    _measureCtx = document.createElement('canvas').getContext('2d')!
+    _measureCtx = DOM.document!.createElement('canvas').getContext('2d')!
   }
   return _measureCtx
 }
 
 function measure(text: string, font: string): number {
+  /* No DOM (Cloudflare Workers / plain node): measure from font metrics.
+     When a document exists the canvas path stays the first choice, so SPA
+     output is byte-identical to before. */
+  if (DOM.document === undefined) return measureWithMetrics(text, font)
   const ctx = measureCtx()
   ctx.font = font
   return ctx.measureText(text).width
@@ -1041,17 +1079,19 @@ export function buildSVG(p: Params): BuildResult {
 
 /* PNG export — serialize SVG, draw on canvas at 2x. */
 export async function exportPNG(svgString: string, format: Format, scale = 2): Promise<Blob> {
+  const { document: doc, Image: Img, URL: objectUrl } = DOM
+  if (!doc || !Img || !objectUrl) throw new Error('exportPNG requires a browser environment')
   const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' })
-  const url = URL.createObjectURL(blob)
+  const url = objectUrl.createObjectURL(blob)
   try {
-    const img = new Image()
+    const img = new Img()
     img.crossOrigin = 'anonymous'
     await new Promise<void>((resolve, reject) => {
       img.onload = () => resolve()
       img.onerror = () => reject(new Error('SVG image load failed'))
       img.src = url
     })
-    const canvas = document.createElement('canvas')
+    const canvas = doc.createElement('canvas')
     canvas.width = format.w * scale
     canvas.height = format.h * scale
     const ctx = canvas.getContext('2d')!
@@ -1062,6 +1102,6 @@ export async function exportPNG(svgString: string, format: Format, scale = 2): P
       canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('canvas toBlob returned null'))), 'image/png')
     })
   } finally {
-    URL.revokeObjectURL(url)
+    objectUrl.revokeObjectURL(url)
   }
 }
