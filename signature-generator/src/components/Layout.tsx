@@ -44,6 +44,7 @@ const Layout = () => {
     { name: 'Studio', href: '/studio' },
     { name: 'Banner', href: '/banner' },
     { name: 'Setup', href: '/setup' },
+    { name: 'Help', href: '/help' },
   ]
 
   const isActive = (href: string) => {
@@ -85,7 +86,7 @@ const Layout = () => {
                 </Link>
               ))}
               <a
-                href="https://github.com/nyuchitech/workspace-tools"
+                href="https://github.com/nyuchi/workspace-tools"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="ml-4 px-4 py-2 text-white rounded-lg text-sm font-medium hover:opacity-90 transition-colors"
@@ -133,7 +134,7 @@ const Layout = () => {
                 </Link>
               ))}
               <a
-                href="https://github.com/nyuchitech/workspace-tools"
+                href="https://github.com/nyuchi/workspace-tools"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="block px-4 py-3 text-base font-medium text-white rounded-lg min-h-[48px] flex items-center"
@@ -165,7 +166,7 @@ const Layout = () => {
               <a href="https://nyuchi.com" target="_blank" rel="noopener noreferrer" className="hover:text-amber-700 transition-colors py-2 px-1">
                 nyuchi.com
               </a>
-              <a href="https://github.com/nyuchitech" target="_blank" rel="noopener noreferrer" className="hover:text-amber-700 transition-colors py-2 px-1">
+              <a href="https://github.com/nyuchi" target="_blank" rel="noopener noreferrer" className="hover:text-amber-700 transition-colors py-2 px-1">
                 GitHub
               </a>
               <a href="https://services.nyuchi.com" target="_blank" rel="noopener noreferrer" className="hover:text-amber-700 transition-colors py-2 px-1">
