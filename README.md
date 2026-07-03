@@ -37,9 +37,11 @@ keep their own copy of the brand list, because Apps Script cannot import npm mod
 | `gmail-addon/` | Google Apps Script (V8) | Gmail Add-on (User + Admin tabs) and the admin web dashboard | Apps Script via clasp — see [gmail-addon/README.md](gmail-addon/README.md) |
 | `email-signature/` | Google Apps Script (V8) | Admin batch script: push signatures to all domain users and their aliases | Apps Script via clasp — see [email-signature/README.md](email-signature/README.md) |
 
-The canonical signature template and brand config for the TypeScript side live in
-`signature-generator/src/engines/signature/` — a pure module imported by both the
-SPA and the Worker's MCP tool, so both emit identical signature HTML.
+The canonical brand taxonomy for the TypeScript side lives in
+`signature-generator/src/engines/brands/` (the Bundu-ecosystem registry); the
+signature template and its historical brand copies live in
+`signature-generator/src/engines/signature/` — pure modules imported by both the
+SPA and the Worker's MCP tools, so both emit identical signature HTML.
 
 ## Quickstart
 
@@ -134,22 +136,36 @@ enabled later — clients will then be prompted to sign in when connecting.
 
 ## Supported brands
 
-| Brand | Domain | Notes |
-|-------|--------|-------|
-| **Nyuchi Africa** | nyuchi.com | Parent company |
-| **Nyuchi Lingo** | lingo.nyuchi.com | Language learning |
-| **Nyuchi Learning** | learning.nyuchi.com | Education platform |
-| **Nyuchi Development** | services.nyuchi.com | Software services |
-| **Nyuchi Foundation** | foundation.nyuchi.com | Community initiatives |
-| **Mukoko** | mukoko.com | Digital ecosystem |
-| **Mukoko News** | news.mukoko.com | Pan-African journalism |
-| **Zimbabwe Travel** | travel-info.co.zw | Tourism information |
-| **Tech Leaders** | techdirectors.africa | Technology leadership |
+The Bundu ecosystem has four top-level brands: **Bundu Foundation** is the
+parent ("Bundu is Shona for wilderness. The wilderness holds the hive."), and
+the other three are its pillars.
 
-The web generator and MCP tool currently cover the four most-used brands
-(`nyuchi`, `mukoko`, `travel`, `learning`); the Apps Script projects carry the
-full list. A brand or social-link change must be applied in
-`signature-generator/src/engines/signature/index.ts` **and** in both Apps Script
+| Brand | Domain | Pillar |
+|-------|--------|--------|
+| **Bundu Foundation** | bundu.org | The parent — foundation |
+| **Nyuchi Africa** | nyuchi.com | Commercial |
+| **Mukoko** | mukoko.com | Consumer |
+| **Shamwari AI** | shamwari.ai | Community |
+
+Divisions and Bundu Foundation initiatives (initiatives are projects, not brands):
+
+| Division / initiative | Domain | Notes |
+|-----------------------|--------|-------|
+| **Nyuchi Lingo** | lingo.nyuchi.com | Nyuchi division — language learning |
+| **Nyuchi Learning** | learning.nyuchi.com | Nyuchi division — education platform |
+| **Nyuchi Development** | services.nyuchi.com | Nyuchi division — software services |
+| **Nyuchi Foundation** | foundation.nyuchi.com | Nyuchi division — community initiatives |
+| **Mukoko News** | news.mukoko.com | Mukoko division — pan-African journalism |
+| **Zimbabwe Information Platform** | travel-info.co.zw | Bundu initiative — tourism information |
+| **TELIA — Technology Leaders in Africa** | telia.bundu.org | Bundu initiative — technology leadership |
+| **Bundu Education** | bundu.org | Bundu initiative — dedicated site pending |
+
+The canonical registry is `signature-generator/src/engines/brands/index.ts`.
+The web generator and MCP tools cover the four top-level brands plus the
+legacy signature keys `travel` and `learning`; the Apps Script projects carry
+the full division list. A brand or social-link change must be applied in the
+registry, in `signature-generator/src/engines/signature/index.ts` (new keys
+only — existing signature output is byte-locked), **and** in both Apps Script
 files (`gmail-addon/Code.js`, `email-signature/Code.js`).
 
 ## Design system

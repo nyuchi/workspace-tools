@@ -5,11 +5,13 @@ A self-service Gmail Add-on that allows each user to generate and apply their ow
 ## Features
 
 - **Self-Service**: Each user generates and applies their own signature (no admin required)
-- **Multi-Brand Support**: All Nyuchi Africa brands supported
+- **Multi-Brand Support**: All Bundu-ecosystem brands supported
+  - Bundu Foundation (the parent)
   - Nyuchi Africa (and divisions: Lingo, Learning, Development, Foundation)
   - Mukoko (and Mukoko News)
+  - Shamwari AI
   - Zimbabwe Travel Information
-  - Technology Leaders of Africa
+  - TELIA — Technology Leaders in Africa
 - **Rich Signatures**: Includes profile photos, social links, and promotional banners
 - **Persistent Settings**: User preferences saved automatically
 - **Compose Integration**: Insert signature directly into email drafts
@@ -18,15 +20,17 @@ A self-service Gmail Add-on that allows each user to generate and apply their ow
 
 | Brand | Website | Parent |
 |-------|---------|--------|
-| Nyuchi Africa | nyuchi.com | - |
+| Bundu Foundation | bundu.org | - |
+| Nyuchi Africa | nyuchi.com | Bundu Foundation |
 | Nyuchi Lingo | lingo.nyuchi.com | Nyuchi Africa |
 | Nyuchi Learning | learning.nyuchi.com | Nyuchi Africa |
 | Nyuchi Development | services.nyuchi.com | Nyuchi Africa |
 | Nyuchi Foundation | foundation.nyuchi.com | Nyuchi Africa |
-| Mukoko | mukoko.com | - |
+| Mukoko | mukoko.com | Bundu Foundation |
 | Mukoko News | news.mukoko.com | Mukoko |
-| Zimbabwe Travel | travel-info.co.zw | - |
-| Tech Leaders of Africa | techdirectors.africa | - |
+| Shamwari AI | shamwari.ai | Bundu Foundation |
+| Zimbabwe Travel | travel-info.co.zw | Bundu initiative |
+| TELIA — Technology Leaders in Africa | telia.bundu.org | Bundu initiative |
 
 ## Installation
 

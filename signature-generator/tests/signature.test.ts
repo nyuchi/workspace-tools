@@ -80,8 +80,8 @@ describe('escapeHtml', () => {
 })
 
 describe('BRANDS registry', () => {
-  it('exposes exactly the four brand slugs', () => {
-    expect(BRAND_KEYS).toEqual(['nyuchi', 'mukoko', 'travel', 'learning'])
+  it('exposes the four legacy slugs plus bundu and shamwari', () => {
+    expect(BRAND_KEYS).toEqual(['nyuchi', 'mukoko', 'travel', 'learning', 'bundu', 'shamwari'])
     expect(Object.keys(BRANDS).sort()).toEqual([...BRAND_KEYS].sort())
   })
 
@@ -90,6 +90,13 @@ describe('BRANDS registry', () => {
     expect(BRANDS.mukoko.primaryColor).toBe('#4B0082')
     expect(BRANDS.travel.primaryColor).toBe('#004D40')
     expect(BRANDS.learning.primaryColor).toBe('#0047AB')
+  })
+
+  it('pins the mineral primary colors of the new brands', () => {
+    expect(BRANDS.bundu.primaryColor).toBe('#BF5A36') // copper (light)
+    expect(BRANDS.bundu.primaryColorDark).toBe('#FF8A65')
+    expect(BRANDS.shamwari.primaryColor).toBe('#283593') // sodalite (light)
+    expect(BRANDS.shamwari.primaryColorDark).toBe('#3D5AFE')
   })
 })
 
@@ -215,6 +222,62 @@ describe('buildSignatureHtml — XSS hardening', () => {
   it('percent-encodes hostile characters out of mailto:/tel: URLs', () => {
     expect(html).toContain(`href="${escapeHtml('mailto:' + encodeURIComponent(`evil${hostile}@x.com`))}"`)
     expect(html).toContain('href="tel:%2B1%3C555%3E%220%22"')
+  })
+})
+
+describe('buildSignatureHtml — new top-level brands (bundu, shamwari)', () => {
+  const bunduHtml = buildSignatureHtml({
+    brand: 'bundu',
+    name: 'Tariro Chikafu',
+    email: 'tariro@bundu.org',
+  })
+
+  const shamwariHtml = buildSignatureHtml({
+    brand: 'shamwari',
+    name: 'Farai Gumbo',
+    email: 'farai@shamwari.ai',
+  })
+
+  it('renders the Bundu Foundation brand block with the copper primary', () => {
+    expect(bunduHtml).toContain('color: #BF5A36;">Bundu Foundation</span>')
+    expect(bunduHtml).toContain('"The wilderness holds the hive"')
+    expect(bunduHtml).toContain('href="https://bundu.org"')
+    expect(bunduHtml).toContain('>bundu.org</a>')
+  })
+
+  it('renders the Shamwari AI brand block with the sodalite primary', () => {
+    expect(shamwariHtml).toContain('color: #283593;">Shamwari AI</span>')
+    expect(shamwariHtml).toContain('"AI that actually works for Africa"')
+    expect(shamwariHtml).toContain('href="https://shamwari.ai"')
+    expect(shamwariHtml).toContain('>shamwari.ai</a>')
+  })
+
+  it('is deterministic for the new brands', () => {
+    expect(buildSignatureHtml({ brand: 'bundu', name: 'Tariro Chikafu', email: 'tariro@bundu.org' })).toBe(bunduHtml)
+    expect(buildSignatureHtml({ brand: 'shamwari', name: 'Farai Gumbo', email: 'farai@shamwari.ai' })).toBe(shamwariHtml)
+  })
+
+  it('produces the exact golden plain-text signatures', () => {
+    expect(buildSignatureText({ brand: 'bundu', name: 'Tariro Chikafu', email: 'tariro@bundu.org' })).toBe(
+      'Tariro Chikafu\n' +
+        '\n' +
+        '\n' +
+        'Bundu Foundation\n' +
+        '"The wilderness holds the hive"\n' +
+        '\n' +
+        'tariro@bundu.org\n' +
+        'bundu.org',
+    )
+    expect(buildSignatureText({ brand: 'shamwari', name: 'Farai Gumbo', email: 'farai@shamwari.ai' })).toBe(
+      'Farai Gumbo\n' +
+        '\n' +
+        '\n' +
+        'Shamwari AI\n' +
+        '"AI that actually works for Africa"\n' +
+        '\n' +
+        'farai@shamwari.ai\n' +
+        'shamwari.ai',
+    )
   })
 })
 
