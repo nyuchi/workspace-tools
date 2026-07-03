@@ -18,7 +18,9 @@
     "build:web": "npm run build --prefix signature-generator",
     "dev:tools": "wrangler dev",
     "deploy:tools": "wrangler deploy",
-    "typecheck:worker": "tsc --noEmit -p mcp/tsconfig.json"
+    "typecheck:worker": "tsc --noEmit -p mcp/tsconfig.json",
+    "test": "npm --prefix signature-generator test && npm run test:worker",
+    "test:worker": "vitest run -c vitest.worker.config.ts"
   },
   "keywords": [
     "google-workspace",
@@ -59,6 +61,7 @@
     "@google/clasp": "^2.4.2",
     "@types/google-apps-script": "^1.0.83",
     "typescript": "^5.6.0",
+    "vitest": "^4.1.9",
     "wrangler": "^4.0.0"
   }
 }
