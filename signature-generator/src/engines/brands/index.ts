@@ -82,8 +82,13 @@ export const TOP_BRANDS: Record<TopBrandKey, TopBrand> = {
     tagline: 'The wilderness holds the hive',
     lockupLabel: 'bundu.org',
     pillar: 'foundation',
-    // TODO(brand): icons + socials pending (bundu-ecosystem-icons upload).
-    icon: {},
+    // Constellation mark. NOTE: current PNGs have baked backgrounds (no
+    // alpha) — replace with transparent exports when available.
+    icon: {
+      light: '/assets/brand-icons/bundu-icon-light.png',
+      dark: '/assets/brand-icons/bundu-icon-dark.png',
+    },
+    // TODO(brand): socials pending.
     socials: {},
   },
   nyuchi: {
@@ -94,9 +99,11 @@ export const TOP_BRANDS: Record<TopBrandKey, TopBrand> = {
     tagline: 'I am because we are',
     lockupLabel: 'nyuchi.com',
     pillar: 'commercial',
-    // Brown bee for light surfaces (vendored SPA asset).
-    // TODO(brand): dark-surface GOLD bee pending bundu-ecosystem-icons upload.
-    icon: { light: '/assets/nyuchi-bee.png' },
+    // Brown bee on light surfaces, gold bee on dark.
+    icon: {
+      light: '/assets/brand-icons/nyuchi-icon-light.png',
+      dark: '/assets/brand-icons/nyuchi-icon-dark.png',
+    },
     socials: {
       linkedin: 'https://www.linkedin.com/company/nyuchi/',
       facebook: 'https://facebook.com/nyuchigroup',
@@ -113,8 +120,10 @@ export const TOP_BRANDS: Record<TopBrandKey, TopBrand> = {
     tagline: "Africa's privacy-first social super-app",
     lockupLabel: 'mukoko.com',
     pillar: 'consumer',
-    // TODO(brand): icons pending (bundu-ecosystem-icons upload).
-    icon: {},
+    icon: {
+      light: '/assets/brand-icons/mukoko-icon-light.png',
+      dark: '/assets/brand-icons/mukoko-icon-dark.png',
+    },
     socials: {
       facebook: 'https://facebook.com/mukokoafrica',
       instagram: 'https://instagram.com/mukoko.africa',

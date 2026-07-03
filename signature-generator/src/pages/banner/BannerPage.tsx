@@ -10,6 +10,7 @@ import {
   type Params,
   type ThemeKey,
 } from '../../engines/banner'
+import { loadBrandIcons } from '../../lib/loadBrandIcons'
 import ControlPanel from './ControlPanel'
 import Preview from './Preview'
 
@@ -70,17 +71,13 @@ const BannerPage = () => {
     }
   }, [])
 
-  /* Fetch bee icon → data URI, register in engine so the lockup embeds it. */
+  /* Register every per-theme brand icon from the registry so the lockup
+   * embeds the right mark for the banner's theme. */
   useEffect(() => {
     let cancelled = false
-    fetch('/assets/nyuchi-bee.b64.txt')
-      .then((r) => (r.ok ? r.text() : Promise.reject(new Error('bee 404'))))
-      .then((txt) => {
-        if (cancelled) return
-        setBrandIcon('nyuchi', 'data:image/png;base64,' + txt.trim())
-        setIconReady(true)
-      })
-      .catch(() => { /* fall back to drawn o2 mark */ })
+    loadBrandIcons(setBrandIcon).then(() => {
+      if (!cancelled) setIconReady(true)
+    })
     return () => { cancelled = true }
   }, [])
 

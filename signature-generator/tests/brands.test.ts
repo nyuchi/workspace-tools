@@ -41,11 +41,12 @@ describe('TOP_BRANDS registry shape', () => {
     expect(TOP_BRANDS.shamwari.pillar).toBe('community')
   })
 
-  it('vendors only the nyuchi light-surface icon today', () => {
-    expect(TOP_BRANDS.nyuchi.icon.light).toBe('/assets/nyuchi-bee.png')
-    expect(TOP_BRANDS.nyuchi.icon.dark).toBeUndefined()
-    expect(TOP_BRANDS.bundu.icon).toEqual({})
-    expect(TOP_BRANDS.mukoko.icon).toEqual({})
+  it('vendors per-theme icon pairs for all brands except shamwari', () => {
+    for (const key of ['nyuchi', 'mukoko', 'bundu'] as const) {
+      expect(TOP_BRANDS[key].icon.light).toBe(`/assets/brand-icons/${key}-icon-light.png`)
+      expect(TOP_BRANDS[key].icon.dark).toBe(`/assets/brand-icons/${key}-icon-dark.png`)
+    }
+    // TODO(brand): shamwari icon pair pending upload.
     expect(TOP_BRANDS.shamwari.icon).toEqual({})
   })
 })
