@@ -1,6 +1,23 @@
 @import "tailwindcss";
+@import "./design-system/tokens.css";
 
 @theme {
-  --font-noto-serif: 'Noto Serif', Georgia, serif;
-  --font-plus-jakarta: 'Plus Jakarta Sans', Arial, sans-serif;
+  /* Expose Mzizi tokens as Tailwind utilities. Keep the raw CSS vars
+     defined in design-system/tokens.css as the source of truth; this
+     block just wires them into Tailwind's utility generation. */
+  --color-cobalt:     var(--color-cobalt);
+  --color-tanzanite:  var(--color-tanzanite);
+  --color-malachite:  var(--color-malachite);
+  --color-gold:       var(--color-gold);
+  --color-terracotta: var(--color-terracotta);
+  --color-sodalite:   var(--color-sodalite);
+  --color-copper:     var(--color-copper);
+
+  --font-sans:  var(--font-sans);
+  --font-serif: var(--font-serif);
+  --font-mono:  var(--font-mono);
+
+  /* Legacy — kept so any existing usage doesn't break during migration */
+  --font-noto-serif:  'Noto Serif', Georgia, serif;
+  --font-plus-jakarta:'Noto Sans', Arial, sans-serif;
 }
