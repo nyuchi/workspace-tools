@@ -172,6 +172,42 @@ const BannerPage = () => {
     }
   }, [built.svg, built.format, fileBase])
 
+  /* WebMCP: expose the same download actions the UI buttons already call, so
+   * an agent driving the browser can export a banner without scraping the
+   * DOM. Feature-detected — a silent no-op wherever document.modelContext
+   * doesn't exist (i.e. every browser in this repo's test matrix today). */
+  useEffect(() => {
+    if (typeof document === 'undefined' || !('modelContext' in document)) return
+    const controller = new AbortController()
+    document.modelContext?.registerTool(
+      {
+        name: 'download_article_banner_svg',
+        description: 'Render and download the current article banner as an SVG file.',
+        inputSchema: { type: 'object', properties: {} },
+        execute: async () => {
+          downloadSvg()
+          return { status: 'downloaded', format: 'svg' }
+        },
+        annotations: { readOnlyHint: false },
+      },
+      { signal: controller.signal },
+    )
+    document.modelContext?.registerTool(
+      {
+        name: 'download_article_banner_png',
+        description: 'Render and download the current article banner as a PNG file.',
+        inputSchema: { type: 'object', properties: {} },
+        execute: async () => {
+          await downloadPng()
+          return { status: 'downloaded', format: 'png' }
+        },
+        annotations: { readOnlyHint: false },
+      },
+      { signal: controller.signal },
+    )
+    return () => controller.abort()
+  }, [downloadSvg, downloadPng])
+
   /* ── Readouts (mirror the source's doRender) ── */
   const cat = CATEGORIES[state.category]
   const dot = resolvedTheme === 'dark' ? cat.dark : cat.light
