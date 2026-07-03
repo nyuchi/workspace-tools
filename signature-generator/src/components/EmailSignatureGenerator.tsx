@@ -1,60 +1,55 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { sanitizeUrl as braintreeSanitizeUrl } from '@braintree/sanitize-url';
+import React, { useState, useRef, useEffect } from 'react';
+import {
+  BRANDS,
+  BRAND_KEYS,
+  SIGNATURE_COLORS,
+  buildSignatureHtml,
+  buildSignatureText,
+  createMailtoUrl,
+  createTelUrl,
+  createWhatsAppUrl,
+  sanitizeUrl,
+  type BrandKey,
+} from '../engines/signature';
 
-// Use braintree's sanitize-url for robust XSS protection
-// Returns 'about:blank' for dangerous URLs (javascript:, data:, etc.)
-const sanitizeUrl = (url: string): string => {
-  if (!url) return '';
-  const trimmed = url.trim();
-  // If no protocol and not empty, assume https
-  if (trimmed && !/^[a-z]+:/i.test(trimmed)) {
-    return braintreeSanitizeUrl(`https://${trimmed}`);
-  }
-  const sanitized = braintreeSanitizeUrl(trimmed);
-  // braintree returns 'about:blank' for dangerous URLs
-  return sanitized === 'about:blank' ? '' : sanitized;
-};
-
-// Create safe mailto URL with proper encoding
-const createMailtoUrl = (email: string): string => {
-  if (!email) return '';
-  return `mailto:${encodeURIComponent(email.trim())}`;
-};
-
-// Create safe tel URL with proper encoding
-const createTelUrl = (phone: string): string => {
-  if (!phone) return '';
-  // Remove spaces and encode the phone number
-  const cleanPhone = phone.replace(/\s/g, '');
-  return `tel:${encodeURIComponent(cleanPhone)}`;
-};
-
-// Create safe WhatsApp URL with proper encoding
-const createWhatsAppUrl = (phone: string): string => {
-  if (!phone) return '';
-  // Remove any non-numeric characters except + and encode
-  const cleanPhone = phone.replace(/[^\d+]/g, '');
-  return `https://wa.me/${encodeURIComponent(cleanPhone)}`;
-};
-
-// Escape HTML entities to prevent XSS - uses string replacement for safety
-const escapeHtml = (text: string): string => {
-  if (!text) return '';
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
-};
-
-// Escape attribute values
-const escapeAttr = (text: string): string => {
-  return escapeHtml(text);
-};
+// Token-driven pill input used across the SPA form.
+// Behavioural props (name/value/onChange/etc.) flow through; visual styling is
+// token-only so light/dark switching via [data-theme] just works.
+type TokenInputProps = React.InputHTMLAttributes<HTMLInputElement> & { hasError?: boolean };
+const TokenInput = ({ hasError, onFocus, onBlur, ...rest }: TokenInputProps) => (
+  <input
+    {...rest}
+    onFocus={(e) => {
+      e.currentTarget.style.boxShadow = hasError
+        ? '0 0 0 2px var(--error)'
+        : '0 0 0 2px var(--ring)';
+      onFocus?.(e);
+    }}
+    onBlur={(e) => {
+      e.currentTarget.style.boxShadow = hasError
+        ? '0 0 0 1px var(--error)'
+        : 'var(--ring-1)';
+      onBlur?.(e);
+    }}
+    style={{
+      width: '100%',
+      height: 'var(--h-input-sm)',
+      padding: '0 20px',
+      borderRadius: 'var(--radius-full)',
+      background: hasError ? 'var(--destructive-container)' : 'var(--input)',
+      color: 'var(--foreground)',
+      fontFamily: 'var(--font-sans)',
+      fontSize: 'var(--fs-body)',
+      boxShadow: hasError ? '0 0 0 1px var(--error)' : 'var(--ring-1)',
+      outline: 'none',
+      border: 'none',
+      transition: 'box-shadow 120ms ease',
+    }}
+  />
+);
 
 const EmailSignatureGenerator = () => {
-  const [brand, setBrand] = useState('nyuchi');
+  const [brand, setBrand] = useState<BrandKey>('nyuchi');
   const [formData, setFormData] = useState({
     name: '',
     title: '',
@@ -75,6 +70,25 @@ const EmailSignatureGenerator = () => {
   const [imageErrors, setImageErrors] = useState<Record<string, boolean>>({});
   const signatureRef = useRef<HTMLDivElement>(null);
 
+  // Theme (dark by default, persisted). Sync <html data-theme=…> so token
+  // variables in tokens.css flip; the SPA UI reads from those tokens only.
+  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
+    if (typeof window === 'undefined') return 'dark';
+    return window.localStorage.getItem('nyuchi-theme') === 'light' ? 'light' : 'dark';
+  });
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    document.documentElement.dataset.theme = theme;
+    try {
+      window.localStorage.setItem('nyuchi-theme', theme);
+    } catch {
+      /* localStorage unavailable — ignore */
+    }
+  }, [theme]);
+
+  const toggleTheme = () => setTheme((t) => (t === 'dark' ? 'light' : 'dark'));
+
   // Handle image load errors
   const handleImageError = (imageKey: string) => {
     setImageErrors(prev => ({ ...prev, [imageKey]: true }));
@@ -85,73 +99,8 @@ const EmailSignatureGenerator = () => {
     setImageErrors({});
   }, [formData.profileImage, formData.promoBanner]);
 
-  const brands: Record<string, {
-    name: string;
-    tagline: string;
-    website: string;
-    websiteUrl: string;
-    primaryColor: string;
-    primaryColorDark: string;
-    socials: Record<string, string>;
-  }> = {
-    nyuchi: {
-      name: 'Nyuchi Africa',
-      tagline: 'I am because we are',
-      website: 'nyuchi.com',
-      websiteUrl: 'https://nyuchi.com',
-      primaryColor: '#5D4037',
-      primaryColorDark: '#FFD740',
-      socials: {
-        linkedin: 'https://www.linkedin.com/company/nyuchi/',
-        facebook: 'https://facebook.com/nyuchigroup',
-        instagram: 'https://instagram.com/nyuchi.africa'
-      }
-    },
-    mukoko: {
-      name: 'Mukoko',
-      tagline: 'Your Digital Twin Ecosystem',
-      website: 'mukoko.com',
-      websiteUrl: 'https://mukoko.com',
-      primaryColor: '#4B0082',
-      primaryColorDark: '#B388FF',
-      socials: {
-        facebook: 'https://facebook.com/mukokoafrica',
-        instagram: 'https://instagram.com/mukoko.africa'
-      }
-    },
-    travel: {
-      name: 'Zimbabwe Travel Information',
-      tagline: 'Discover the Heart of Africa',
-      website: 'travel-info.co.zw',
-      websiteUrl: 'https://travel-info.co.zw',
-      primaryColor: '#004D40',
-      primaryColorDark: '#64FFDA',
-      socials: {
-        twitter: 'https://x.com/zimbabwetravel',
-        instagram: 'https://instagram.com/zimbabwe.travel'
-      }
-    },
-    learning: {
-      name: 'Nyuchi Learning',
-      tagline: 'Education for Africa\'s Future',
-      website: 'learning.nyuchi.com',
-      websiteUrl: 'https://learning.nyuchi.com',
-      primaryColor: '#0047AB',
-      primaryColorDark: '#00B0FF',
-      socials: {
-        linkedin: 'https://www.linkedin.com/company/nyuchi/',
-        instagram: 'https://instagram.com/nyuchi.africa'
-      }
-    }
-  };
-
-  const colors = {
-    text: '#141413',
-    muted: '#52524E'
-  };
-
   useEffect(() => {
-    const brandSocials = brands[brand].socials;
+    const brandSocials = BRANDS[brand].socials;
     setFormData(prev => {
       return {
         ...prev,
@@ -177,105 +126,16 @@ const EmailSignatureGenerator = () => {
     setCopied(false);
   };
 
-  // Generate signature HTML with proper escaping - avoids innerHTML XSS risks
-  const generateSignatureHtml = useCallback(() => {
-    const brandData = brands[brand];
-
-    const socialIconHtml = (url: string, iconUrl: string, alt: string) => {
-      const safeUrl = sanitizeUrl(url);
-      if (!safeUrl) return '';
-      return `<td style="padding-right: 8px;">
-        <a href="${escapeAttr(safeUrl)}" style="text-decoration: none;">
-          <img src="${escapeAttr(sanitizeUrl(iconUrl))}" alt="${escapeAttr(alt)}" width="24" height="24" style="display: block; border-radius: 4px;" />
-        </a>
-      </td>`;
-    };
-
-    let html = `<table cellpadding="0" cellspacing="0" style="font-family: 'Plus Jakarta Sans', Arial, sans-serif; font-size: 14px; line-height: 1.5; color: ${colors.text}; max-width: 500px;">
-      <tbody>
-        <tr>`;
-
-    // Profile image
-    if (formData.profileImage && !imageErrors['profile']) {
-      html += `<td style="vertical-align: top; padding-right: 16px;">
-        <img src="${escapeAttr(sanitizeUrl(formData.profileImage))}" alt="Profile" width="80" height="80" style="border-radius: 50%; display: block; object-fit: cover;" />
-      </td>`;
-    }
-
-    html += `<td style="vertical-align: top;">
-      <span style="font-family: 'Plus Jakarta Sans', Arial, sans-serif; font-size: 17px; font-weight: 700; color: ${colors.text};">${escapeHtml(formData.name)}</span>
-      <br />
-      <span style="font-size: 13px; font-weight: 500; color: ${colors.muted};">${escapeHtml(formData.title)}</span>
-      <br /><br />
-      <span style="font-family: 'Noto Serif', Georgia, serif; font-size: 15px; font-weight: 700; color: ${brandData.primaryColor};">${escapeHtml(brandData.name)}</span>
-      <br />
-      <span style="font-size: 12px; font-style: italic; color: ${colors.muted};">"${escapeHtml(brandData.tagline)}"</span>
-      <br /><br />
-      <table cellpadding="0" cellspacing="0" style="font-size: 13px; color: ${colors.muted};">
-        <tbody>
-          <tr>
-            <td style="padding-bottom: 3px;">
-              <a href="${escapeAttr(createMailtoUrl(formData.email))}" style="color: ${brandData.primaryColor}; text-decoration: none;">${escapeHtml(formData.email)}</a>
-            </td>
-          </tr>`;
-
-    if (formData.phone) {
-      html += `<tr>
-        <td style="padding-bottom: 3px;">
-          <a href="${escapeAttr(createTelUrl(formData.phone))}" style="color: ${brandData.primaryColor}; text-decoration: none;">${escapeHtml(formData.phone)}</a>
-        </td>
-      </tr>`;
-    }
-
-    html += `<tr>
-        <td>
-          <a href="${escapeAttr(brandData.websiteUrl)}" style="color: ${brandData.primaryColor}; text-decoration: none;">${escapeHtml(brandData.website)}</a>
-        </td>
-      </tr>
-        </tbody>
-      </table>
-      <br />
-      <table cellpadding="0" cellspacing="0">
-        <tbody>
-          <tr>
-            ${socialIconHtml(formData.linkedin, 'https://cdn-icons-png.flaticon.com/512/3536/3536505.png', 'LinkedIn')}
-            ${socialIconHtml(formData.twitter, 'https://cdn-icons-png.flaticon.com/512/5969/5969020.png', 'X')}
-            ${socialIconHtml(formData.facebook, 'https://cdn-icons-png.flaticon.com/512/5968/5968764.png', 'Facebook')}
-            ${socialIconHtml(formData.instagram, 'https://cdn-icons-png.flaticon.com/512/2111/2111463.png', 'Instagram')}
-            ${formData.whatsapp ? socialIconHtml(createWhatsAppUrl(formData.whatsapp), 'https://cdn-icons-png.flaticon.com/512/3670/3670051.png', 'WhatsApp') : ''}
-          </tr>
-        </tbody>
-      </table>
-    </td>
-  </tr>`;
-
-    // Promo banner
-    if (formData.promoBanner && !imageErrors['banner']) {
-      html += `<tr>
-        <td colspan="2" style="padding-top: 16px;"></td>
-      </tr>
-      <tr>
-        <td colspan="2">
-          <a href="${escapeAttr(sanitizeUrl(formData.promoLink) || '#')}" style="text-decoration: none;">
-            <img src="${escapeAttr(sanitizeUrl(formData.promoBanner))}" alt="Promotion" width="400" style="display: block; max-width: 100%; height: auto; border-radius: 8px;" />
-          </a>
-        </td>
-      </tr>`;
-    }
-
-    html += `</tbody></table>`;
-
-    return html;
-  }, [brand, formData, imageErrors, brands, colors]);
-
-  // Generate plain text version
-  const generateSignatureText = useCallback(() => {
-    const brandData = brands[brand];
-    let text = `${formData.name}\n${formData.title}\n\n${brandData.name}\n"${brandData.tagline}"\n\n${formData.email}`;
-    if (formData.phone) text += `\n${formData.phone}`;
-    text += `\n${brandData.website}`;
-    return text;
-  }, [brand, formData, brands]);
+  // Signature HTML/text generation lives in the shared pure engine
+  // (src/engines/signature) so the MCP Worker emits identical markup.
+  // Images that failed to load in the preview are dropped from the copied
+  // HTML, matching the preview's behavior.
+  const signatureParams = () => ({
+    brand,
+    ...formData,
+    profileImage: imageErrors['profile'] ? '' : formData.profileImage,
+    promoBanner: imageErrors['banner'] ? '' : formData.promoBanner,
+  });
 
   const handleCopy = async () => {
     if (!signatureRef.current) return;
@@ -284,8 +144,8 @@ const EmailSignatureGenerator = () => {
 
     try {
       // Generate HTML with explicit escaping instead of reading innerHTML
-      const htmlContent = generateSignatureHtml();
-      const textContent = generateSignatureText();
+      const htmlContent = buildSignatureHtml(signatureParams());
+      const textContent = buildSignatureText(signatureParams());
 
       if (navigator.clipboard && typeof ClipboardItem !== 'undefined') {
         // Modern browsers with ClipboardItem support
@@ -320,7 +180,20 @@ const EmailSignatureGenerator = () => {
     }
   };
 
-  const currentBrand = brands[brand];
+  const currentBrand = BRANDS[brand];
+
+  // Brand -> Mzizi mineral. Drives SPA UI accent (chip border, ring, primary
+  // button, "How to use" panel). Does NOT affect the emitted signature HTML,
+  // which continues to use BRANDS[brand].primaryColor.
+  const brandMineral: Record<string, string> = {
+    nyuchi: 'gold',
+    mukoko: 'tanzanite',
+    travel: 'malachite',
+    learning: 'cobalt',
+  };
+  const activeMineral = brandMineral[brand] || 'cobalt';
+  const mineralColor = `var(--color-${activeMineral})`;
+  const mineralContainer = `var(--container-${activeMineral})`;
 
   const SocialIcon = ({ url, icon, alt }: { url: string; icon: string; alt: string }) => {
     const safeUrl = sanitizeUrl(url);
@@ -341,227 +214,339 @@ const EmailSignatureGenerator = () => {
     learning: 'Learning'
   };
 
+  // Reusable inline styles for SPA chrome. Kept inside render so tokens are
+  // referenced as CSS vars (no JS-side theme branching needed).
+  const captionStyle: React.CSSProperties = {
+    fontFamily: 'var(--font-mono)',
+    fontSize: 'var(--fs-caption)',
+    letterSpacing: '0.14em',
+    textTransform: 'uppercase',
+    color: 'var(--muted-foreground)',
+    margin: 0,
+  };
+  const sectionHeadingStyle: React.CSSProperties = {
+    ...captionStyle,
+    paddingBottom: 'var(--space-sm)',
+    borderBottom: '1px solid var(--border)',
+  };
+  const fieldLabelStyle: React.CSSProperties = {
+    display: 'block',
+    marginBottom: 'var(--space-xs-plus)',
+    fontFamily: 'var(--font-sans)',
+    fontSize: 'var(--fs-small)',
+    color: 'var(--muted-foreground)',
+  };
+  const cardStyle: React.CSSProperties = {
+    background: 'var(--surface)',
+    borderRadius: 'var(--radius-lg)',
+    boxShadow: 'var(--ring-1), var(--shadow-sm)',
+  };
+  const requiredMark = <span style={{ color: 'var(--error)' }}>*</span>;
+
   return (
-    <div className="min-h-screen bg-stone-50 p-4 md:p-6">
+    <div
+      className="min-h-screen p-4 md:p-6"
+      style={{
+        background: 'var(--background)',
+        color: 'var(--foreground)',
+        fontFamily: 'var(--font-sans)',
+      }}
+    >
       <div className="max-w-5xl mx-auto">
+        {/* Theme toggle */}
+        <div className="flex justify-end mb-4">
+          <button
+            type="button"
+            onClick={toggleTheme}
+            aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+            className="inline-flex items-center gap-2"
+            style={{
+              minHeight: 'var(--min-touch)',
+              padding: '0 var(--space-base)',
+              borderRadius: 'var(--radius-full)',
+              background: 'var(--surface)',
+              color: 'var(--foreground)',
+              boxShadow: 'var(--ring-1)',
+              fontFamily: 'var(--font-mono)',
+              fontSize: 'var(--fs-caption)',
+              letterSpacing: '0.14em',
+              textTransform: 'uppercase',
+              border: 'none',
+              cursor: 'pointer',
+            }}
+          >
+            <span aria-hidden="true">{theme === 'dark' ? '☀️' : '☽'}</span>
+            <span>{theme === 'dark' ? 'Light' : 'Dark'}</span>
+          </button>
+        </div>
+
         {/* Header */}
         <div className="text-center mb-8">
           <div className="flex items-center justify-center gap-2 mb-3">
-            <span className="text-2xl">&#x1F41D;</span>
-            <h1 className="text-2xl md:text-3xl font-bold text-stone-800" style={{ fontFamily: "'Noto Serif', Georgia, serif" }}>
+            <span className="text-2xl" aria-hidden="true">&#x1F41D;</span>
+            <h1
+              style={{
+                fontFamily: 'var(--font-serif)',
+                fontSize: 'var(--fs-h3)',
+                lineHeight: 'var(--lh-h3)',
+                fontWeight: 700,
+                color: 'var(--foreground)',
+                margin: 0,
+              }}
+            >
               Email Signature Generator
             </h1>
           </div>
-          <p className="text-stone-600">Create your branded email signature for the Bundu Family ecosystem</p>
+          <p style={{ color: 'var(--muted-foreground)', fontSize: 'var(--fs-body)', margin: 0 }}>
+            Create your branded email signature for the Bundu Family ecosystem
+          </p>
         </div>
 
         <div className="grid lg:grid-cols-2 gap-6">
           {/* Form */}
-          <div className="bg-white rounded-2xl shadow-sm border border-stone-200 p-6">
+          <div className="p-6" style={cardStyle}>
             <form onSubmit={handleGenerate}>
               {/* Brand Selection */}
               <div className="mb-6">
-                <label className="block text-sm font-semibold text-stone-700 mb-3">Select Brand</label>
+                <div className="mb-3" style={captionStyle}>Select Brand</div>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                  {Object.entries(brands).map(([key, value]) => (
-                    <button
-                      key={key}
-                      type="button"
-                      onClick={() => setBrand(key)}
-                      className={`p-3 rounded-xl text-sm font-medium transition-all border-2 ${
-                        brand === key
-                          ? 'border-current shadow-sm'
-                          : 'bg-stone-50 border-transparent text-stone-600 hover:bg-stone-100'
-                      }`}
-                      style={brand === key ? {
-                        backgroundColor: `${value.primaryColor}15`,
-                        borderColor: value.primaryColor,
-                        color: value.primaryColor
-                      } : {}}
-                    >
-                      {brandLabels[key]}
-                    </button>
-                  ))}
+                  {BRAND_KEYS.map((key) => {
+                    const isActive = brand === key;
+                    const mineralKey = brandMineral[key] || 'cobalt';
+                    const chipColor = `var(--color-${mineralKey})`;
+                    const chipContainer = `var(--container-${mineralKey})`;
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => setBrand(key)}
+                        className="transition-all"
+                        style={{
+                          minHeight: 'var(--h-button-sm)',
+                          padding: '0 var(--space-base)',
+                          borderRadius: 'var(--radius-full)',
+                          fontFamily: 'var(--font-sans)',
+                          fontSize: 'var(--fs-small)',
+                          fontWeight: 600,
+                          background: isActive ? chipContainer : 'var(--muted)',
+                          color: isActive ? chipColor : 'var(--muted-foreground)',
+                          boxShadow: isActive
+                            ? `inset 0 0 0 2px ${chipColor}`
+                            : 'var(--ring-1)',
+                          border: 'none',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {brandLabels[key]}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
               {/* Personal Info */}
               <div className="space-y-4 mb-6">
-                <h3 className="font-semibold text-stone-800 border-b border-stone-200 pb-2">Personal Information</h3>
+                <h3 style={sectionHeadingStyle}>Personal Information</h3>
 
-                <div>
-                  <label className="block text-sm text-stone-600 mb-1">Full Name <span className="text-red-500">*</span></label>
-                  <input
+                <label className="block">
+                  <span style={fieldLabelStyle}>Full Name {requiredMark}</span>
+                  <TokenInput
                     type="text"
                     name="name"
                     value={formData.name}
                     onChange={handleInputChange}
                     required
-                    className="w-full px-4 py-2.5 border border-stone-300 rounded-xl focus:ring-2 focus:ring-stone-400 focus:border-transparent transition-all outline-none"
                     placeholder="Bryan Fawcett"
                   />
-                </div>
+                </label>
 
-                <div>
-                  <label className="block text-sm text-stone-600 mb-1">Job Title <span className="text-red-500">*</span></label>
-                  <input
+                <label className="block">
+                  <span style={fieldLabelStyle}>Job Title {requiredMark}</span>
+                  <TokenInput
                     type="text"
                     name="title"
                     value={formData.title}
                     onChange={handleInputChange}
                     required
-                    className="w-full px-4 py-2.5 border border-stone-300 rounded-xl focus:ring-2 focus:ring-stone-400 focus:border-transparent transition-all outline-none"
                     placeholder="CEO & Founder"
                   />
-                </div>
+                </label>
 
-                <div>
-                  <label className="block text-sm text-stone-600 mb-1">Email <span className="text-red-500">*</span></label>
-                  <input
+                <label className="block">
+                  <span style={fieldLabelStyle}>Email {requiredMark}</span>
+                  <TokenInput
                     type="email"
                     name="email"
                     value={formData.email}
                     onChange={handleInputChange}
                     required
-                    className="w-full px-4 py-2.5 border border-stone-300 rounded-xl focus:ring-2 focus:ring-stone-400 focus:border-transparent transition-all outline-none"
                     placeholder="bryan@nyuchi.com"
                   />
-                </div>
+                </label>
 
                 <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-sm text-stone-600 mb-1">Phone</label>
-                    <input
+                  <label className="block">
+                    <span style={fieldLabelStyle}>Phone</span>
+                    <TokenInput
                       type="tel"
                       name="phone"
                       value={formData.phone}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-2.5 border border-stone-300 rounded-xl focus:ring-2 focus:ring-stone-400 focus:border-transparent transition-all outline-none"
                       placeholder="+65 9814 3374"
                     />
-                  </div>
-                  <div>
-                    <label className="block text-sm text-stone-600 mb-1">WhatsApp</label>
-                    <input
+                  </label>
+                  <label className="block">
+                    <span style={fieldLabelStyle}>WhatsApp</span>
+                    <TokenInput
                       type="text"
                       name="whatsapp"
                       value={formData.whatsapp}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-2.5 border border-stone-300 rounded-xl focus:ring-2 focus:ring-stone-400 focus:border-transparent transition-all outline-none"
                       placeholder="263771234567"
                     />
-                  </div>
+                  </label>
                 </div>
 
-                <div>
-                  <label className="block text-sm text-stone-600 mb-1">Profile Image URL</label>
-                  <input
+                <label className="block">
+                  <span style={fieldLabelStyle}>Profile Image URL</span>
+                  <TokenInput
                     type="url"
                     name="profileImage"
                     value={formData.profileImage}
                     onChange={handleInputChange}
-                    className={`w-full px-4 py-2.5 border rounded-xl focus:ring-2 focus:ring-stone-400 focus:border-transparent transition-all outline-none ${
-                      imageErrors['profile'] ? 'border-red-300 bg-red-50' : 'border-stone-300'
-                    }`}
+                    hasError={!!imageErrors['profile']}
                     placeholder="https://..."
                   />
                   {imageErrors['profile'] && (
-                    <p className="text-red-500 text-xs mt-1">Failed to load image. Please check the URL.</p>
+                    <p
+                      style={{
+                        color: 'var(--error)',
+                        fontSize: 'var(--fs-caption)',
+                        marginTop: 'var(--space-xs)',
+                      }}
+                    >
+                      Failed to load image. Please check the URL.
+                    </p>
                   )}
-                </div>
+                </label>
               </div>
 
               {/* Social Links */}
               <div className="space-y-4 mb-6">
-                <h3 className="font-semibold text-stone-800 border-b border-stone-200 pb-2">Social Links</h3>
+                <h3 style={sectionHeadingStyle}>Social Links</h3>
 
                 <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-sm text-stone-600 mb-1">LinkedIn</label>
-                    <input
+                  <label className="block">
+                    <span style={fieldLabelStyle}>LinkedIn</span>
+                    <TokenInput
                       type="url"
                       name="linkedin"
                       value={formData.linkedin}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-2.5 border border-stone-300 rounded-xl focus:ring-2 focus:ring-stone-400 focus:border-transparent transition-all text-sm outline-none"
                       placeholder="https://linkedin.com/in/..."
                     />
-                  </div>
-                  <div>
-                    <label className="block text-sm text-stone-600 mb-1">X / Twitter</label>
-                    <input
+                  </label>
+                  <label className="block">
+                    <span style={fieldLabelStyle}>X / Twitter</span>
+                    <TokenInput
                       type="url"
                       name="twitter"
                       value={formData.twitter}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-2.5 border border-stone-300 rounded-xl focus:ring-2 focus:ring-stone-400 focus:border-transparent transition-all text-sm outline-none"
                       placeholder="https://x.com/..."
                     />
-                  </div>
-                  <div>
-                    <label className="block text-sm text-stone-600 mb-1">Facebook</label>
-                    <input
+                  </label>
+                  <label className="block">
+                    <span style={fieldLabelStyle}>Facebook</span>
+                    <TokenInput
                       type="url"
                       name="facebook"
                       value={formData.facebook}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-2.5 border border-stone-300 rounded-xl focus:ring-2 focus:ring-stone-400 focus:border-transparent transition-all text-sm outline-none"
                       placeholder="https://facebook.com/..."
                     />
-                  </div>
-                  <div>
-                    <label className="block text-sm text-stone-600 mb-1">Instagram</label>
-                    <input
+                  </label>
+                  <label className="block">
+                    <span style={fieldLabelStyle}>Instagram</span>
+                    <TokenInput
                       type="url"
                       name="instagram"
                       value={formData.instagram}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-2.5 border border-stone-300 rounded-xl focus:ring-2 focus:ring-stone-400 focus:border-transparent transition-all text-sm outline-none"
                       placeholder="https://instagram.com/..."
                     />
-                  </div>
+                  </label>
                 </div>
               </div>
 
               {/* Promo Banner */}
               <div className="space-y-4 mb-6">
-                <h3 className="font-semibold text-stone-800 border-b border-stone-200 pb-2">Promo Banner <span className="text-stone-400 font-normal">(optional)</span></h3>
+                <h3 style={sectionHeadingStyle}>
+                  Promo Banner{' '}
+                  <span
+                    style={{
+                      textTransform: 'none',
+                      letterSpacing: 0,
+                      fontFamily: 'var(--font-sans)',
+                      color: 'var(--muted-foreground)',
+                    }}
+                  >
+                    (optional)
+                  </span>
+                </h3>
 
                 <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-sm text-stone-600 mb-1">Banner Image URL</label>
-                    <input
+                  <label className="block">
+                    <span style={fieldLabelStyle}>Banner Image URL</span>
+                    <TokenInput
                       type="url"
                       name="promoBanner"
                       value={formData.promoBanner}
                       onChange={handleInputChange}
-                      className={`w-full px-4 py-2.5 border rounded-xl focus:ring-2 focus:ring-stone-400 focus:border-transparent transition-all text-sm outline-none ${
-                        imageErrors['banner'] ? 'border-red-300 bg-red-50' : 'border-stone-300'
-                      }`}
+                      hasError={!!imageErrors['banner']}
                       placeholder="https://..."
                     />
                     {imageErrors['banner'] && (
-                      <p className="text-red-500 text-xs mt-1">Failed to load banner.</p>
+                      <p
+                        style={{
+                          color: 'var(--error)',
+                          fontSize: 'var(--fs-caption)',
+                          marginTop: 'var(--space-xs)',
+                        }}
+                      >
+                        Failed to load banner.
+                      </p>
                     )}
-                  </div>
-                  <div>
-                    <label className="block text-sm text-stone-600 mb-1">Banner Link URL</label>
-                    <input
+                  </label>
+                  <label className="block">
+                    <span style={fieldLabelStyle}>Banner Link URL</span>
+                    <TokenInput
                       type="url"
                       name="promoLink"
                       value={formData.promoLink}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-2.5 border border-stone-300 rounded-xl focus:ring-2 focus:ring-stone-400 focus:border-transparent transition-all text-sm outline-none"
                       placeholder="https://..."
                     />
-                  </div>
+                  </label>
                 </div>
               </div>
 
               <button
                 type="submit"
-                className="w-full py-3 px-4 text-white font-semibold rounded-xl transition-all hover:opacity-90 active:scale-[0.98] cursor-pointer"
-                style={{ backgroundColor: currentBrand.primaryColor }}
+                className="w-full transition-transform active:scale-[0.98]"
+                style={{
+                  height: 'var(--h-button-default)',
+                  padding: '0 var(--space-lg)',
+                  borderRadius: 'var(--radius-full)',
+                  background: mineralColor,
+                  color: 'var(--primary-foreground)',
+                  fontFamily: 'var(--font-sans)',
+                  fontSize: 'var(--fs-body)',
+                  fontWeight: 700,
+                  border: 'none',
+                  cursor: 'pointer',
+                  boxShadow: 'var(--shadow-sm)',
+                }}
               >
                 Generate Signature
               </button>
@@ -569,19 +554,34 @@ const EmailSignatureGenerator = () => {
           </div>
 
           {/* Preview */}
-          <div className="bg-white rounded-2xl shadow-sm border border-stone-200 p-6">
+          <div className="p-6" style={cardStyle}>
             <div className="flex justify-between items-center mb-4">
-              <h3 className="font-semibold text-stone-800">Preview</h3>
+              <h3 style={captionStyle}>Preview</h3>
               {showSignature && (
                 <button
                   onClick={handleCopy}
-                  className={`px-4 py-2 rounded-xl text-sm font-medium transition-all cursor-pointer ${
-                    copied
-                      ? 'bg-emerald-100 text-emerald-700'
+                  className="transition-colors"
+                  style={{
+                    minHeight: 'var(--h-button-sm)',
+                    padding: '0 var(--space-lg)',
+                    borderRadius: 'var(--radius-full)',
+                    fontFamily: 'var(--font-sans)',
+                    fontSize: 'var(--fs-small)',
+                    fontWeight: 600,
+                    border: 'none',
+                    cursor: 'pointer',
+                    background: copied
+                      ? 'var(--container-malachite)'
                       : copyError
-                      ? 'bg-red-100 text-red-700'
-                      : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
-                  }`}
+                      ? 'var(--destructive-container)'
+                      : 'var(--muted)',
+                    color: copied
+                      ? 'var(--color-malachite)'
+                      : copyError
+                      ? 'var(--error)'
+                      : 'var(--foreground)',
+                    boxShadow: 'var(--ring-1)',
+                  }}
                 >
                   {copied ? '✓ Copied!' : copyError ? '✕ Error' : 'Copy Signature'}
                 </button>
@@ -590,20 +590,41 @@ const EmailSignatureGenerator = () => {
 
             {/* Error Toast */}
             {copyError && (
-              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
+              <div
+                className="mb-4 p-3"
+                style={{
+                  background: 'var(--destructive-container)',
+                  color: 'var(--error)',
+                  borderRadius: 'var(--radius-md)',
+                  boxShadow: '0 0 0 1px var(--error)',
+                  fontSize: 'var(--fs-small)',
+                }}
+              >
                 {copyError}
               </div>
             )}
 
-            <div className="border-2 border-dashed border-stone-200 rounded-xl p-4 min-h-64 bg-stone-50/50">
+            <div
+              className="p-4 min-h-64"
+              style={{
+                border: '2px dashed var(--border)',
+                borderRadius: 'var(--radius-md)',
+                background: 'var(--muted)',
+              }}
+            >
               {!showSignature ? (
-                <div className="flex flex-col items-center justify-center h-64 text-stone-400 text-center">
-                  <div className="text-4xl mb-3">&#x2709;&#xFE0F;</div>
-                  <p>Fill in the form and click<br/>"Generate Signature"</p>
+                <div
+                  className="flex flex-col items-center justify-center h-64 text-center"
+                  style={{ color: 'var(--muted-foreground)' }}
+                >
+                  <div className="text-4xl mb-3" aria-hidden="true">&#x2709;&#xFE0F;</div>
+                  <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-body)' }}>
+                    Fill in the form and click<br />"Generate Signature"
+                  </p>
                 </div>
               ) : (
                 <div ref={signatureRef} className="bg-white p-4 rounded-lg">
-                  <table cellPadding="0" cellSpacing="0" style={{ fontFamily: "'Plus Jakarta Sans', Arial, sans-serif", fontSize: '14px', lineHeight: '1.5', color: colors.text, maxWidth: '500px' }}>
+                  <table cellPadding="0" cellSpacing="0" style={{ fontFamily: "'Plus Jakarta Sans', Arial, sans-serif", fontSize: '14px', lineHeight: '1.5', color: SIGNATURE_COLORS.text, maxWidth: '500px' }}>
                     <tbody>
                       <tr>
                         {formData.profileImage && !imageErrors['profile'] && (
@@ -619,11 +640,11 @@ const EmailSignatureGenerator = () => {
                           </td>
                         )}
                         <td style={{ verticalAlign: 'top' }}>
-                          <span style={{ fontFamily: "'Plus Jakarta Sans', Arial, sans-serif", fontSize: '17px', fontWeight: 700, color: colors.text }}>
+                          <span style={{ fontFamily: "'Plus Jakarta Sans', Arial, sans-serif", fontSize: '17px', fontWeight: 700, color: SIGNATURE_COLORS.text }}>
                             {formData.name}
                           </span>
                           <br />
-                          <span style={{ fontSize: '13px', fontWeight: 500, color: colors.muted }}>
+                          <span style={{ fontSize: '13px', fontWeight: 500, color: SIGNATURE_COLORS.muted }}>
                             {formData.title}
                           </span>
                           <br /><br />
@@ -631,11 +652,11 @@ const EmailSignatureGenerator = () => {
                             {currentBrand.name}
                           </span>
                           <br />
-                          <span style={{ fontSize: '12px', fontStyle: 'italic', color: colors.muted }}>
+                          <span style={{ fontSize: '12px', fontStyle: 'italic', color: SIGNATURE_COLORS.muted }}>
                             "{currentBrand.tagline}"
                           </span>
                           <br /><br />
-                          <table cellPadding="0" cellSpacing="0" style={{ fontSize: '13px', color: colors.muted }}>
+                          <table cellPadding="0" cellSpacing="0" style={{ fontSize: '13px', color: SIGNATURE_COLORS.muted }}>
                             <tbody>
                               <tr>
                                 <td style={{ paddingBottom: '3px' }}>
@@ -705,13 +726,37 @@ const EmailSignatureGenerator = () => {
             </div>
 
             {showSignature && (
-              <div className="mt-4 p-4 rounded-xl" style={{ backgroundColor: `${currentBrand.primaryColor}10` }}>
-                <h4 className="font-medium mb-2" style={{ color: currentBrand.primaryColor }}>How to use:</h4>
-                <ol className="text-sm space-y-1" style={{ color: currentBrand.primaryColor }}>
-                  <li>1. Click "Copy Signature" above</li>
-                  <li>2. Open your email app settings</li>
-                  <li>3. Go to Signature settings</li>
-                  <li>4. Paste the signature</li>
+              <div
+                className="mt-4 p-4"
+                style={{
+                  background: mineralContainer,
+                  color: mineralColor,
+                  borderRadius: 'var(--radius-md)',
+                  boxShadow: `inset 0 0 0 1px ${mineralColor}`,
+                }}
+              >
+                <h4
+                  style={{
+                    fontFamily: 'var(--font-sans)',
+                    fontWeight: 700,
+                    fontSize: 'var(--fs-body)',
+                    marginBottom: 'var(--space-sm)',
+                  }}
+                >
+                  How to use:
+                </h4>
+                <ol
+                  style={{
+                    fontSize: 'var(--fs-small)',
+                    margin: 0,
+                    padding: 0,
+                    listStyle: 'none',
+                  }}
+                >
+                  <li style={{ marginBottom: 'var(--space-xs)' }}>1. Click "Copy Signature" above</li>
+                  <li style={{ marginBottom: 'var(--space-xs)' }}>2. Open your email app settings</li>
+                  <li style={{ marginBottom: 'var(--space-xs)' }}>3. Go to Signature settings</li>
+                  <li style={{ marginBottom: 'var(--space-xs)' }}>4. Paste the signature</li>
                   <li>5. Save changes</li>
                 </ol>
               </div>
@@ -720,12 +765,21 @@ const EmailSignatureGenerator = () => {
         </div>
 
         {/* Footer */}
-        <div className="text-center mt-8 text-sm text-stone-500">
+        <div
+          className="text-center mt-8"
+          style={{
+            fontSize: 'var(--fs-small)',
+            color: 'var(--muted-foreground)',
+            fontFamily: 'var(--font-sans)',
+          }}
+        >
           <p className="flex items-center justify-center gap-2">
-            <span>&#x1F41D;</span>
+            <span aria-hidden="true">&#x1F41D;</span>
             <span>Nyuchi Africa</span>
-            <span>&bull;</span>
-            <span className="italic">"Ndiri nekuti tiri" &mdash; I am because we are</span>
+            <span aria-hidden="true">&bull;</span>
+            <span style={{ fontStyle: 'italic' }}>
+              "Ndiri nekuti tiri" &mdash; I am because we are
+            </span>
           </p>
         </div>
       </div>
