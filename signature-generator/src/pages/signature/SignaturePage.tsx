@@ -153,6 +153,42 @@ const SignaturePage = () => {
     [flagCopied, failCopy],
   )
 
+  /* WebMCP: expose the same copy actions the UI buttons already call, so an
+   * agent driving the browser can copy the signature without scraping the
+   * DOM. Feature-detected — a silent no-op wherever document.modelContext
+   * doesn't exist (i.e. every browser in this repo's test matrix today). */
+  useEffect(() => {
+    if (typeof document === 'undefined' || !('modelContext' in document)) return
+    const controller = new AbortController()
+    document.modelContext?.registerTool(
+      {
+        name: 'copy_signature_html',
+        description: 'Copy the current Nyuchi email signature as rich HTML to the clipboard.',
+        inputSchema: { type: 'object', properties: {} },
+        execute: async () => {
+          await copyString(html, 'html')
+          return { status: 'copied', format: 'html' }
+        },
+        annotations: { readOnlyHint: false },
+      },
+      { signal: controller.signal },
+    )
+    document.modelContext?.registerTool(
+      {
+        name: 'copy_signature_text',
+        description: 'Copy the current Nyuchi email signature as plain text to the clipboard.',
+        inputSchema: { type: 'object', properties: {} },
+        execute: async () => {
+          await copyString(text, 'text')
+          return { status: 'copied', format: 'text' }
+        },
+        annotations: { readOnlyHint: false },
+      },
+      { signal: controller.signal },
+    )
+    return () => controller.abort()
+  }, [copyString, html, text])
+
   /* ── Meta strings ── */
   const brandData = BRANDS[brand]
   const mineral = BRAND_MINERAL[brand]
