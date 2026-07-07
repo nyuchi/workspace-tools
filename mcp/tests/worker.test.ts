@@ -517,7 +517,7 @@ describe('OAuth discovery — auth ON (AUTHKIT_DOMAIN set)', () => {
     const res = await get('/.well-known/oauth-protected-resource', AUTH_ENV)
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({
-      resource: 'https://tools.nyuchi.com',
+      resource: 'https://tools.nyuchi.com/mcp',
       authorization_servers: ['https://x.authkit.app'],
       bearer_methods_supported: ['header'],
       scopes_supported: [],
@@ -859,6 +859,132 @@ describe('GET /callback', () => {
     })
     expect(res.status).toBe(302)
     expect(res.headers.get('Location')).toBe('/login?error=1')
+  })
+
+  describe('successful exchange (mocked token + JWKS endpoints)', () => {
+    const CALLBACK_ENV = { SESSION_SECRET: TEST_SESSION_SECRET, AUTHKIT_DOMAIN: 'identity.nyuchi.com' }
+
+    afterEach(() => {
+      vi.restoreAllMocks()
+    })
+
+    /** Sign a real id_token with a locally-generated RS256 keypair, and mock
+     * fetch so the token endpoint returns it and the JWKS endpoint serves
+     * its matching public key — exercising the ACTUAL jose/JWKS verification
+     * path (`verifyJwt`), not just the surrounding cookie/redirect plumbing. */
+    async function mockSuccessfulExchange(claims: { sub: string; email?: string }) {
+      const { generateKeyPair, exportJWK, SignJWT } = await import('jose')
+      const { publicKey, privateKey } = await generateKeyPair('RS256')
+      const publicJwk = await exportJWK(publicKey)
+      const kid = 'test-key-1'
+      const idToken = await new SignJWT({ email: claims.email })
+        .setProtectedHeader({ alg: 'RS256', kid })
+        .setIssuedAt()
+        .setIssuer('https://identity.nyuchi.com')
+        .setAudience(SITE_CLIENT_ID)
+        .setSubject(claims.sub)
+        .setExpirationTime('5m')
+        .sign(privateKey)
+
+      vi.spyOn(globalThis, 'fetch').mockImplementation(async (input: RequestInfo | URL) => {
+        const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+        if (url === 'https://identity.nyuchi.com/oauth2/token') {
+          return new Response(
+            JSON.stringify({ access_token: 'unused-access-token', id_token: idToken, token_type: 'Bearer', expires_in: 300 }),
+            { status: 200, headers: { 'content-type': 'application/json' } },
+          )
+        }
+        if (url === 'https://identity.nyuchi.com/oauth2/jwks') {
+          return new Response(JSON.stringify({ keys: [{ ...publicJwk, kid, alg: 'RS256', use: 'sig' }] }), {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          })
+        }
+        throw new Error(`Unexpected fetch in test: ${url}`)
+      })
+    }
+
+    it('verifies the id_token (not the access_token) and mints a session cookie', async () => {
+      await mockSuccessfulExchange({ sub: 'user_123', email: 'bryan@nyuchi.com' })
+      const oauthCookie = encodeOauthCookie({ state: 'expected-state', codeVerifier: 'verifier', returnTo: '/studio' })
+      const res = await get(`${CALLBACK_PATH}?code=test-code&state=expected-state`, CALLBACK_ENV, {
+        Cookie: `${OAUTH_COOKIE_NAME}=${oauthCookie}`,
+      })
+
+      expect(res.status).toBe(302)
+      expect(res.headers.get('Location')).toBe('/studio')
+
+      const setCookie = res.headers.get('Set-Cookie')
+      const sessionValue = cookieValueFrom(setCookie, SESSION_COOKIE_NAME)
+      expect(sessionValue).toBeTruthy()
+      const claims = await verifySessionCookie(CALLBACK_ENV, sessionValue ?? undefined)
+      expect(claims).toEqual({ sub: 'user_123', email: 'bryan@nyuchi.com' })
+    })
+
+    it('denies login when the id_token audience is wrong (e.g. an access token used by mistake)', async () => {
+      // Same as above, but sign the token with aud=resourceUrl (the /mcp
+      // resource indicator) instead of aud=SITE_CLIENT_ID — the exact bug
+      // this test guards against regressing to.
+      const { generateKeyPair, exportJWK, SignJWT } = await import('jose')
+      const { publicKey, privateKey } = await generateKeyPair('RS256')
+      const publicJwk = await exportJWK(publicKey)
+      const kid = 'test-key-2'
+      const wrongAudienceToken = await new SignJWT({ email: 'bryan@nyuchi.com' })
+        .setProtectedHeader({ alg: 'RS256', kid })
+        .setIssuedAt()
+        .setIssuer('https://identity.nyuchi.com')
+        .setAudience('https://tools.nyuchi.com/mcp')
+        .setSubject('user_123')
+        .setExpirationTime('5m')
+        .sign(privateKey)
+
+      vi.spyOn(globalThis, 'fetch').mockImplementation(async (input: RequestInfo | URL) => {
+        const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+        if (url === 'https://identity.nyuchi.com/oauth2/token') {
+          return new Response(
+            JSON.stringify({ access_token: 'unused', id_token: wrongAudienceToken, token_type: 'Bearer', expires_in: 300 }),
+            { status: 200, headers: { 'content-type': 'application/json' } },
+          )
+        }
+        if (url === 'https://identity.nyuchi.com/oauth2/jwks') {
+          return new Response(JSON.stringify({ keys: [{ ...publicJwk, kid, alg: 'RS256', use: 'sig' }] }), {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          })
+        }
+        throw new Error(`Unexpected fetch in test: ${url}`)
+      })
+
+      const oauthCookie = encodeOauthCookie({ state: 'expected-state', codeVerifier: 'verifier', returnTo: '/' })
+      const res = await get(`${CALLBACK_PATH}?code=test-code&state=expected-state`, CALLBACK_ENV, {
+        Cookie: `${OAUTH_COOKIE_NAME}=${oauthCookie}`,
+      })
+      expect(res.status).toBe(302)
+      expect(res.headers.get('Location')).toBe('/login?error=1')
+      // denyLogin() proactively clears any stale session cookie (Max-Age=0,
+      // empty value), which is a deletion, not a grant — assert the cookie
+      // is being emptied out, not that some NEW valid session was minted.
+      expect(res.headers.get('Set-Cookie')).toContain(`${SESSION_COOKIE_NAME}=;`)
+    })
+
+    it('denies login when the token response has no id_token', async () => {
+      vi.spyOn(globalThis, 'fetch').mockImplementation(async (input: RequestInfo | URL) => {
+        const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+        if (url === 'https://identity.nyuchi.com/oauth2/token') {
+          return new Response(JSON.stringify({ access_token: 'unused', token_type: 'Bearer', expires_in: 300 }), {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          })
+        }
+        throw new Error(`Unexpected fetch in test: ${url}`)
+      })
+      const oauthCookie = encodeOauthCookie({ state: 'expected-state', codeVerifier: 'verifier', returnTo: '/' })
+      const res = await get(`${CALLBACK_PATH}?code=test-code&state=expected-state`, CALLBACK_ENV, {
+        Cookie: `${OAUTH_COOKIE_NAME}=${oauthCookie}`,
+      })
+      expect(res.status).toBe(302)
+      expect(res.headers.get('Location')).toBe('/login?error=1')
+    })
   })
 })
 

@@ -40,7 +40,14 @@ pattern = "tools.nyuchi.com"
 custom_domain = true
 
 [vars]
-MCP_RESOURCE = "https://tools.nyuchi.com"
+# Must byte-match the "AuthKit OAuth resource" WorkOS has registered for this
+# integration (dashboard: Connect → API Resources) — every MCP integration in
+# this WorkOS org follows the same <host>/mcp convention (confirmed via the
+# WorkOS API: fundi-ingestion.nyuchi.dev/mcp, mongodb.nyuchi.dev/mcp,
+# news.mukoko.com/mcp, mcp.mzizi.dev/mcp all use the /mcp suffix). Tokens
+# issued with a resource indicator only carry it as `aud` when it matches a
+# registered resource, so this must be exact, not just "the site's origin".
+MCP_RESOURCE = "https://tools.nyuchi.com/mcp"
 # WorkOS Connect hosted auth (Connect app client_01KVTX0V2K1VM3PSC0DJ9VZWTV).
 # /mcp requires bearer JWTs issued by this authorization server; MCP clients
 # discover it via /.well-known/oauth-protected-resource and self-register

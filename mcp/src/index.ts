@@ -1,10 +1,19 @@
 /**
- * Nyuchi MCP Worker.
+ * Nyuchi Tools Worker.
  *
- * Deployed at https://tools.nyuchi.com/mcp/* via a Cloudflare Workers route
- * (see wrangler.toml). Inside this Worker, Hono routes are matched against
- * the ORIGINAL request URL (Workers do not strip the route prefix), so the
- * Hono route path is `/mcp` — the same path the route pattern matches.
+ * Deployed at https://tools.nyuchi.com via a Workers Custom Domain (see
+ * wrangler.toml) with `run_worker_first = true` — this Worker runs for
+ * EVERY request on the domain, not just `/mcp`. It serves three things:
+ *
+ *   - `/mcp`, plus the OAuth/MCP discovery surface (`/.well-known/*`,
+ *     `/auth.md`, `/register`) — bearer-token protected, cookie-free, meant
+ *     for MCP clients and agents. See auth.ts.
+ *   - `/login`, `/callback`, `/logout` — the site-wide login gate for human
+ *     visitors, an Authorization Code + PKCE flow against the Hosted AuthKit
+ *     UI at identity.nyuchi.com. See site-auth.ts.
+ *   - everything else — the built signature-generator Astro site, served as
+ *     static assets via `c.env.ASSETS.fetch(...)`, but only once the
+ *     site-wide login gate above has let the request through.
  *
  * Transport: streamable-HTTP (per MCP 2024-11-05). We implement a minimal
  * per-request transport because the SDK's built-in `StreamableHTTPServerTransport`
@@ -48,6 +57,7 @@ import {
   SESSION_COOKIE_NAME,
   sessionCookieOptions,
   type SessionClaims,
+  SITE_CLIENT_ID,
   type SiteAuthEnv,
   verifySessionCookie,
 } from "./site-auth.js";
@@ -490,15 +500,23 @@ app.get(CALLBACK_PATH, async (c) => {
     return denyLogin();
   }
 
-  let accessToken: string;
+  let idToken: string | undefined;
   try {
     const tokenResponse = await exchangeCode(code, oauthPayload.codeVerifier);
-    accessToken = tokenResponse.access_token;
+    idToken = tokenResponse.id_token;
   } catch {
     return denyLogin();
   }
+  if (!idToken) {
+    // scope=openid was requested; a missing id_token means the exchange
+    // didn't give us what we need to establish identity. Deny, don't guess.
+    return denyLogin();
+  }
 
-  const verified = await verifyJwt(c.env, accessToken);
+  // Verify the id_token, not the access_token: an id_token's `aud` is the
+  // OAuth client_id per OIDC Core (§2), which has nothing to do with the
+  // /mcp resource indicator `verifyJwt` defaults to for bearer-token calls.
+  const verified = await verifyJwt(c.env, idToken, SITE_CLIENT_ID);
   if (!verified) {
     return denyLogin();
   }
