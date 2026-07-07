@@ -19,17 +19,38 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import type { JSONRPCMessage } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
+import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import {
   type AuthEnv,
   authConfigured,
   issuerUrl,
   protectedResourceMetadata,
   verifyBearer,
+  verifyJwt,
   wwwAuthenticateHeader,
 } from "./auth.js";
 import { fetchMetadata } from "./as-metadata-proxy.js";
 import { authMd } from "./auth-md.js";
 import { buildServerCard } from "./server-card.js";
+import {
+  buildAuthorizeUrl,
+  CALLBACK_PATH,
+  codeChallengeFromVerifier,
+  decodeOauthCookie,
+  encodeOauthCookie,
+  exchangeCode,
+  generateCodeVerifier,
+  generateState,
+  mintSessionCookie,
+  OAUTH_COOKIE_NAME,
+  oauthCookieOptions,
+  sanitizeReturnTo,
+  SESSION_COOKIE_NAME,
+  sessionCookieOptions,
+  type SessionClaims,
+  type SiteAuthEnv,
+  verifySessionCookie,
+} from "./site-auth.js";
 import {
   BRAND_KEYS,
   buildSignatureHtml,
@@ -359,7 +380,145 @@ function authorizationServerMetadataHandler(wellKnownPath: "oauth-authorization-
   };
 }
 
-const app = new Hono<{ Bindings: AuthEnv }>();
+/**
+ * This Worker's full environment: the WorkOS/MCP auth vars (`AuthEnv`), the
+ * site-wide login gate's signing secret, and the static-assets binding the
+ * post-auth catch-all route serves the built Astro site from.
+ */
+interface Env extends SiteAuthEnv {
+  ASSETS: Fetcher;
+}
+
+interface Variables {
+  sessionUser?: SessionClaims;
+}
+
+const app = new Hono<{ Bindings: Env; Variables: Variables }>();
+
+// -----------------------------------------------------------------------------
+// Site-wide login gate.
+//
+// Every human-facing page on tools.nyuchi.com (Home, Help, Setup, the
+// gmail-addon docs, Studio, Signature Generator, Banner — everything except
+// the MCP JSON-RPC endpoint and the OAuth/MCP discovery surface below) sits
+// behind a session cookie. The PKCE flow and cookie logic live in
+// site-auth.ts; this just wires them into Hono.
+//
+// The exempt list below MUST stay exact and minimal:
+//   /mcp, /mcp/*         — has its own bearer-token gate below; never double-gated.
+//   /.well-known/*       — MCP client discovery must keep working with zero cookies.
+//   /auth.md, /register  — existing agent-readiness docs/discovery stubs.
+//   /login, /callback,
+//   /logout              — the login flow itself (unreachable if gated).
+//
+// (signature-generator/public has no robots.txt / llms.txt / llms-full.txt /
+// ads.txt today, so there is nothing else to exempt for crawlers. If any of
+// those are added later, add them here too.)
+// -----------------------------------------------------------------------------
+
+const EXEMPT_SITE_AUTH_PATHS = new Set<string>([
+  "/mcp",
+  "/auth.md",
+  "/register",
+  "/login",
+  CALLBACK_PATH,
+  "/logout",
+]);
+
+function isExemptFromSiteAuth(pathname: string): boolean {
+  if (EXEMPT_SITE_AUTH_PATHS.has(pathname)) return true;
+  if (pathname.startsWith("/mcp/")) return true;
+  if (pathname === "/.well-known" || pathname.startsWith("/.well-known/")) return true;
+  return false;
+}
+
+// Registered before every other route so it runs first for every request
+// (Hono composes matching handlers in registration order).
+app.use("*", async (c, next) => {
+  const url = new URL(c.req.url);
+  if (isExemptFromSiteAuth(url.pathname)) {
+    return next();
+  }
+  const claims = await verifySessionCookie(c.env, getCookie(c, SESSION_COOKIE_NAME));
+  if (!claims) {
+    // Never fail open: no/invalid session (including an unset
+    // SESSION_SECRET, which verifySessionCookie treats as "no valid
+    // session") always means "go log in", never "let the request through".
+    const returnTo = encodeURIComponent(`${url.pathname}${url.search}`);
+    return c.redirect(`/login?return_to=${returnTo}`, 302);
+  }
+  c.set("sessionUser", claims);
+  return next();
+});
+
+app.get("/login", async (c) => {
+  if (!c.env.SESSION_SECRET) {
+    // Fail CLOSED: don't send the user through an OAuth round trip that can
+    // never succeed (mintSessionCookie throws without a secret) — surface
+    // the misconfiguration instead of silently granting or looping.
+    return c.text("Site authentication is not configured.", 500);
+  }
+  const returnTo = sanitizeReturnTo(c.req.query("return_to"));
+  const state = generateState();
+  const codeVerifier = generateCodeVerifier();
+  const codeChallenge = await codeChallengeFromVerifier(codeVerifier);
+  setCookie(
+    c,
+    OAUTH_COOKIE_NAME,
+    encodeOauthCookie({ state, codeVerifier, returnTo }),
+    oauthCookieOptions(),
+  );
+  return c.redirect(buildAuthorizeUrl(c.env, state, codeChallenge, returnTo), 302);
+});
+
+app.get(CALLBACK_PATH, async (c) => {
+  const denyLogin = () => {
+    deleteCookie(c, OAUTH_COOKIE_NAME, { path: "/" });
+    deleteCookie(c, SESSION_COOKIE_NAME, { path: "/" });
+    // Generic failure — never leak *why* to the client.
+    return c.redirect("/login?error=1", 302);
+  };
+
+  const oauthPayload = decodeOauthCookie(getCookie(c, OAUTH_COOKIE_NAME));
+  const code = c.req.query("code");
+  const state = c.req.query("state");
+  if (!oauthPayload || !code || !state || state !== oauthPayload.state) {
+    return denyLogin();
+  }
+  if (!c.env.SESSION_SECRET) {
+    // Fail CLOSED: never mint a session without a configured secret.
+    return denyLogin();
+  }
+
+  let accessToken: string;
+  try {
+    const tokenResponse = await exchangeCode(code, oauthPayload.codeVerifier);
+    accessToken = tokenResponse.access_token;
+  } catch {
+    return denyLogin();
+  }
+
+  const verified = await verifyJwt(c.env, accessToken);
+  if (!verified) {
+    return denyLogin();
+  }
+
+  let sessionCookieValue: string;
+  try {
+    sessionCookieValue = await mintSessionCookie(c.env, { sub: verified.sub, email: verified.email });
+  } catch {
+    return denyLogin();
+  }
+
+  deleteCookie(c, OAUTH_COOKIE_NAME, { path: "/" });
+  setCookie(c, SESSION_COOKIE_NAME, sessionCookieValue, sessionCookieOptions());
+  return c.redirect(sanitizeReturnTo(oauthPayload.returnTo), 302);
+});
+
+app.get("/logout", (c) => {
+  deleteCookie(c, SESSION_COOKIE_NAME, { path: "/" });
+  return c.redirect("/", 302);
+});
 
 // OAuth surface. Behavior is driven by the AUTHKIT_DOMAIN Worker var:
 //
@@ -481,6 +640,15 @@ app.post("/mcp", async (c) => {
 
 // Anything else under /mcp/*: 404 with a hint.
 app.all("/mcp/*", (c) => c.json({ error: "not found", hint: "POST /mcp for JSON-RPC" }, 404));
+
+// Everything else, once the login gate above has passed (or the path was
+// exempt): the built Astro site as static assets (see [assets] in
+// wrangler.toml). Registered LAST — Hono composes matching handlers in
+// registration order, so this only ever runs for requests that fell through
+// every more specific route above. `run_worker_first = true` in
+// wrangler.toml means Cloudflare no longer serves assets before the Worker
+// runs, so this route is what actually serves them now.
+app.all("*", (c) => c.env.ASSETS.fetch(c.req.raw));
 
 export default {
   fetch: app.fetch,

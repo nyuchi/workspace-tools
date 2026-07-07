@@ -79,6 +79,42 @@ export interface VerifiedToken {
   scopes: string[];
 }
 
+export interface VerifiedJwt {
+  sub?: string;
+  email?: string;
+  scopes: string[];
+}
+
+/**
+ * Verify a raw JWT against the WorkOS JWKS for AUTHKIT_DOMAIN, checking
+ * issuer + audience. Returns null (never throws) on any failure: missing
+ * token/AUTHKIT_DOMAIN, JWKS fetch failure, expired/malformed token, wrong
+ * issuer/audience.
+ *
+ * Shared by the /mcp bearer-token gate (`verifyBearer`, below) and the
+ * site-wide login callback (`site-auth.ts`, which verifies the access token
+ * returned by its own PKCE token exchange) — the jose/JWKS logic lives in
+ * exactly this one place, not duplicated per caller.
+ */
+export async function verifyJwt(env: AuthEnv, token: string | undefined): Promise<VerifiedJwt | null> {
+  if (!token || !env.AUTHKIT_DOMAIN) return null;
+  try {
+    const { payload } = await jwtVerify(token, jwksFor(env.AUTHKIT_DOMAIN), {
+      issuer: issuerUrl(env),
+      audience: resourceUrl(env),
+    });
+    const scopes =
+      typeof payload.scope === "string" ? payload.scope.split(" ").filter(Boolean) : [];
+    return {
+      sub: typeof payload.sub === "string" ? payload.sub : undefined,
+      email: typeof payload.email === "string" ? payload.email : undefined,
+      scopes,
+    };
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Verify the Authorization header. Returns the verified claims, or null when
  * the token is missing/invalid (caller responds 401 with WWW-Authenticate).
@@ -88,16 +124,8 @@ export async function verifyBearer(
   authorizationHeader: string | undefined,
 ): Promise<VerifiedToken | null> {
   const token = authorizationHeader?.match(/^Bearer (.+)$/)?.[1];
-  if (!token || !env.AUTHKIT_DOMAIN) return null;
-  try {
-    const { payload } = await jwtVerify(token, jwksFor(env.AUTHKIT_DOMAIN), {
-      issuer: issuerUrl(env),
-      audience: resourceUrl(env),
-    });
-    const scopes =
-      typeof payload.scope === "string" ? payload.scope.split(" ").filter(Boolean) : [];
-    return { userId: typeof payload.sub === "string" ? payload.sub : undefined, scopes };
-  } catch {
-    return null;
-  }
+  if (!token) return null;
+  const verified = await verifyJwt(env, token);
+  if (!verified) return null;
+  return { userId: verified.sub, scopes: verified.scopes };
 }

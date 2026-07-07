@@ -11,16 +11,26 @@ compatibility_flags = ["nodejs_compat"]
 command = "npm --prefix signature-generator ci && npm --prefix signature-generator run build"
 
 # This Worker serves ALL of tools.nyuchi.com:
-#   - /mcp                     → MCP JSON-RPC endpoint (run_worker_first bypasses assets)
+#   - /mcp                     → MCP JSON-RPC endpoint
 #   - /.well-known/*           → OAuth + MCP server-card discovery documents
 #   - /register                → OAuth dynamic client registration 404 stub
 #   - /auth.md                 → human/agent-readable auth architecture doc
+#   - /login, /callback, /logout → site-wide login gate (see mcp/src/site-auth.ts)
 #   - everything else          → the built signature-generator Astro site as
-#     static assets (every route is a real HTML file; unknown paths get dist/404.html)
+#     static assets, but ONLY after the login-gate middleware in
+#     mcp/src/index.ts lets the request through — every other human-facing
+#     page requires a valid `nyuchi_session` cookie.
+#
+# run_worker_first is now `true` (every request runs the Worker first, for
+# every path) instead of an explicit path list: the Worker itself gates
+# access and then serves assets via its own catch-all route
+# (`app.all("*", (c) => c.env.ASSETS.fetch(c.req.raw))`), since Cloudflare's
+# assets-before-Worker shortcut had no way to enforce the session cookie.
 [assets]
 directory = "signature-generator/dist"
 not_found_handling = "404-page"
-run_worker_first = ["/mcp", "/mcp/*", "/.well-known/*", "/register", "/auth.md"]
+binding = "ASSETS"
+run_worker_first = true
 
 # Workers Custom Domain: Cloudflare creates and manages the DNS record and
 # certificate for tools.nyuchi.com itself, and the Worker receives all paths
@@ -36,3 +46,12 @@ MCP_RESOURCE = "https://tools.nyuchi.com"
 # discover it via /.well-known/oauth-protected-resource and self-register
 # through its dynamic client registration. Unset to run the MCP open.
 AUTHKIT_DOMAIN = "identity.nyuchi.com"
+
+# SESSION_SECRET is deliberately NOT set here — it must never be committed
+# to git in plaintext. Provision it out-of-band with:
+#   wrangler secret put SESSION_SECRET
+# The site-wide login gate (mcp/src/site-auth.ts) fails CLOSED without it:
+# every session-cookie verification treats a missing SESSION_SECRET as "no
+# valid session" (redirect to /login), and /login itself returns 500 rather
+# than starting an OAuth round trip that could never mint a session. It
+# never falls back to running the site open.
