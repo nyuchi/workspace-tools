@@ -325,9 +325,7 @@ const studioCss = `
   max-height: calc(100dvh - 4rem);
   position: sticky; top: 4rem;
 }
-.nyuchi-studio .ns-brandhead { display: flex; align-items: center; gap: 10px; margin-bottom: 2px; }
-.nyuchi-studio .ns-brandhead img { width: 26px; height: 26px; object-fit: contain; }
-.nyuchi-studio .ns-brandhead h1 { font-family: var(--font-serif); font-size: 19px; font-weight: 700; margin: 0; }
+.nyuchi-studio .ns-panel h1 { font-family: var(--font-serif); font-size: 19px; font-weight: 700; margin: 0 0 2px; }
 .nyuchi-studio .ns-tag {
   font-family: var(--font-mono); font-size: 10px; color: var(--ns-fg2);
   margin-bottom: 16px; display: block; letter-spacing: .08em;
