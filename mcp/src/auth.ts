@@ -29,7 +29,9 @@ export interface AuthEnv {
   MCP_RESOURCE?: string;
 }
 
-export const DEFAULT_RESOURCE = "https://tools.nyuchi.com";
+// Must match the "AuthKit OAuth resource" registered in the WorkOS dashboard
+// for this integration — see the MCP_RESOURCE comment in wrangler.toml.
+export const DEFAULT_RESOURCE = "https://tools.nyuchi.com/mcp";
 
 export function authConfigured(env: AuthEnv): boolean {
   return typeof env.AUTHKIT_DOMAIN === "string" && env.AUTHKIT_DOMAIN.length > 0;
@@ -41,6 +43,16 @@ export function resourceUrl(env: AuthEnv): string {
 
 export function issuerUrl(env: AuthEnv): string {
   return `https://${env.AUTHKIT_DOMAIN}`;
+}
+
+/**
+ * The origin `resourceUrl(env)` lives on — e.g. `https://tools.nyuchi.com`
+ * for both the default (`.../mcp`) and a staging override with no path.
+ * The `.well-known` discovery surface always lives at this origin's root,
+ * never nested under whatever path the resource indicator itself uses.
+ */
+function resourceOrigin(env: AuthEnv): string {
+  return new URL(resourceUrl(env)).origin;
 }
 
 export function protectedResourceMetadata(env: AuthEnv): Record<string, unknown> {
@@ -58,7 +70,7 @@ export function wwwAuthenticateHeader(env: AuthEnv): string {
   return [
     'Bearer error="unauthorized"',
     'error_description="Authorization needed"',
-    `resource_metadata="${resourceUrl(env)}/.well-known/oauth-protected-resource"`,
+    `resource_metadata="${resourceOrigin(env)}/.well-known/oauth-protected-resource"`,
   ].join(", ");
 }
 
@@ -79,6 +91,50 @@ export interface VerifiedToken {
   scopes: string[];
 }
 
+export interface VerifiedJwt {
+  sub?: string;
+  email?: string;
+  scopes: string[];
+}
+
+/**
+ * Verify a raw JWT against the WorkOS JWKS for AUTHKIT_DOMAIN, checking
+ * issuer + audience. Returns null (never throws) on any failure: missing
+ * token/AUTHKIT_DOMAIN, JWKS fetch failure, expired/malformed token, wrong
+ * issuer/audience.
+ *
+ * `expectedAudience` defaults to `resourceUrl(env)` (the /mcp resource
+ * indicator) for `verifyBearer`, below. The site-wide login callback
+ * (`site-auth.ts`) verifies a DIFFERENT token with a DIFFERENT audience: it
+ * exchanges its PKCE code for an OIDC id_token (not the access token), whose
+ * `aud` claim is the OAuth client_id per the OIDC Core spec — that has
+ * nothing to do with the /mcp resource indicator, so it passes its own
+ * `expectedAudience` explicitly rather than relying on this default. The
+ * jose/JWKS logic itself still lives in exactly this one place either way.
+ */
+export async function verifyJwt(
+  env: AuthEnv,
+  token: string | undefined,
+  expectedAudience?: string,
+): Promise<VerifiedJwt | null> {
+  if (!token || !env.AUTHKIT_DOMAIN) return null;
+  try {
+    const { payload } = await jwtVerify(token, jwksFor(env.AUTHKIT_DOMAIN), {
+      issuer: issuerUrl(env),
+      audience: expectedAudience ?? resourceUrl(env),
+    });
+    const scopes =
+      typeof payload.scope === "string" ? payload.scope.split(" ").filter(Boolean) : [];
+    return {
+      sub: typeof payload.sub === "string" ? payload.sub : undefined,
+      email: typeof payload.email === "string" ? payload.email : undefined,
+      scopes,
+    };
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Verify the Authorization header. Returns the verified claims, or null when
  * the token is missing/invalid (caller responds 401 with WWW-Authenticate).
@@ -88,16 +144,8 @@ export async function verifyBearer(
   authorizationHeader: string | undefined,
 ): Promise<VerifiedToken | null> {
   const token = authorizationHeader?.match(/^Bearer (.+)$/)?.[1];
-  if (!token || !env.AUTHKIT_DOMAIN) return null;
-  try {
-    const { payload } = await jwtVerify(token, jwksFor(env.AUTHKIT_DOMAIN), {
-      issuer: issuerUrl(env),
-      audience: resourceUrl(env),
-    });
-    const scopes =
-      typeof payload.scope === "string" ? payload.scope.split(" ").filter(Boolean) : [];
-    return { userId: typeof payload.sub === "string" ? payload.sub : undefined, scopes };
-  } catch {
-    return null;
-  }
+  if (!token) return null;
+  const verified = await verifyJwt(env, token);
+  if (!verified) return null;
+  return { userId: verified.sub, scopes: verified.scopes };
 }

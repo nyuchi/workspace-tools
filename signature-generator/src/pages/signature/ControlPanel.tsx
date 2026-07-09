@@ -19,11 +19,8 @@ const ControlPanel = ({ brand, form, imageErrors, onBrandChange, onField }: Prop
 
   return (
     <aside className="sg-panel">
-      <div className="sg-brandhead">
-        <img alt="nyuchi" src="/assets/nyuchi-bee.png" />
-        <h1>Email Signature</h1>
-      </div>
-      <span className="sg-tag">signature builder · bundu family · gmail-ready</span>
+      <h1>Email Signature</h1>
+      <span className="sg-tag">signature builder · bundu ecosystem · gmail-ready</span>
 
       <div className="sg-grp">
         <h2>01 · Brand</h2>
