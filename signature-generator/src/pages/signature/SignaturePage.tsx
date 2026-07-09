@@ -288,9 +288,7 @@ const signatureCss = `
   max-height: calc(100dvh - 4rem);
   position: sticky; top: 4rem;
 }
-.signature-studio .sg-brandhead { display: flex; align-items: center; gap: 10px; margin-bottom: 2px; }
-.signature-studio .sg-brandhead img { width: 26px; height: 26px; object-fit: contain; }
-.signature-studio .sg-brandhead h1 { font-family: var(--font-serif); font-size: 19px; font-weight: 700; margin: 0; }
+.signature-studio .sg-panel h1 { font-family: var(--font-serif); font-size: 19px; font-weight: 700; margin: 0 0 2px; }
 .signature-studio .sg-tag {
   font-family: var(--font-mono); font-size: 10px; color: var(--sg-fg2);
   margin-bottom: 16px; display: block; letter-spacing: .08em;
