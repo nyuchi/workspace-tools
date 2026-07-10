@@ -60,16 +60,9 @@ const BannerPage = () => {
   const [iconReady, setIconReady] = useState(false)
   const [fontsReady, setFontsReady] = useState(false)
 
-  /* Initial theme: restore persisted preference (matches the original app). */
-  useEffect(() => {
-    const saved = localStorage.getItem('nyuchi-theme')
-    if (saved === 'dark' || saved === 'light') {
-      document.documentElement.setAttribute('data-theme', saved)
-      setDomTheme(saved)
-    } else {
-      setDomTheme(readDomTheme())
-    }
-  }, [])
+  /* Initial theme is already correct at mount: Base.astro's inline bootstrap
+   * script sets `data-theme` from the persisted preference before first
+   * paint, and the `useState(readDomTheme)` initializer above reads it. */
 
   /* Register every per-theme brand icon from the registry so the lockup
    * embeds the right mark for the banner's theme. */
