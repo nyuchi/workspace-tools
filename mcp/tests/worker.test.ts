@@ -212,7 +212,8 @@ describe('POST /mcp — JSON-RPC', () => {
     expect(body.error).toBeUndefined()
     expect(result.isError).toBe(true)
     expect(result.content[0].text).toContain('-32602')
-    expect(result.content[0].text).toContain("received 'acme'")
+    expect(result.content[0].text).toContain('"path"')
+    expect(result.content[0].text).toContain('brand')
   })
 
   it('tools/call generate_studio_card returns a real Studio SVG plus JSON metadata', async () => {
