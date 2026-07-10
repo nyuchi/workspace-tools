@@ -61,22 +61,23 @@ const SignaturePage = () => {
   }, [])
 
   /* Brand switch resets the social links to the brand defaults —
-   * identical to the original component's brand effect. */
-  useEffect(() => {
-    setForm((f) => ({ ...f, ...socialDefaults(brand) }))
-  }, [brand])
-
-  /* Reset image errors when the URLs change so new URLs get re-probed. */
-  useEffect(() => {
-    setImageErrors({})
-  }, [form.profileImage, form.promoBanner])
+   * identical to the original component's brand effect, but applied where
+   * brand actually changes instead of a downstream effect. */
+  const handleBrandChange = useCallback((next: BrandKey) => {
+    setBrand(next)
+    setForm((f) => ({ ...f, ...socialDefaults(next) }))
+  }, [])
 
   const handleImageError = useCallback((key: 'profile' | 'banner') => {
     setImageErrors((prev) => (prev[key] ? prev : { ...prev, [key]: true }))
   }, [])
 
+  /* New image URLs get a fresh chance to load — reset here, where the URL
+   * actually changes, instead of a downstream effect. */
   const setField = useCallback((key: keyof SignatureFormData, value: string) => {
     setForm((f) => ({ ...f, [key]: value }))
+    if (key === 'profileImage') setImageErrors((prev) => (prev.profile ? { ...prev, profile: false } : prev))
+    if (key === 'promoBanner') setImageErrors((prev) => (prev.banner ? { ...prev, banner: false } : prev))
   }, [])
 
   /* Live output — one code path (the pure engine) for preview AND copy.
@@ -206,7 +207,7 @@ const SignaturePage = () => {
           brand={brand}
           form={form}
           imageErrors={imageErrors}
-          onBrandChange={setBrand}
+          onBrandChange={handleBrandChange}
           onField={setField}
         />
         <div className="sg-stage">
