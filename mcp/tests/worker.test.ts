@@ -8,7 +8,18 @@
  */
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { SignJWT } from 'jose'
 import worker from '../src/index'
+import {
+  CALLBACK_PATH,
+  decodeOauthCookie,
+  encodeOauthCookie,
+  mintSessionCookie,
+  OAUTH_COOKIE_NAME,
+  SESSION_COOKIE_NAME,
+  SITE_CLIENT_ID,
+  verifySessionCookie,
+} from '../src/site-auth'
 
 const BASE = 'https://tools.nyuchi.com'
 
@@ -18,10 +29,19 @@ const OPEN_ENV = {}
 /** Auth configured: WorkOS AuthKit protects /mcp. */
 const AUTH_ENV = { AUTHKIT_DOMAIN: 'x.authkit.app' }
 
-type Env = Record<string, string>
+/** Site-wide login gate configured with a known, throwaway test secret. */
+const TEST_SESSION_SECRET = 'test-secret-do-not-use-in-prod'
+const SITE_ENV = { SESSION_SECRET: TEST_SESSION_SECRET }
 
-function get(path: string, env: Env = OPEN_ENV): Promise<Response> {
-  return Promise.resolve(worker.fetch(new Request(`${BASE}${path}`), env))
+/** Stub ASSETS binding: the real one only exists in the real Workers
+ * runtime, so tests that need a request to reach the post-auth catch-all
+ * (`app.all("*", (c) => c.env.ASSETS.fetch(...))`) provide this instead. */
+const ASSETS_STUB = { fetch: async () => new Response('stub-asset') }
+
+type Env = Record<string, unknown>
+
+function get(path: string, env: Env = OPEN_ENV, headers?: HeadersInit): Promise<Response> {
+  return Promise.resolve(worker.fetch(new Request(`${BASE}${path}`, { headers }), env))
 }
 
 function post(path: string, body: unknown, env: Env = OPEN_ENV): Promise<Response> {
@@ -35,6 +55,13 @@ function post(path: string, body: unknown, env: Env = OPEN_ENV): Promise<Respons
       env,
     ),
   )
+}
+
+/** Pull a named cookie's raw value out of a Set-Cookie response header. */
+function cookieValueFrom(setCookieHeader: string | null, name: string): string | null {
+  if (!setCookieHeader) return null
+  const match = setCookieHeader.match(new RegExp(`${name}=([^;]+)`))
+  return match ? match[1] : null
 }
 
 interface JsonRpcResponse {
@@ -490,7 +517,7 @@ describe('OAuth discovery — auth ON (AUTHKIT_DOMAIN set)', () => {
     const res = await get('/.well-known/oauth-protected-resource', AUTH_ENV)
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({
-      resource: 'https://tools.nyuchi.com',
+      resource: 'https://tools.nyuchi.com/mcp',
       authorization_servers: ['https://x.authkit.app'],
       bearer_methods_supported: ['header'],
       scopes_supported: [],
@@ -658,5 +685,355 @@ describe('Authorization server metadata mirror', () => {
     expect(res.status).toBe(502)
     const body = (await res.json()) as { error: string }
     expect(body.error).toBe('upstream_fetch_failed')
+  })
+})
+
+describe('Site-wide login gate — exempt paths still work with zero cookies', () => {
+  it('/mcp (GET discovery) needs no session cookie', async () => {
+    const res = await get('/mcp', SITE_ENV)
+    expect(res.status).toBe(200)
+  })
+
+  it('/mcp (POST JSON-RPC) needs no session cookie', async () => {
+    const res = await post('/mcp', rpc('tools/list', {}, 1), SITE_ENV)
+    expect(res.status).toBe(200)
+  })
+
+  it('/.well-known/oauth-protected-resource needs no session cookie', async () => {
+    const res = await get('/.well-known/oauth-protected-resource', SITE_ENV)
+    expect(res.status).toBe(404) // auth not configured for /mcp in this env — still reachable, not redirected
+  })
+
+  it('/.well-known/mcp/server-card.json needs no session cookie', async () => {
+    const res = await get('/.well-known/mcp/server-card.json', SITE_ENV)
+    expect(res.status).toBe(200)
+  })
+
+  it('/auth.md needs no session cookie', async () => {
+    const res = await get('/auth.md', SITE_ENV)
+    expect(res.status).toBe(200)
+  })
+
+  it('/register needs no session cookie', async () => {
+    const res = await get('/register', SITE_ENV)
+    expect(res.status).toBe(404) // registration_not_supported stub — reachable, not redirected
+  })
+})
+
+describe('Site-wide login gate — protected paths', () => {
+  it('redirects an unauthenticated request for "/" to /login with return_to set', async () => {
+    const res = await get('/', SITE_ENV)
+    expect(res.status).toBe(302)
+    expect(res.headers.get('Location')).toBe(`/login?return_to=${encodeURIComponent('/')}`)
+  })
+
+  it('redirects an unauthenticated request for a deep path, preserving path + query in return_to', async () => {
+    const res = await get('/studio?category=gold', SITE_ENV)
+    expect(res.status).toBe(302)
+    expect(res.headers.get('Location')).toBe(`/login?return_to=${encodeURIComponent('/studio?category=gold')}`)
+  })
+
+  it('denies access (redirects, never passes through) when SESSION_SECRET is unset entirely', async () => {
+    // Fail CLOSED: no SESSION_SECRET at all must behave exactly like "no
+    // valid session", never like "auth is off".
+    const res = await get('/', OPEN_ENV)
+    expect(res.status).toBe(302)
+    expect(res.headers.get('Location')).toContain('/login?return_to=')
+  })
+
+  it('lets a request with a valid session cookie through to the ASSETS catch-all', async () => {
+    const cookie = await mintSessionCookie(SITE_ENV, { sub: 'user_123', email: 'bryan@nyuchi.com' })
+    const res = await get('/', { ...SITE_ENV, ASSETS: ASSETS_STUB }, { Cookie: `${SESSION_COOKIE_NAME}=${cookie}` })
+    expect(res.status).toBe(200)
+    expect(await res.text()).toBe('stub-asset')
+  })
+
+  it('rejects a tampered session cookie and redirects to /login instead of crashing', async () => {
+    const cookie = await mintSessionCookie(SITE_ENV, { sub: 'user_123' })
+    const tampered = `${cookie.slice(0, -4)}abcd`
+    const res = await get('/', { ...SITE_ENV, ASSETS: ASSETS_STUB }, { Cookie: `${SESSION_COOKIE_NAME}=${tampered}` })
+    expect(res.status).toBe(302)
+    expect(res.headers.get('Location')).toContain('/login?return_to=')
+  })
+})
+
+describe('GET /login', () => {
+  it('returns 500 (fails closed) when SESSION_SECRET is not configured', async () => {
+    const res = await get('/login', OPEN_ENV)
+    expect(res.status).toBe(500)
+  })
+
+  it('sets the oauth cookie and redirects to the authorize endpoint with the right params', async () => {
+    const res = await get('/login', SITE_ENV)
+    expect(res.status).toBe(302)
+
+    const location = res.headers.get('Location')
+    expect(location).toBeTruthy()
+    const url = new URL(location!)
+    expect(url.origin + url.pathname).toBe('https://identity.nyuchi.com/oauth2/authorize')
+    expect(url.searchParams.get('response_type')).toBe('code')
+    expect(url.searchParams.get('client_id')).toBe(SITE_CLIENT_ID)
+    expect(url.searchParams.get('redirect_uri')).toBe('https://tools.nyuchi.com/callback')
+    expect(url.searchParams.get('code_challenge_method')).toBe('S256')
+    expect(url.searchParams.get('scope')).toBe('openid profile email')
+    expect(url.searchParams.get('state')).toBeTruthy()
+    expect(url.searchParams.get('code_challenge')).toBeTruthy()
+
+    const setCookie = res.headers.get('Set-Cookie')
+    expect(setCookie).toBeTruthy()
+    expect(setCookie).toContain(`${OAUTH_COOKIE_NAME}=`)
+    expect(setCookie).toContain('HttpOnly')
+    expect(setCookie).toContain('Secure')
+    expect(setCookie).toContain('SameSite=Lax')
+
+    const oauthValue = cookieValueFrom(setCookie, OAUTH_COOKIE_NAME)
+    const payload = decodeOauthCookie(oauthValue ?? undefined)
+    expect(payload?.state).toBe(url.searchParams.get('state'))
+    expect(payload?.returnTo).toBe('/')
+  })
+
+  it('rejects an absolute-URL return_to and stores "/" instead', async () => {
+    const res = await get(`/login?return_to=${encodeURIComponent('https://evil.com')}`, SITE_ENV)
+    expect(res.status).toBe(302)
+    const oauthValue = cookieValueFrom(res.headers.get('Set-Cookie'), OAUTH_COOKIE_NAME)
+    const payload = decodeOauthCookie(oauthValue ?? undefined)
+    expect(payload?.returnTo).toBe('/')
+  })
+
+  it('rejects a protocol-relative return_to ("//evil.com") and stores "/" instead', async () => {
+    const res = await get(`/login?return_to=${encodeURIComponent('//evil.com')}`, SITE_ENV)
+    const oauthValue = cookieValueFrom(res.headers.get('Set-Cookie'), OAUTH_COOKIE_NAME)
+    const payload = decodeOauthCookie(oauthValue ?? undefined)
+    expect(payload?.returnTo).toBe('/')
+  })
+
+  it('rejects a return_to containing a CRLF (header-injection attempt) and stores "/" instead', async () => {
+    const res = await get(`/login?return_to=${encodeURIComponent('/studio\r\nSet-Cookie: evil=1')}`, SITE_ENV)
+    expect(res.status).toBe(302)
+    const oauthValue = cookieValueFrom(res.headers.get('Set-Cookie'), OAUTH_COOKIE_NAME)
+    const payload = decodeOauthCookie(oauthValue ?? undefined)
+    expect(payload?.returnTo).toBe('/')
+  })
+
+  it('accepts a legitimate same-origin relative return_to', async () => {
+    const res = await get(`/login?return_to=${encodeURIComponent('/studio')}`, SITE_ENV)
+    const oauthValue = cookieValueFrom(res.headers.get('Set-Cookie'), OAUTH_COOKIE_NAME)
+    const payload = decodeOauthCookie(oauthValue ?? undefined)
+    expect(payload?.returnTo).toBe('/studio')
+  })
+})
+
+describe('GET /callback', () => {
+  it('redirects to /login without crashing when there is no oauth cookie at all', async () => {
+    const res = await get(`${CALLBACK_PATH}?code=abc&state=whatever`, SITE_ENV)
+    expect(res.status).toBe(302)
+    expect(res.headers.get('Location')).toBe('/login?error=1')
+  })
+
+  it('redirects to /login on a state mismatch, without ever attempting the token exchange', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch')
+    const oauthCookie = encodeOauthCookie({ state: 'expected-state', codeVerifier: 'verifier', returnTo: '/studio' })
+    const res = await get(
+      `${CALLBACK_PATH}?code=abc&state=WRONG-STATE`,
+      SITE_ENV,
+      { Cookie: `${OAUTH_COOKIE_NAME}=${oauthCookie}` },
+    )
+    expect(res.status).toBe(302)
+    expect(res.headers.get('Location')).toBe('/login?error=1')
+    expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
+  it('redirects to /login when the code is missing', async () => {
+    const oauthCookie = encodeOauthCookie({ state: 'expected-state', codeVerifier: 'verifier', returnTo: '/' })
+    const res = await get(`${CALLBACK_PATH}?state=expected-state`, SITE_ENV, {
+      Cookie: `${OAUTH_COOKIE_NAME}=${oauthCookie}`,
+    })
+    expect(res.status).toBe(302)
+    expect(res.headers.get('Location')).toBe('/login?error=1')
+  })
+
+  it('redirects to /login (never crashes) when SESSION_SECRET is unset, even with matching state', async () => {
+    const oauthCookie = encodeOauthCookie({ state: 'expected-state', codeVerifier: 'verifier', returnTo: '/' })
+    const res = await get(`${CALLBACK_PATH}?code=abc&state=expected-state`, OPEN_ENV, {
+      Cookie: `${OAUTH_COOKIE_NAME}=${oauthCookie}`,
+    })
+    expect(res.status).toBe(302)
+    expect(res.headers.get('Location')).toBe('/login?error=1')
+  })
+
+  describe('successful exchange (mocked token + JWKS endpoints)', () => {
+    const CALLBACK_ENV = { SESSION_SECRET: TEST_SESSION_SECRET, AUTHKIT_DOMAIN: 'identity.nyuchi.com' }
+
+    afterEach(() => {
+      vi.restoreAllMocks()
+    })
+
+    /** Sign a real id_token with a locally-generated RS256 keypair, and mock
+     * fetch so the token endpoint returns it and the JWKS endpoint serves
+     * its matching public key — exercising the ACTUAL jose/JWKS verification
+     * path (`verifyJwt`), not just the surrounding cookie/redirect plumbing. */
+    async function mockSuccessfulExchange(claims: { sub: string; email?: string }) {
+      const { generateKeyPair, exportJWK, SignJWT } = await import('jose')
+      const { publicKey, privateKey } = await generateKeyPair('RS256')
+      const publicJwk = await exportJWK(publicKey)
+      const kid = 'test-key-1'
+      const idToken = await new SignJWT({ email: claims.email })
+        .setProtectedHeader({ alg: 'RS256', kid })
+        .setIssuedAt()
+        .setIssuer('https://identity.nyuchi.com')
+        .setAudience(SITE_CLIENT_ID)
+        .setSubject(claims.sub)
+        .setExpirationTime('5m')
+        .sign(privateKey)
+
+      vi.spyOn(globalThis, 'fetch').mockImplementation(async (input: RequestInfo | URL) => {
+        const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+        if (url === 'https://identity.nyuchi.com/oauth2/token') {
+          return new Response(
+            JSON.stringify({ access_token: 'unused-access-token', id_token: idToken, token_type: 'Bearer', expires_in: 300 }),
+            { status: 200, headers: { 'content-type': 'application/json' } },
+          )
+        }
+        if (url === 'https://identity.nyuchi.com/oauth2/jwks') {
+          return new Response(JSON.stringify({ keys: [{ ...publicJwk, kid, alg: 'RS256', use: 'sig' }] }), {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          })
+        }
+        throw new Error(`Unexpected fetch in test: ${url}`)
+      })
+    }
+
+    it('verifies the id_token (not the access_token) and mints a session cookie', async () => {
+      await mockSuccessfulExchange({ sub: 'user_123', email: 'bryan@nyuchi.com' })
+      const oauthCookie = encodeOauthCookie({ state: 'expected-state', codeVerifier: 'verifier', returnTo: '/studio' })
+      const res = await get(`${CALLBACK_PATH}?code=test-code&state=expected-state`, CALLBACK_ENV, {
+        Cookie: `${OAUTH_COOKIE_NAME}=${oauthCookie}`,
+      })
+
+      expect(res.status).toBe(302)
+      expect(res.headers.get('Location')).toBe('/studio')
+
+      const setCookie = res.headers.get('Set-Cookie')
+      const sessionValue = cookieValueFrom(setCookie, SESSION_COOKIE_NAME)
+      expect(sessionValue).toBeTruthy()
+      const claims = await verifySessionCookie(CALLBACK_ENV, sessionValue ?? undefined)
+      expect(claims).toEqual({ sub: 'user_123', email: 'bryan@nyuchi.com' })
+    })
+
+    it('denies login when the id_token audience is wrong (e.g. an access token used by mistake)', async () => {
+      // Same as above, but sign the token with aud=resourceUrl (the /mcp
+      // resource indicator) instead of aud=SITE_CLIENT_ID — the exact bug
+      // this test guards against regressing to.
+      const { generateKeyPair, exportJWK, SignJWT } = await import('jose')
+      const { publicKey, privateKey } = await generateKeyPair('RS256')
+      const publicJwk = await exportJWK(publicKey)
+      const kid = 'test-key-2'
+      const wrongAudienceToken = await new SignJWT({ email: 'bryan@nyuchi.com' })
+        .setProtectedHeader({ alg: 'RS256', kid })
+        .setIssuedAt()
+        .setIssuer('https://identity.nyuchi.com')
+        .setAudience('https://tools.nyuchi.com/mcp')
+        .setSubject('user_123')
+        .setExpirationTime('5m')
+        .sign(privateKey)
+
+      vi.spyOn(globalThis, 'fetch').mockImplementation(async (input: RequestInfo | URL) => {
+        const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+        if (url === 'https://identity.nyuchi.com/oauth2/token') {
+          return new Response(
+            JSON.stringify({ access_token: 'unused', id_token: wrongAudienceToken, token_type: 'Bearer', expires_in: 300 }),
+            { status: 200, headers: { 'content-type': 'application/json' } },
+          )
+        }
+        if (url === 'https://identity.nyuchi.com/oauth2/jwks') {
+          return new Response(JSON.stringify({ keys: [{ ...publicJwk, kid, alg: 'RS256', use: 'sig' }] }), {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          })
+        }
+        throw new Error(`Unexpected fetch in test: ${url}`)
+      })
+
+      const oauthCookie = encodeOauthCookie({ state: 'expected-state', codeVerifier: 'verifier', returnTo: '/' })
+      const res = await get(`${CALLBACK_PATH}?code=test-code&state=expected-state`, CALLBACK_ENV, {
+        Cookie: `${OAUTH_COOKIE_NAME}=${oauthCookie}`,
+      })
+      expect(res.status).toBe(302)
+      expect(res.headers.get('Location')).toBe('/login?error=1')
+      // denyLogin() proactively clears any stale session cookie (Max-Age=0,
+      // empty value), which is a deletion, not a grant — assert the cookie
+      // is being emptied out, not that some NEW valid session was minted.
+      expect(res.headers.get('Set-Cookie')).toContain(`${SESSION_COOKIE_NAME}=;`)
+    })
+
+    it('denies login when the token response has no id_token', async () => {
+      vi.spyOn(globalThis, 'fetch').mockImplementation(async (input: RequestInfo | URL) => {
+        const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+        if (url === 'https://identity.nyuchi.com/oauth2/token') {
+          return new Response(JSON.stringify({ access_token: 'unused', token_type: 'Bearer', expires_in: 300 }), {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          })
+        }
+        throw new Error(`Unexpected fetch in test: ${url}`)
+      })
+      const oauthCookie = encodeOauthCookie({ state: 'expected-state', codeVerifier: 'verifier', returnTo: '/' })
+      const res = await get(`${CALLBACK_PATH}?code=test-code&state=expected-state`, CALLBACK_ENV, {
+        Cookie: `${OAUTH_COOKIE_NAME}=${oauthCookie}`,
+      })
+      expect(res.status).toBe(302)
+      expect(res.headers.get('Location')).toBe('/login?error=1')
+    })
+  })
+})
+
+describe('GET /logout', () => {
+  it('clears the session cookie and redirects to "/"', async () => {
+    const res = await get('/logout', SITE_ENV)
+    expect(res.status).toBe(302)
+    expect(res.headers.get('Location')).toBe('/')
+    const setCookie = res.headers.get('Set-Cookie')
+    expect(setCookie).toContain(`${SESSION_COOKIE_NAME}=`)
+    expect(setCookie).toMatch(/Max-Age=0/)
+  })
+})
+
+describe('Session cookie (site-auth.ts)', () => {
+  it('mints a cookie that verifies back to the same claims', async () => {
+    const token = await mintSessionCookie(SITE_ENV, { sub: 'user_123', email: 'bryan@nyuchi.com' })
+    const claims = await verifySessionCookie(SITE_ENV, token)
+    expect(claims).toEqual({ sub: 'user_123', email: 'bryan@nyuchi.com' })
+  })
+
+  it('rejects a tampered cookie', async () => {
+    const token = await mintSessionCookie(SITE_ENV, { sub: 'user_123' })
+    const tampered = `${token.slice(0, -4)}abcd`
+    expect(await verifySessionCookie(SITE_ENV, tampered)).toBeNull()
+  })
+
+  it('rejects a cookie signed with a different secret', async () => {
+    const token = await mintSessionCookie(SITE_ENV, { sub: 'user_123' })
+    expect(await verifySessionCookie({ SESSION_SECRET: 'a-different-secret' }, token)).toBeNull()
+  })
+
+  it('rejects an expired cookie', async () => {
+    const key = new TextEncoder().encode(TEST_SESSION_SECRET)
+    const now = Math.floor(Date.now() / 1000)
+    const expired = await new SignJWT({ sub: 'user_123' })
+      .setProtectedHeader({ alg: 'HS256' })
+      .setIssuedAt(now - 1000)
+      .setExpirationTime(now - 500)
+      .sign(key)
+    expect(await verifySessionCookie(SITE_ENV, expired)).toBeNull()
+  })
+
+  it('treats a missing SESSION_SECRET as "no valid session" (fails closed, not open)', async () => {
+    const token = await mintSessionCookie(SITE_ENV, { sub: 'user_123' })
+    expect(await verifySessionCookie({}, token)).toBeNull()
+  })
+
+  it('rejects an empty/undefined cookie value', async () => {
+    expect(await verifySessionCookie(SITE_ENV, undefined)).toBeNull()
   })
 })

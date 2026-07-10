@@ -40,10 +40,10 @@
  *
  * The full per-brand icon set is the "bundu-ecosystem-icons" collection:
  * one dark-surface and one light-surface icon per brand (e.g. nyuchi's GOLD
- * bee for dark surfaces, BROWN bee for light surfaces). Only nyuchi's
- * brown/light-surface icon is vendored today
- * (signature-generator/public/assets/nyuchi-bee.png); the rest are
- * TODO(brand) pending asset upload.
+ * bee for dark surfaces, BROWN bee for light surfaces). All six brands/
+ * initiatives with an `icon` field below are vendored under
+ * signature-generator/public/assets/brand-icons/; shamwari also has SVG
+ * sources vendored alongside its PNGs.
  */
 
 /** The four top-level Bundu-ecosystem brands (parent first, then pillars). */

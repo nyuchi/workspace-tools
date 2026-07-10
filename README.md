@@ -9,7 +9,7 @@
 </p>
 
 Email signature management and brand design tools for Nyuchi Africa and the Bundu
-Family ecosystem. The web tools live at **[tools.nyuchi.com](https://tools.nyuchi.com)**,
+ecosystem. The web tools live at **[tools.nyuchi.com](https://tools.nyuchi.com)**,
 served by a single Cloudflare Worker that also hosts an **MCP server** so AI agents
 can use the same tools.
 

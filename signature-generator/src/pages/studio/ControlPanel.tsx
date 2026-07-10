@@ -75,10 +75,7 @@ const ControlPanel = ({ state, setState, onLoadMineral, onDownloadPng, onDownloa
 
   return (
     <aside className="ns-panel">
-      <div className="ns-brandhead">
-        <img alt="nyuchi" src="/assets/nyuchi-bee.png" />
-        <h1>Nyuchi Studio</h1>
-      </div>
+      <h1>Nyuchi Studio</h1>
       <span className="ns-tag">social cards · 7 minerals · one system</span>
 
       <div className="ns-grp">
