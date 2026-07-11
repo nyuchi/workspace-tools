@@ -1,7 +1,7 @@
 /**
  * Read-only mirror of the WorkOS Connect authorization server's discovery
  * metadata, so agents that only look on the resource server's own domain
- * (tools.nyuchi.com) instead of following `authorization_servers` in the
+ * (tools.nyuchi.dev) instead of following `authorization_servers` in the
  * protected-resource metadata still find it.
  *
  * This proxies (fetches + passes through) the real upstream documents from

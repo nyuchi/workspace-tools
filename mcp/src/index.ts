@@ -1,9 +1,13 @@
 /**
  * Nyuchi Tools Worker.
  *
- * Deployed at https://tools.nyuchi.com via a Workers Custom Domain (see
- * wrangler.toml) with `run_worker_first = true` — this Worker runs for
- * EVERY request on the domain, not just `/mcp`. It serves three things:
+ * Deployed via a Workers Custom Domain on two hostnames (see wrangler.toml)
+ * with `run_worker_first = true` — this Worker runs for EVERY request on
+ * both, not just `/mcp`. tools.nyuchi.com is the human-facing site;
+ * tools.nyuchi.dev is the canonical MCP endpoint (moved off .com after its
+ * `/mcp` traffic kept tripping Cloudflare's Layer 7 DDoS mitigation — see
+ * the MCP_RESOURCE comment in wrangler.toml). Same code, same behavior on
+ * both; only the advertised MCP_RESOURCE differs. It serves three things:
  *
  *   - `/mcp`, plus the OAuth/MCP discovery surface (`/.well-known/*`,
  *     `/auth.md`, `/register`) — bearer-token protected, cookie-free, meant
@@ -579,12 +583,12 @@ app.all("/register", (c) =>
 // MCP Server Card — static discovery document for agent-readiness scanners
 // and MCP clients (see server-card.ts). Reached via the existing
 // `/.well-known/*` entry in wrangler.toml's assets.run_worker_first.
-app.get("/.well-known/mcp/server-card.json", (c) => c.json(buildServerCard(SERVER_NAME, SERVER_VERSION)));
+app.get("/.well-known/mcp/server-card.json", (c) => c.json(buildServerCard(SERVER_NAME, SERVER_VERSION, c.env)));
 
 // auth.md — human/agent-readable description of the OAuth architecture
 // (see auth-md.ts). Reached via the `/auth.md` entry in
 // wrangler.toml's assets.run_worker_first.
-app.get("/auth.md", (c) => c.text(authMd(), 200, { "Content-Type": "text/markdown; charset=utf-8" }));
+app.get("/auth.md", (c) => c.text(authMd(c.env), 200, { "Content-Type": "text/markdown; charset=utf-8" }));
 
 // Bearer-token gate for /mcp — no-op until AUTHKIT_DOMAIN is configured.
 app.use("/mcp", async (c, next) => {

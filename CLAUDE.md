@@ -11,16 +11,21 @@ Sub-projects for managing Nyuchi Africa email signatures and design assets. They
 | `gmail-addon/` | Google Apps Script (V8) | Gmail Add-on (CardService UI) + admin web dashboard | Apps Script via clasp |
 | `email-signature/` | Google Apps Script (V8) | Admin batch script: push signatures to all domain users & aliases | Apps Script via clasp |
 | `signature-generator/` | Astro (static) + React 19 islands + TypeScript + `@bundu/ui` | Standalone web app: signature builder, Nyuchi Studio (social cards), banner generator, setup docs | Bundled into the `nyuchi-tools` Worker as static assets |
-| `mcp/src/` | Cloudflare Workers + Hono + `@modelcontextprotocol/sdk` | Source of the `nyuchi-tools` Worker: serves the built static site **and** the MCP HTTP server | Workers Custom Domain `tools.nyuchi.com` (config: root `wrangler.toml`) |
+| `mcp/src/` | Cloudflare Workers + Hono + `@modelcontextprotocol/sdk` | Source of the `nyuchi-tools` Worker: serves the built static site **and** the MCP HTTP server | Workers Custom Domain on `tools.nyuchi.com` (site) **and** `tools.nyuchi.dev` (MCP) — same Worker, two domains (config: root `wrangler.toml`) |
 
 The repo root package.json carries the Apps Script npm workspace **and** the Worker's dependencies + deploy scripts; `signature-generator/` is a separate npm project with its own lockfile. `mcp/` holds only Worker source and its tsconfig — no package.json.
 
-## URL layout on `tools.nyuchi.com`
+## URL layout: `tools.nyuchi.com` (site) + `tools.nyuchi.dev` (MCP)
 
-One Cloudflare Worker (`nyuchi-tools`, defined in `mcp/`) serves the whole hostname via the route `tools.nyuchi.com/*`:
+One Cloudflare Worker (`nyuchi-tools`, defined in `mcp/`) answers on **two** Workers Custom Domains — identical code and behavior on both, `run_worker_first = true` on both routes in `wrangler.toml`:
+
+- `tools.nyuchi.com` — the human-facing site (Home, Studio, Signature Generator, Banner, Help, Setup, gmail-addon docs), behind the site-wide AuthKit login gate. `/mcp` also technically answers here (same Worker) but is not the advertised endpoint.
+- `tools.nyuchi.dev` — the canonical MCP endpoint. `/mcp` traffic was moved off `.com` because it kept tripping Cloudflare's Layer 7 DDoS mitigation for legitimate MCP client traffic (confirmed via the zone's firewall event log: a `managed_challenge` from a ruleset outside WAF's reach — not Bot Fight Mode, and not bypassable by a WAF custom-rule skip). The fresh `nyuchi.dev` zone has no such accumulated traffic history. `MCP_RESOURCE` in `wrangler.toml`, `DEFAULT_RESOURCE` in `mcp/src/auth.ts`, the WorkOS-registered "AuthKit OAuth resource", and the MCP server-card/auth.md discovery documents all point at `https://tools.nyuchi.dev/mcp` — that's the one MCP clients should be given, not the `.com` one.
+
+Within each domain, routing is the same:
 
 - `/mcp` and `/mcp/*` → MCP JSON-RPC handler (`assets.run_worker_first` sends these to the Worker script)
-- everything else → the built Astro site from `signature-generator/dist` as static assets. Every route is a real HTML file (`build.format: 'file'` → `/studio` serves `studio.html` with no trailing-slash redirect); unknown paths get `404-page` handling (the built `404.html`). Do not switch back to `single-page-application` fallback — there is no client-side router anymore.
+- everything else → the built Astro site from `signature-generator/dist` as static assets, but only after the site-wide login gate passes (irrelevant on `tools.nyuchi.dev` in practice, since nothing else should be linked there). Every route is a real HTML file (`build.format: 'file'` → `/studio` serves `studio.html` with no trailing-slash redirect); unknown paths get `404-page` handling (the built `404.html`). Do not switch back to `single-page-application` fallback — there is no client-side router anymore.
 
 GitHub Pages is **no longer used** — the DNS record is a proxied Workers-only placeholder (`AAAA 100::`), not a CNAME to GitHub. **The site must be built before deploying the Worker** (`cd signature-generator && npm run build`), since the root `wrangler.toml` points its assets directory at `signature-generator/dist`.
 
@@ -54,7 +59,7 @@ npm run dev:tools         # wrangler dev — local Worker at http://localhost:87
 npm run deploy:tools      # build:web + wrangler deploy
 npm run typecheck:worker  # tsc against mcp/tsconfig.json
 ```
-`wrangler` reads `CLOUDFLARE_API_TOKEN` from the environment; the account id is pinned in `wrangler.toml`. `tools.nyuchi.com` is a Workers Custom Domain on the `nyuchi.com` zone.
+`wrangler` reads `CLOUDFLARE_API_TOKEN` from the environment; the account id is pinned in `wrangler.toml`. `tools.nyuchi.com` (site) is a Workers Custom Domain on the `nyuchi.com` zone; `tools.nyuchi.dev` (MCP) is a Workers Custom Domain on the `nyuchi.dev` zone — both point at the same Worker.
 
 ### Tests
 Two **Vitest** suites (node environment, no jsdom); `npm test` at the repo root runs both. CI (`.github/workflows/ci.yml`) runs lint, `typecheck:worker`, the site build, and both suites on Node 22.

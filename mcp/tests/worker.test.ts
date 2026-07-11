@@ -518,7 +518,7 @@ describe('OAuth discovery — auth ON (AUTHKIT_DOMAIN set)', () => {
     const res = await get('/.well-known/oauth-protected-resource', AUTH_ENV)
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({
-      resource: 'https://tools.nyuchi.com/mcp',
+      resource: 'https://tools.nyuchi.dev/mcp',
       authorization_servers: ['https://x.authkit.app'],
       bearer_methods_supported: ['header'],
       scopes_supported: [],
@@ -538,7 +538,7 @@ describe('OAuth discovery — auth ON (AUTHKIT_DOMAIN set)', () => {
     const challenge = res.headers.get('WWW-Authenticate')
     expect(challenge).toContain('Bearer error="unauthorized"')
     expect(challenge).toContain(
-      'resource_metadata="https://tools.nyuchi.com/.well-known/oauth-protected-resource"',
+      'resource_metadata="https://tools.nyuchi.dev/.well-known/oauth-protected-resource"',
     )
     const body = (await res.json()) as { error: string }
     expect(body.error).toBe('unauthorized')
@@ -576,7 +576,7 @@ describe('GET /.well-known/mcp/server-card.json', () => {
       description:
         'MCP server for Nyuchi Africa tools: email signatures, Nyuchi Studio social cards, and article banners.',
       websiteUrl: 'https://tools.nyuchi.com',
-      remotes: [{ transportType: 'streamable-http', url: 'https://tools.nyuchi.com/mcp' }],
+      remotes: [{ transportType: 'streamable-http', url: 'https://tools.nyuchi.dev/mcp' }],
       capabilities: { tools: { listChanged: true } },
     })
   })
@@ -603,7 +603,7 @@ describe('GET /auth.md', () => {
     const body = await res.text()
     expect(body).toContain('https://identity.nyuchi.com')
     expect(body).toContain('/.well-known/oauth-protected-resource')
-    expect(body).toContain('tools.nyuchi.com is a resource server')
+    expect(body).toContain('tools.nyuchi.dev is a resource server')
     expect(body).not.toContain('agent_auth')
   })
 
@@ -934,7 +934,7 @@ describe('GET /callback', () => {
         .setProtectedHeader({ alg: 'RS256', kid })
         .setIssuedAt()
         .setIssuer('https://identity.nyuchi.com')
-        .setAudience('https://tools.nyuchi.com/mcp')
+        .setAudience('https://tools.nyuchi.dev/mcp')
         .setSubject('user_123')
         .setExpirationTime('5m')
         .sign(privateKey)
