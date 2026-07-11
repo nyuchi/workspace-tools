@@ -202,7 +202,7 @@ const SignaturePage = () => {
   return (
     <>
       <style>{signatureCss}</style>
-      <div className="signature-studio" style={accentStyle}>
+      <div className="signature-studio" data-brand={brand} style={accentStyle}>
         <ControlPanel
           brand={brand}
           form={form}
@@ -324,8 +324,23 @@ const signatureCss = `
 .signature-studio .sg-brand-chip.active { border-color: var(--sg-accent); }
 
 .signature-studio .sg-hint { font-size: 10px; color: var(--sg-fg2); line-height: 1.5; margin-top: 7px; }
-.signature-studio .sg-hint a { color: var(--sg-accent); text-decoration: none; font-weight: 600; }
+.signature-studio .sg-hint a { color: var(--sg-accent-text, var(--sg-accent)); text-decoration: none; font-weight: 600; }
 .signature-studio .sg-hint a:hover { text-decoration: underline; }
+
+/* Shamwari's dark-mode sodalite accent (#3d5afe) is too mid-toned to pair
+ * safely with this app's fixed accent-foreground defaults — confirmed via
+ * Mzizi's own contrast checker: near-black button text scores 3.42:1
+ * (fails WCAG AA's 4.5:1), and the raw accent as link text on the dark
+ * panel scores 3.73:1 (also fails). Every other brand's accent already
+ * clears AA against both defaults, so this is a one-brand override, not a
+ * global change. Plain white clears the button case (5.13:1); Mzizi's own
+ * on_container_dark tone for sodalite (#c5cae9) — designed for exactly
+ * this "accent-tinted text on a dark surface" case — clears the link case
+ * (11.85:1). */
+[data-theme='dark'] .signature-studio[data-brand='shamwari'] {
+  --sg-accent-fg: #ffffff;
+  --sg-accent-text: #c5cae9;
+}
 
 /* Stage */
 .signature-studio .sg-stage {
@@ -374,7 +389,7 @@ const signatureCss = `
   display: inline-flex; align-items: center; height: 34px; padding: 0 16px; border-radius: 999px; border: 0;
   font-family: var(--font-sans); font-size: 12px; font-weight: 600; cursor: pointer; transition: opacity .15s;
 }
-.signature-studio .sg-btn-act.primary { background: var(--sg-accent); color: var(--primary-foreground); }
+.signature-studio .sg-btn-act.primary { background: var(--sg-accent); color: var(--sg-accent-fg, var(--primary-foreground)); }
 .signature-studio .sg-btn-act.ghost { background: transparent; border: 1px solid var(--sg-line); color: var(--sg-fg); }
 .signature-studio .sg-btn-act:hover { opacity: .82; }
 
