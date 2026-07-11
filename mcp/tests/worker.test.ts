@@ -403,7 +403,7 @@ describe('POST /mcp — JSON-RPC', () => {
     expect(typeof meta.seed).toBe('number')
   })
 
-  it('generate_article_banner defaults to 16x9 and keeps markup escaped', async () => {
+  it('generate_article_banner defaults to square (ig) and keeps markup escaped', async () => {
     const res = await post(
       '/mcp',
       rpc(
@@ -419,9 +419,26 @@ describe('POST /mcp — JSON-RPC', () => {
     expect(body.error).toBeUndefined()
     const content = (body.result as { content: { text: string }[] }).content
     const svg = content[0].text
-    expect(svg).toContain('viewBox="0 0 1600 900"')
+    expect(svg).toContain('viewBox="0 0 1080 1080"')
     expect(svg).not.toContain('<script>')
     expect(svg).toContain('&lt;script&gt;')
+    const meta = JSON.parse(content[1].text) as { format: { w: number; h: number } }
+    expect(meta.format).toEqual({ w: 1080, h: 1080 })
+  })
+
+  it('generate_article_banner honors an explicit 16x9 format', async () => {
+    const res = await post(
+      '/mcp',
+      rpc(
+        'tools/call',
+        { name: 'generate_article_banner', arguments: { title: 'X', category: 'terracotta', format: '16x9' } },
+        29,
+      ),
+    )
+    const body = (await res.json()) as JsonRpcResponse
+    expect(body.error).toBeUndefined()
+    const content = (body.result as { content: { text: string }[] }).content
+    expect(content[0].text).toContain('viewBox="0 0 1600 900"')
     const meta = JSON.parse(content[1].text) as { format: { w: number; h: number } }
     expect(meta.format).toEqual({ w: 1600, h: 900 })
   })
