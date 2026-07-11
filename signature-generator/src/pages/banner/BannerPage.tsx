@@ -477,6 +477,12 @@ const bannerCss = `
   color: var(--foreground);
   box-shadow: var(--ring-1);
 }
+.banner-studio .bn-hint {
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--muted-foreground);
+  margin: var(--space-sm) 0 0;
+}
 
 /* category grid */
 .banner-studio .cats {
