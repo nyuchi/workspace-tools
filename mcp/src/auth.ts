@@ -31,7 +31,7 @@ export interface AuthEnv {
 
 // Must match the "AuthKit OAuth resource" registered in the WorkOS dashboard
 // for this integration — see the MCP_RESOURCE comment in wrangler.toml.
-export const DEFAULT_RESOURCE = "https://tools.nyuchi.com/mcp";
+export const DEFAULT_RESOURCE = "https://tools.nyuchi.dev/mcp";
 
 export function authConfigured(env: AuthEnv): boolean {
   return typeof env.AUTHKIT_DOMAIN === "string" && env.AUTHKIT_DOMAIN.length > 0;
@@ -51,7 +51,7 @@ export function issuerUrl(env: AuthEnv): string {
  * The `.well-known` discovery surface always lives at this origin's root,
  * never nested under whatever path the resource indicator itself uses.
  */
-function resourceOrigin(env: AuthEnv): string {
+export function resourceOrigin(env: AuthEnv): string {
   return new URL(resourceUrl(env)).origin;
 }
 

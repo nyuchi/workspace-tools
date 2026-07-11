@@ -1,11 +1,15 @@
 # nyuchi-tools Worker
 
-Source for the Cloudflare Worker that serves **all of `tools.nyuchi.com`**:
+Source for the Cloudflare Worker that serves **all of `tools.nyuchi.com`**
+(the site) **and `tools.nyuchi.dev`** (the canonical MCP endpoint — same
+Worker, same code, two Workers Custom Domains; see the `MCP_RESOURCE`
+comment in `../wrangler.toml` for why `/mcp` lives on a separate hostname):
 
 - `/mcp` — Model Context Protocol server (streamable-HTTP JSON-RPC) exposing
   `generate_email_signature`, `generate_studio_card`, and
   `generate_article_banner`. Has its own bearer-token gate (see below); never
-  double-gated by the site-wide login gate.
+  double-gated by the site-wide login gate. Reachable on both domains, but
+  `tools.nyuchi.dev/mcp` is the one advertised by discovery metadata.
 - `/.well-known/mcp/server-card.json` — static MCP Server Card (name,
   version, website, remote transport, capabilities) for agent-readiness
   scanners and MCP clients that discover servers this way instead of via
@@ -94,8 +98,9 @@ npm run deploy:tools   # build SPA + wrangler deploy
 ```
 
 `wrangler` reads `CLOUDFLARE_API_TOKEN` from the environment; the account is
-pinned in `wrangler.toml`. The custom domain `tools.nyuchi.com` is managed by
-Cloudflare (Workers Custom Domain on the `nyuchi.com` zone).
+pinned in `wrangler.toml`. Both custom domains are managed by Cloudflare:
+`tools.nyuchi.com` (Workers Custom Domain on the `nyuchi.com` zone) and
+`tools.nyuchi.dev` (Workers Custom Domain on the `nyuchi.dev` zone).
 
 For local testing only, pass a throwaway session secret since `wrangler.toml`
 deliberately has none:
