@@ -23,7 +23,7 @@ can use the same tools.
 | Gmail Add-on docs | [/gmail-addon](https://tools.nyuchi.com/gmail-addon) | Overview of the Gmail sidebar add-on and its admin web dashboard. |
 | Setup guide | [/setup](https://tools.nyuchi.com/setup) | Step-by-step clasp / Apps Script / domain-wide-delegation setup. |
 | Help | [/help](https://tools.nyuchi.com/help) | Per-tool usage guides, including how to connect the MCP server. |
-| MCP server | [/mcp](https://tools.nyuchi.com/mcp) | Streamable-HTTP MCP endpoint for AI agents (see below). |
+| MCP server | [tools.nyuchi.dev/mcp](https://tools.nyuchi.dev/mcp) | Streamable-HTTP MCP endpoint for AI agents (see below). |
 
 ## Repository layout
 
@@ -33,7 +33,7 @@ keep their own copy of the brand list, because Apps Script cannot import npm mod
 | Directory | Stack | Purpose | Deploys to |
 |-----------|-------|---------|------------|
 | `signature-generator/` | Astro + React 19 islands + TypeScript + [@bundu/ui](https://www.npmjs.com/package/@bundu/ui) | The web app: signature builder, Nyuchi Studio, banner generator, docs pages | Bundled into the `nyuchi-tools` Worker as static assets |
-| `mcp/src/` | Cloudflare Workers + Hono + `@modelcontextprotocol/sdk` | The `nyuchi-tools` Worker: serves the built static site **and** the MCP HTTP server | `tools.nyuchi.com` (config: root `wrangler.toml`) |
+| `mcp/src/` | Cloudflare Workers + Hono + `@modelcontextprotocol/sdk` | The `nyuchi-tools` Worker: serves the built static site **and** the MCP HTTP server | `tools.nyuchi.com` (site) + `tools.nyuchi.dev` (MCP) — same Worker, two Custom Domains (config: root `wrangler.toml`) |
 | `gmail-addon/` | Google Apps Script (V8) | Gmail Add-on (User + Admin tabs) and the admin web dashboard | Apps Script via clasp — see [gmail-addon/README.md](gmail-addon/README.md) |
 | `email-signature/` | Google Apps Script (V8) | Admin batch script: push signatures to all domain users and their aliases | Apps Script via clasp — see [email-signature/README.md](email-signature/README.md) |
 
@@ -93,7 +93,11 @@ delegation, testing) see [gmail-addon/README.md](gmail-addon/README.md),
 ## Deployment
 
 The whole web surface — static site **and** MCP — deploys as one Cloudflare
-Worker (`nyuchi-tools`) on the Workers Custom Domain `tools.nyuchi.com`:
+Worker (`nyuchi-tools`) on two Workers Custom Domains: `tools.nyuchi.com`
+(the site) and `tools.nyuchi.dev` (the canonical MCP endpoint — moved off
+`.com` after its `/mcp` traffic kept tripping Cloudflare's Layer 7 DDoS
+mitigation for legitimate MCP client traffic). Same code, same behavior on
+both:
 
 - `/mcp` and `/mcp/*` are handled by the Worker script (MCP JSON-RPC).
 - Everything else is served from the built Astro site in
@@ -114,7 +118,7 @@ The Worker hosts an MCP (Model Context Protocol) server so AI agents can generat
 signatures and design assets directly:
 
 ```
-https://tools.nyuchi.com/mcp
+https://tools.nyuchi.dev/mcp
 ```
 
 **Connect from claude.ai** — Settings → Connectors → Add custom connector, then
@@ -123,7 +127,7 @@ paste the endpoint URL.
 **Connect from Claude Code:**
 
 ```bash
-claude mcp add --transport http nyuchi-tools https://tools.nyuchi.com/mcp
+claude mcp add --transport http nyuchi-tools https://tools.nyuchi.dev/mcp
 ```
 
 | Tool | Status |
@@ -132,8 +136,9 @@ claude mcp add --transport http nyuchi-tools https://tools.nyuchi.com/mcp
 | `generate_studio_card` | Live — SVG from the same Studio engine as the `/studio` page, plus JSON metadata (size, seed) |
 | `generate_article_banner` | Live — SVG from the same banner engine as the `/banner` page, plus JSON metadata (size, seed) |
 
-The endpoint is currently open (no authentication). OAuth via WorkOS may be
-enabled later — clients will then be prompted to sign in when connecting.
+The endpoint requires a bearer token issued by WorkOS Connect (OAuth 2.1 +
+PKCE, dynamic client registration) — clients are prompted to sign in when
+connecting. See `/auth.md` on the endpoint for the full architecture.
 
 ## Supported brands
 

@@ -33,10 +33,21 @@ binding = "ASSETS"
 run_worker_first = true
 
 # Workers Custom Domain: Cloudflare creates and manages the DNS record and
-# certificate for tools.nyuchi.com itself, and the Worker receives all paths
-# on the hostname. The `nyuchi.com` zone must exist in Cloudflare.
+# certificate for each hostname, and the Worker receives all paths on both.
+# tools.nyuchi.com keeps serving the site (Studio/Signature/Banner, login
+# gate) — nothing about it changed. tools.nyuchi.dev is the canonical MCP
+# endpoint: tools.nyuchi.com/mcp kept tripping Cloudflare's Layer 7 DDoS
+# mitigation for legitimate MCP client traffic (confirmed via the zone's
+# firewall event log — a managed_challenge from a ruleset outside WAF's
+# reach, not Bot Fight Mode, and not something a WAF custom-rule skip can
+# bypass); the nyuchi.dev zone has no such accumulated traffic history.
+# Both zones must exist in Cloudflare.
 [[routes]]
 pattern = "tools.nyuchi.com"
+custom_domain = true
+
+[[routes]]
+pattern = "tools.nyuchi.dev"
 custom_domain = true
 
 [vars]
@@ -47,7 +58,10 @@ custom_domain = true
 # news.mukoko.com/mcp, mcp.mzizi.dev/mcp all use the /mcp suffix). Tokens
 # issued with a resource indicator only carry it as `aud` when it matches a
 # registered resource, so this must be exact, not just "the site's origin".
-MCP_RESOURCE = "https://tools.nyuchi.com/mcp"
+# tools.nyuchi.com/mcp remains reachable (same Worker, same code) but is no
+# longer the advertised resource — MCP_RESOURCE below is what discovery
+# metadata and audience checks use.
+MCP_RESOURCE = "https://tools.nyuchi.dev/mcp"
 # WorkOS Connect hosted auth (Connect app client_01KVTX0V2K1VM3PSC0DJ9VZWTV).
 # /mcp requires bearer JWTs issued by this authorization server; MCP clients
 # discover it via /.well-known/oauth-protected-resource and self-register
