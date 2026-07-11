@@ -11,11 +11,11 @@ interface Props {
   formatReadout: string
 }
 
-const FORMAT_OPTIONS: { v: FormatKey; label: string }[] = [
-  { v: '16x9', label: '16:9' },
-  { v: 'og',   label: 'OG' },
-  { v: 'li',   label: 'LinkedIn' },
-  { v: 'ig',   label: 'Square' },
+const FORMAT_OPTIONS: { v: FormatKey; label: string; desc: string }[] = [
+  { v: '16x9', label: '16:9', desc: 'Wide 1600×900 — an article hero image or blog-post header.' },
+  { v: 'og', label: 'OG', desc: 'Open Graph 1200×630 — the standard link-preview size for Slack, X, and iMessage unfurls.' },
+  { v: 'li', label: 'LinkedIn', desc: 'LinkedIn share image, 1200×627 — near-identical to OG, cropped for LinkedIn’s feed.' },
+  { v: 'ig', label: 'Square', desc: 'Square 1080×1080 — Instagram feed post, or any square social slot. The default.' },
 ]
 
 const LAYOUT_OPTIONS: { v: number; label: string; desc: string }[] = [
@@ -135,6 +135,7 @@ const ControlPanel = ({ state, setState, resolvedTheme, seedReadout, formatReado
       <div className="field">
         <label>Aspect</label>
         <Seg cols={4} value={state.format} options={FORMAT_OPTIONS} onChange={(v) => set('format', v)} />
+        <p className="bn-hint">{FORMAT_OPTIONS.find((o) => o.v === state.format)?.desc}</p>
       </div>
 
       <div className="field">
@@ -142,6 +143,9 @@ const ControlPanel = ({ state, setState, resolvedTheme, seedReadout, formatReado
         <Seg cols={4} value={state.layout} options={LAYOUT_OPTIONS} onChange={(v) => set('layout', v)} />
         <p className="bn-hint">{LAYOUT_OPTIONS.find((o) => o.v === state.layout)?.desc}</p>
       </div>
+      <p className="bn-hint" style={{ marginTop: '-8px' }}>
+        Aspect (shape) × Layout (composition) combine independently — all 16 pairings are valid.
+      </p>
 
       {/* Tweaks — the source kept these in a host-toggled floating panel;
           the SPA has no edit-mode host, so they live inline here. */}
