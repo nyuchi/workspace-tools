@@ -18,11 +18,27 @@ const FORMAT_OPTIONS: { v: FormatKey; label: string }[] = [
   { v: 'ig',   label: 'Square' },
 ]
 
-const LAYOUT_OPTIONS: { v: number; label: string }[] = [
-  { v: 1, label: '01 type' },
-  { v: 2, label: '02 anchor' },
-  { v: 3, label: '03 split' },
-  { v: 4, label: '04 halo' },
+const LAYOUT_OPTIONS: { v: number; label: string; desc: string }[] = [
+  {
+    v: 1,
+    label: '01 type',
+    desc: 'Type-forward — the headline fills most of the frame; kicker, dek, and lockup frame it, with the node graph subtle in the background.',
+  },
+  {
+    v: 2,
+    label: '02 anchor',
+    desc: 'Text sits left in a narrow column; a large node-graph mark anchors the right half as its own graphic block.',
+  },
+  {
+    v: 3,
+    label: '03 split',
+    desc: 'A solid mineral-colour panel (kicker + node graph + lockup) split against the headline on a dark panel — the boldest, most color-blocked option.',
+  },
+  {
+    v: 4,
+    label: '04 halo',
+    desc: 'Everything centered — kicker, headline, dek, lockup — with the node graph arcing around the text like a halo.',
+  },
 ]
 
 const BRAND_OPTIONS: { v: Brand; label: string }[] = [
@@ -43,7 +59,7 @@ const SURFACE_OPTIONS: { v: SurfaceMode; label: string }[] = [
 function Seg<V extends string | number>(props: {
   cols: 2 | 3 | 4
   value: V
-  options: { v: V; label: string }[]
+  options: { v: V; label: string; desc?: string }[]
   onChange: (v: V) => void
 }) {
   return (
@@ -53,6 +69,7 @@ function Seg<V extends string | number>(props: {
           key={String(o.v)}
           type="button"
           className={o.v === props.value ? 'active' : ''}
+          title={o.desc}
           onClick={() => props.onChange(o.v)}
         >
           {o.label}
@@ -123,6 +140,7 @@ const ControlPanel = ({ state, setState, resolvedTheme, seedReadout, formatReado
       <div className="field">
         <label>Layout</label>
         <Seg cols={4} value={state.layout} options={LAYOUT_OPTIONS} onChange={(v) => set('layout', v)} />
+        <p className="bn-hint">{LAYOUT_OPTIONS.find((o) => o.v === state.layout)?.desc}</p>
       </div>
 
       {/* Tweaks — the source kept these in a host-toggled floating panel;
