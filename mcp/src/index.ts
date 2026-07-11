@@ -202,7 +202,11 @@ function buildServer(env: Env): McpServer {
       title: "Generate Nyuchi Studio social card",
       description:
         "Generate a Nyuchi Studio social card as an SVG string (same engine as the /studio page). " +
-        "PNG rasterization is a follow-up. The second content item is JSON metadata: {format:{w,h}, seed}.",
+        "`format` (canvas shape) and `layout` (composition) are independent axes — every combination " +
+        "is valid, so pick each on its own merits rather than treating them as one choice. Default is " +
+        "format 'ig' (square) + layout 5 (mineral, a 'meet this mineral' educational card); use layouts " +
+        "1-4 for a title-first social card instead. PNG rasterization is a follow-up. The second content " +
+        "item is JSON metadata: {format:{w,h}, seed}.",
       inputSchema: {
         title: z.string().describe("Card title."),
         dek: z.string().optional().describe("Supporting line under the title."),
@@ -211,7 +215,14 @@ function buildServer(env: Env): McpServer {
           .enum(["ig", "story", "16x9", "og", "li"])
           .optional()
           .default("ig")
-          .describe("Canvas format (ig 1080x1080, story 1080x1920, 16x9 1600x900, og 1200x630, li 1200x627)."),
+          .describe(
+            "Canvas aspect ratio / target platform — independent of layout. " +
+              "'ig' Square 1080x1080 (default; Instagram feed or any square social slot). " +
+              "'story' 1080x1920 (Instagram/Facebook Story, full-bleed vertical). " +
+              "'16x9' 1600x900 (wide hero/header image). " +
+              "'og' 1200x630 (Open Graph link-preview unfurl for Slack/X/iMessage). " +
+              "'li' 1200x627 (LinkedIn share image, near-identical to og).",
+          ),
         layout: z
           .number()
           .int()
@@ -219,7 +230,17 @@ function buildServer(env: Env): McpServer {
           .max(5)
           .optional()
           .default(5)
-          .describe("Layout: 1 type, 2 anchor, 3 split, 4 halo, 5 mineral."),
+          .describe(
+            "Composition — independent of format, applies at any aspect ratio. " +
+              "5 mineral (default): a diagonal light/dark colour swatch for `category`'s mineral, with " +
+              "index/footnote/role overlaid — a 'meet this mineral' card, not a title-first design. " +
+              "1 type-forward: the headline dominates the frame, node graph subtle in the background — " +
+              "best for a punchy title with little else. " +
+              "2 anchor: text in a left column, a large node-graph mark anchored on the right half. " +
+              "3 split: a solid mineral-colour panel (with the node graph) split against the headline on " +
+              "a dark panel — the boldest, most color-blocked option. " +
+              "4 halo: everything centered, with the node graph arcing around the text like a halo.",
+          ),
         theme: z.enum(["light", "dark"]).optional().default("dark").describe("Surface theme."),
         eyebrow: z.string().optional().describe("Kicker line; defaults to '<Mineral> · <role>'."),
         index: z.string().optional().describe("Big index numeral on the mineral swatch (layout 5)."),
@@ -293,7 +314,12 @@ function buildServer(env: Env): McpServer {
       title: "Generate article banner",
       description:
         "Generate an article banner as an SVG string (same engine as the /banner page). " +
-        "PNG rasterization is a follow-up. The second content item is JSON metadata: {format:{w,h}, seed}.",
+        "`format` (canvas shape) and `layout` (composition) are independent axes — every combination " +
+        "is valid, so pick each on its own merits rather than treating them as one choice. Default is " +
+        "format 'ig' (square) + layout 1 (type-forward); reach for '16x9' when the banner needs a wide " +
+        "article-header shape, or 'og'/'li' for a link-preview unfurl. PNG rasterization is a follow-up. " +
+        "The second content item is JSON metadata: {format:{w,h}, seed}. Note: unlike " +
+        "generate_studio_card, this engine has no 'story' format and only layouts 1-4 (no mineral swatch).",
       inputSchema: {
         title: z.string().describe("Banner title."),
         dek: z.string().optional().describe("Supporting line under the title."),
@@ -301,8 +327,14 @@ function buildServer(env: Env): McpServer {
         format: z
           .enum(["16x9", "og", "li", "ig"])
           .optional()
-          .default("16x9")
-          .describe("Canvas format (16x9 1600x900, og 1200x630, li 1200x627, ig 1080x1080)."),
+          .default("ig")
+          .describe(
+            "Canvas aspect ratio / target platform — independent of layout. " +
+              "'ig' Square 1080x1080 (default; Instagram feed or any square social slot). " +
+              "'16x9' 1600x900 (wide article hero/header image). " +
+              "'og' 1200x630 (Open Graph link-preview unfurl for Slack/X/iMessage). " +
+              "'li' 1200x627 (LinkedIn share image, near-identical to og).",
+          ),
         layout: z
           .number()
           .int()
@@ -310,7 +342,15 @@ function buildServer(env: Env): McpServer {
           .max(4)
           .optional()
           .default(1)
-          .describe("Layout: 1 type-forward, 2 anchor, 3 split block, 4 centered halo."),
+          .describe(
+            "Composition — independent of format, applies at any aspect ratio. " +
+              "1 type-forward (default): the headline dominates the frame, node graph subtle in the " +
+              "background — best for a punchy title with little else. " +
+              "2 anchor: text in a left column, a large node-graph mark anchored on the right half. " +
+              "3 split: a solid mineral-colour panel (with the node graph) split against the headline on " +
+              "a dark panel — the boldest, most color-blocked option. " +
+              "4 halo: everything centered, with the node graph arcing around the text like a halo.",
+          ),
         theme: z.enum(["light", "dark"]).optional().default("dark").describe("Surface theme."),
         brand: z
           .enum(TOP_BRAND_KEYS)
@@ -336,7 +376,7 @@ function buildServer(env: Env): McpServer {
       await ensureBrandIconsLoaded(env.ASSETS);
       const layout = args.layout ?? 1;
       const params: BannerParams = {
-        format: args.format ?? "16x9",
+        format: args.format ?? "ig",
         layout,
         theme: args.theme ?? "dark",
         category: args.category,

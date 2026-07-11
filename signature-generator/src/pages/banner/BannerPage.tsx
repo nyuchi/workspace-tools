@@ -33,7 +33,7 @@ const INITIAL: BannerState = {
   title: 'Speed is rented. Truth is owned.',
   dek: 'A note on local-first software, the cost of being online, and what we owe to the next two billion devices.',
   category: 'cobalt',
-  format: '16x9',
+  format: 'ig',
   layout: 1,
   theme: 'auto',
   lattice: true,
