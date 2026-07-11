@@ -79,6 +79,7 @@ import {
   buildSVG as buildArticleBanner,
   type Params as BannerParams,
 } from "../../signature-generator/src/engines/banner";
+import { ensureBrandIconsLoaded } from "./brand-icons.js";
 
 /** One-line brand taxonomy, appended to every `brand` param description. */
 const BRAND_TAXONOMY =
@@ -150,7 +151,7 @@ class WorkerHttpTransport implements Transport {
 // MCP server + tool registrations.
 // -----------------------------------------------------------------------------
 
-function buildServer(): McpServer {
+function buildServer(env: Env): McpServer {
   const server = new McpServer({
     name: SERVER_NAME,
     version: SERVER_VERSION,
@@ -249,6 +250,7 @@ function buildServer(): McpServer {
       brand?: StudioParams["brand"];
       seedKey?: string;
     }) => {
+      await ensureBrandIconsLoaded(env.ASSETS);
       const layout = args.layout ?? 5;
       const params: StudioParams = {
         format: args.format ?? "ig",
@@ -331,6 +333,7 @@ function buildServer(): McpServer {
       brand?: BannerParams["brand"];
       seedKey?: string;
     }) => {
+      await ensureBrandIconsLoaded(env.ASSETS);
       const layout = args.layout ?? 1;
       const params: BannerParams = {
         format: args.format ?? "16x9",
@@ -631,7 +634,7 @@ app.post("/mcp", async (c) => {
   }
 
   const messages = Array.isArray(body) ? body : [body];
-  const server = buildServer();
+  const server = buildServer(c.env);
   const transport = new WorkerHttpTransport();
   await server.connect(transport);
 

@@ -38,6 +38,20 @@ const SITE_ENV = { SESSION_SECRET: TEST_SESSION_SECRET }
  * (`app.all("*", (c) => c.env.ASSETS.fetch(...))`) provide this instead. */
 const ASSETS_STUB = { fetch: async () => new Response('stub-asset') }
 
+/** Stub ASSETS binding that answers brand-icon `.b64.txt` requests with a
+ * fixed fake payload, so tests can verify generate_studio_card/
+ * generate_article_banner actually embed a real per-brand icon (via
+ * mcp/src/brand-icons.ts) instead of falling back to the engines' generic
+ * placeholder mark — the exact bug this guards against regressing to. */
+const FAKE_ICON_B64 = 'ZmFrZS1pY29uLWJ5dGVz'
+const ICON_ASSETS_STUB = {
+  fetch: async (req: Request) => {
+    const url = new URL(req.url)
+    if (url.pathname.endsWith('.b64.txt')) return new Response(FAKE_ICON_B64)
+    return new Response('not found', { status: 404 })
+  },
+}
+
 type Env = Record<string, unknown>
 
 function get(path: string, env: Env = OPEN_ENV, headers?: HeadersInit): Promise<Response> {
@@ -465,6 +479,53 @@ describe('POST /mcp — JSON-RPC', () => {
     const result = body.result as { isError: boolean; content: { text: string }[] }
     expect(result.isError).toBe(true)
     expect(result.content[0].text).toContain('-32602')
+  })
+
+  // These two run last in the describe block: loading brand icons populates
+  // a module-level cache shared by every call in this test file (mirroring
+  // one Worker isolate's lifetime), so once these run, every studio/banner
+  // test after them would also see real icons instead of the wordmark-only
+  // fallback the tests above assert around.
+  it('generate_studio_card embeds the real brand icon when ASSETS is available', async () => {
+    const res = await post(
+      '/mcp',
+      rpc(
+        'tools/call',
+        {
+          name: 'generate_studio_card',
+          arguments: { title: 'What is nhimbe?', category: 'malachite', brand: 'mukoko' },
+        },
+        18,
+      ),
+      { ...OPEN_ENV, ASSETS: ICON_ASSETS_STUB },
+    )
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as JsonRpcResponse
+    expect(body.error).toBeUndefined()
+    const svg = (body.result as { content: { text: string }[] }).content[0].text
+    expect(svg).toContain(`<image href="data:image/png;base64,${FAKE_ICON_B64}"`)
+    expect(svg).toContain('>mukoko.com</text>')
+  })
+
+  it('generate_article_banner embeds the real brand icon when ASSETS is available', async () => {
+    const res = await post(
+      '/mcp',
+      rpc(
+        'tools/call',
+        {
+          name: 'generate_article_banner',
+          arguments: { title: 'X', category: 'malachite', brand: 'mukoko' },
+        },
+        19,
+      ),
+      { ...OPEN_ENV, ASSETS: ICON_ASSETS_STUB },
+    )
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as JsonRpcResponse
+    expect(body.error).toBeUndefined()
+    const svg = (body.result as { content: { text: string }[] }).content[0].text
+    expect(svg).toContain(`<image href="data:image/png;base64,${FAKE_ICON_B64}"`)
+    expect(svg).toContain('>mukoko.com</text>')
   })
 
   it('malformed JSON gets a -32700 parse error with HTTP 400', async () => {
