@@ -88,7 +88,7 @@ Key properties:
 
 ## 5. Google-side setup (Bryan, one-time — Phase 1 prerequisite)
 
-1. GCP project (reuse the Apps Script one or create `nyuchi-signature-console`): enable **Gmail API** + **Admin SDK**.
+1. ~~GCP project: enable **Gmail API** + **Admin SDK**.~~ **Already done** (2026-07-21, per Bryan — the existing Apps Script project's APIs are enabled; reuse that project for the OAuth client + service account below).
 2. OAuth consent screen (internal) + **Web application OAuth client**; redirect URI `https://tools.nyuchi.com/api/google/callback` → `GOOGLE_CLIENT_ID` var, `GOOGLE_CLIENT_SECRET` secret.
 3. **Service account** (no key download needed if we use DWD via JWT with a key — practically: create key, store as `GOOGLE_SA_KEY` secret; rotate on a schedule).
 4. Admin Console → Security → API controls → **Domain-wide delegation**: authorize the SA's client ID for `https://www.googleapis.com/auth/gmail.settings.sharing` (and `.basic`).
@@ -105,3 +105,4 @@ Key properties:
 ## 7. Decision log
 
 - 2026-07-21 — Architecture: **Worker-native console** (over Apps-Script-backend uplift). Plan-doc-first before implementation. Banner removal (#41) precedes this work.
+- 2026-07-21 — Implementation started in parallel (five worktree agents: render API, Apps Script rewiring, OAuth+self-insert, admin APIs, console UI), everything Google-facing fail-closed behind mocks. Gmail API + Admin SDK confirmed **already enabled** in the GCP project; remaining Google-side setup is only §5 steps 2–5 (OAuth web client + secret, service-account key, DWD grant, `wrangler secret put`).
