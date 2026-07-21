@@ -748,6 +748,56 @@ describe('generate_studio_card — returnFormat / upload', () => {
     expect(meta.format).toEqual({ w: 1080, h: 1080 })
   })
 
+  it("upload:true + returnFormat 'png' uploads AND returns the pixels, with the url in metadata", async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          success: true,
+          result: { id: 'both-1', variants: ['https://imagedelivery.net/h/both-1/public'] },
+        }),
+        { status: 200 },
+      ),
+    )
+    const res = await post(
+      '/mcp',
+      rpc(
+        'tools/call',
+        {
+          name: 'generate_studio_card',
+          arguments: { title: 'Both', category: 'gold', layout: 1, upload: true, returnFormat: 'png' },
+        },
+        46,
+      ),
+      UPLOAD_ENV,
+    )
+    const body = (await res.json()) as JsonRpcResponse
+    expect(body.error).toBeUndefined()
+    const content = (body.result as { content: { type: string; mimeType?: string; text?: string }[] }).content
+    expect(content[0].type).toBe('image')
+    const meta = JSON.parse(content[1].text!) as { url?: string; id?: string }
+    expect(meta.url).toBe('https://imagedelivery.net/h/both-1/public')
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+  })
+
+  it("upload:true + returnFormat 'svg' is rejected — nothing would be uploaded", async () => {
+    const res = await post(
+      '/mcp',
+      rpc(
+        'tools/call',
+        {
+          name: 'generate_studio_card',
+          arguments: { title: 'X', category: 'gold', upload: true, returnFormat: 'svg' },
+        },
+        47,
+      ),
+      UPLOAD_ENV,
+    )
+    const body = (await res.json()) as JsonRpcResponse
+    const result = body.result as { isError: boolean; content: { text: string }[] }
+    expect(result.isError).toBe(true)
+    expect(result.content[0].text).toContain("cannot be combined")
+  })
+
   it("returnFormat 'url' fails closed with a clear message when Images is unconfigured", async () => {
     const res = await post(
       '/mcp',
@@ -887,6 +937,31 @@ describe('upload_asset', () => {
     const file = (init.body as FormData).get('file') as Blob
     expect(file.type).toBe('image/png')
     expect([...new Uint8Array((await file.arrayBuffer()).slice(0, 8))]).toEqual(PNG_MAGIC)
+  })
+
+  it('an empty-string pngBase64 alongside svg dispatches to the svg path (not a decode error)', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          success: true,
+          result: { id: 'empty-png-1', variants: ['https://imagedelivery.net/h/empty-png-1/public'] },
+        }),
+        { status: 200 },
+      ),
+    )
+    const svg =
+      '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"><rect width="20" height="20" fill="#64FFDA"/></svg>'
+    const res = await post(
+      '/mcp',
+      rpc('tools/call', { name: 'upload_asset', arguments: { svg, pngBase64: '' } }, 55),
+      UPLOAD_ENV,
+    )
+    const body = (await res.json()) as JsonRpcResponse
+    expect(body.error).toBeUndefined()
+    const result = body.result as { isError?: boolean; content: { text: string }[] }
+    expect(result.isError).toBeFalsy()
+    const file = (fetchSpy.mock.calls[0][1] as RequestInit).body as FormData
+    expect((file.get('file') as Blob).type).toBe('image/png')
   })
 
   it('rejects a payload with both svg and pngBase64', async () => {

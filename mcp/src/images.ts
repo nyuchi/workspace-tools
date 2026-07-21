@@ -67,7 +67,8 @@ export async function uploadImage(
 ): Promise<UploadResult> {
   if (!imagesConfigured(env)) {
     throw new Error(
-      "Image upload is not configured on this server (CF_IMAGES_ACCOUNT_ID / CF_IMAGES_TOKEN unset).",
+      "Image upload is not configured on this server (CF_IMAGES_ACCOUNT_ID plus the " +
+        "CF_IMAGES_TOKEN — or legacy CF_IMAGE_TOKEN — secret are required).",
     );
   }
   if (bytes.length === 0) {

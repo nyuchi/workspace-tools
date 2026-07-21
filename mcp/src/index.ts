@@ -75,6 +75,7 @@ import {
 import { TOP_BRAND_KEYS } from "../../signature-generator/src/engines/brands";
 import {
   buildSVG as buildStudioCard,
+  HEX_COLOR_RE,
   type Params as StudioParams,
 } from "../../signature-generator/src/engines/nyuchi";
 import {
@@ -82,7 +83,7 @@ import {
   type Params as BannerParams,
 } from "../../signature-generator/src/engines/banner";
 import { ensureBrandIconsLoaded } from "./brand-icons.js";
-import { rasterizeSvg } from "./raster.js";
+import { rasterizeSvg, warmRaster } from "./raster.js";
 import {
   imagesConfigured,
   MAX_UPLOAD_BYTES,
@@ -332,7 +333,7 @@ function buildServer(env: Env): McpServer {
           ),
         dekColor: z
           .string()
-          .regex(/^#[0-9a-fA-F]{3,8}$/)
+          .regex(HEX_COLOR_RE)
           .optional()
           .describe(
             "Dek fill as a hex color. Default: the surface foreground (#FAF9F5 on dark, #141413 on " +
@@ -343,7 +344,9 @@ function buildServer(env: Env): McpServer {
           .optional()
           .describe(
             "Rasterize server-side and upload to Cloudflare Images; flips the default returnFormat " +
-              "to 'url'. Requires the server to be configured with Cloudflare Images credentials.",
+              "to 'url'. Combine with returnFormat 'png' to upload AND receive the pixels inline " +
+              "(the metadata then carries the url); combining with 'svg' is an error. Requires the " +
+              "server to be configured with Cloudflare Images credentials.",
           ),
         returnFormat: z
           .enum(["url", "png", "svg"])
@@ -384,7 +387,6 @@ function buildServer(env: Env): McpServer {
       returnFormat?: "url" | "png" | "svg";
       uploadKey?: string;
     }) => {
-      await ensureBrandIconsLoaded(env.ASSETS);
       const layout = args.layout ?? 5;
       const params: StudioParams = {
         format: args.format ?? "ig",
@@ -410,8 +412,19 @@ function buildServer(env: Env): McpServer {
         // Same derivation as the SPA (salt 0).
         seedKey: args.seedKey ?? `${args.title}${args.category}${layout}0`,
       };
-      const { svg, format, seed } = buildStudioCard(params);
       const returnFormat = args.returnFormat ?? (args.upload ? "url" : "svg");
+      if (args.upload && returnFormat === "svg") {
+        throw new Error(
+          "upload:true cannot be combined with returnFormat 'svg' — nothing would be uploaded. " +
+            "Use 'url' (the default with upload), 'png' (uploads AND returns the pixels inline), " +
+            "or drop upload.",
+        );
+      }
+      const wantUpload = Boolean(args.upload) || returnFormat === "url";
+      // Overlap rasterizer cold-start (wasm + fonts) with icon loading.
+      if (returnFormat !== "svg") warmRaster(env.ASSETS);
+      await ensureBrandIconsLoaded(env.ASSETS);
+      const { svg, format, seed } = buildStudioCard(params);
 
       if (returnFormat === "svg") {
         return {
@@ -423,26 +436,36 @@ function buildServer(env: Env): McpServer {
       }
 
       const png = await rasterizeSvg(svg, env.ASSETS);
+      let uploaded: { url: string; id: string } | undefined;
+      if (wantUpload) {
+        if (!imagesConfigured(env)) {
+          throw new Error(
+            "Uploading needs Cloudflare Images configured on this server (CF_IMAGES_ACCOUNT_ID " +
+              "plus the CF_IMAGES_TOKEN — or legacy CF_IMAGE_TOKEN — secret). " +
+              "Use returnFormat 'png' or 'svg' without upload instead.",
+          );
+        }
+        uploaded = await uploadImage(env, png, {
+          id: sanitizeKey(args.uploadKey),
+          contentType: "image/png",
+        });
+      }
+
       if (returnFormat === "png") {
+        const meta = {
+          format: { w: format.w, h: format.h },
+          seed,
+          ...(uploaded ? { url: uploaded.url, id: uploaded.id } : {}),
+        };
         return {
           content: [
             { type: "image", data: bytesToBase64(png), mimeType: "image/png" },
-            { type: "text", text: JSON.stringify({ format: { w: format.w, h: format.h }, seed }) },
+            { type: "text", text: JSON.stringify(meta) },
           ],
         };
       }
 
-      if (!imagesConfigured(env)) {
-        throw new Error(
-          "returnFormat 'url' needs Cloudflare Images configured on this server " +
-            "(CF_IMAGES_ACCOUNT_ID / CF_IMAGES_TOKEN). Use returnFormat 'png' or 'svg' instead.",
-        );
-      }
-      const { url, id } = await uploadImage(env, png, {
-        id: sanitizeKey(args.uploadKey),
-        contentType: "image/png",
-      });
-      const payload = { url, id, width: format.w, height: format.h, seed };
+      const payload = { url: uploaded!.url, id: uploaded!.id, width: format.w, height: format.h, seed };
       return {
         content: [{ type: "text", text: JSON.stringify(payload) }],
         structuredContent: payload,
@@ -504,6 +527,8 @@ function buildServer(env: Env): McpServer {
       key?: string;
       contentType?: "image/png" | "image/svg+xml";
     }) => {
+      // Truthiness on purpose, and the same predicate drives the dispatch
+      // below — an empty-string pngBase64 must not shadow a valid svg.
       if ((args.svg ? 1 : 0) + (args.pngBase64 ? 1 : 0) !== 1) {
         throw new Error("Provide exactly one of `svg` or `pngBase64`.");
       }
@@ -516,7 +541,7 @@ function buildServer(env: Env): McpServer {
 
       let bytes: Uint8Array;
       let contentType: "image/png" | "image/svg+xml";
-      if (args.pngBase64 !== undefined) {
+      if (args.pngBase64) {
         try {
           bytes = base64ToBytes(args.pngBase64);
         } catch {

@@ -29,9 +29,23 @@ const FONT_PATHS = [
 let wasmReady: Promise<void> | null = null;
 function ensureWasm(): Promise<void> {
   if (!wasmReady) {
-    wasmReady = initWasm(wasmModule);
+    // Like fontsCache below: never cache a failure — a transient
+    // instantiation error must not poison the isolate for its lifetime.
+    wasmReady = initWasm(wasmModule).catch((err) => {
+      wasmReady = null;
+      throw err;
+    });
   }
   return wasmReady;
+}
+
+/** Optional warm-up: start wasm init + font fetches without rendering, so
+    callers can overlap them with other cold-start work. Errors surface on
+    the eventual rasterizeSvg call, not here. */
+export function warmRaster(assets: Fetcher | undefined): void {
+  if (!assets) return;
+  ensureWasm().catch(() => {});
+  loadFonts(assets).catch(() => {});
 }
 
 let fontsCache: Promise<Uint8Array[]> | null = null;

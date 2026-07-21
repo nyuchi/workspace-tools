@@ -347,7 +347,12 @@ function fitText(text: string, maxW: number, maxLines: number, fontStr: string, 
   while (size > minSz) {
     const font = fontStr.replace('__SZ__', size + 'px')
     const lines = wrap(text, maxW, font)
-    if (lines.length <= maxLines) return { size, lines, font }
+    /* A single unbreakable word wraps to one "line" that can still exceed
+       maxW — shrink for that too, or long one-word titles overflow the
+       frame at full size. */
+    if (lines.length <= maxLines && lines.every((l) => measure(l, font) <= maxW)) {
+      return { size, lines, font }
+    }
     size -= 2
   }
   const font = fontStr.replace('__SZ__', minSz + 'px')
@@ -358,6 +363,12 @@ function esc(s: string): string {
     { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string
   ))
 }
+
+/** Valid CSS hex colors only: #rgb, #rgba, #rrggbb, #rrggbbaa. (A plain
+    {3,8} quantifier would admit 5- and 7-digit strings, which SVG
+    renderers silently drop — the dek would paint in inherited black.)
+    Shared with the MCP tool schema. */
+export const HEX_COLOR_RE = /^#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/
 
 /* ── Marks ──────────────────────────────────────────────────────────────── */
 const MNODES: [number, number][] = [[60, 50], [140, 60], [50, 130], [100, 110], [160, 130], [90, 165], [120, 165]]
@@ -452,8 +463,10 @@ interface Ctx {
   dekSize?: number
   /** Dark theme only: draw a radial mineral glow behind the graph region. */
   glow: boolean
-  /** Filled eyebrow-chip colors (mineral chip on light/dark, ink chip on accent). */
-  chipBg: string
+  /** Full-bleed mineral surface (theme 'accent'). */
+  accent: boolean
+  /** Eyebrow-chip text color; the chip background is always cat.color
+      (ink on accent, the mineral hex otherwise). */
   chipFg: string
   seed: number
   eyebrow: string
@@ -524,16 +537,18 @@ function chipTextColor(bg: string): string {
   return relLum(bg) > 0.179 ? '#0F0E0C' : '#FFFFFF'
 }
 
+/** Chip width including the letter-spacing the emitted <text> carries —
+    measure() alone omits tracking, which made long eyebrows overflow the
+    pill. Single source of truth: drawChip uses this too. */
 function chipWidth(text: string, fs: number): number {
-  return measure(text, `600 ${fs}px "JetBrains Mono",monospace`) + Math.round(fs * 1.3) * 2
+  const tracked = measure(text, `600 ${fs}px "JetBrains Mono",monospace`) + text.length * fs * 0.12
+  return tracked + Math.round(fs * 1.3) * 2
 }
 
 /** Filled pill chip for the eyebrow — a solid color anchor at the top of
     the card, replacing the old small mono text line. */
 function drawChip(x: number, y: number, text: string, fs: number, bg: string, fg: string): { svg: string; w: number; h: number } {
-  const padX = Math.round(fs * 1.3)
-  const tw = measure(text, `600 ${fs}px "JetBrains Mono",monospace`)
-  const pw = tw + padX * 2
+  const pw = chipWidth(text, fs)
   const ph = Math.round(fs * 2.2)
   let s = `<rect x="${x}" y="${y}" width="${pw.toFixed(1)}" height="${ph}" rx="${ph / 2}" fill="${bg}"/>`
   s += `<text x="${(x + pw / 2).toFixed(1)}" y="${(y + ph * 0.665).toFixed(1)}" text-anchor="middle" font-family="JetBrains Mono,monospace" font-weight="600" font-size="${fs}" letter-spacing="${(fs * 0.12).toFixed(1)}" fill="${fg}">${esc(text)}</text>`
@@ -570,7 +585,7 @@ function layoutType(ctx: Ctx): string {
   svg += drawGraph(g, { color: cat.color, edgeOpacity: 0.6, nodeOpacity: 0.9, strokeWidth: Math.max(4, w / 380), nodeRadius: nr, coreRadius: cr })
 
   const cfs = Math.round(w * 0.015)
-  const chip = drawChip(pad, pad, eyebrow.toUpperCase(), cfs, ctx.chipBg, ctx.chipFg)
+  const chip = drawChip(pad, pad, eyebrow.toUpperCase(), cfs, cat.color, ctx.chipFg)
   svg += chip.svg
   svg += `<text x="${w - pad}" y="${(pad + chip.h * 0.665).toFixed(1)}" text-anchor="end" font-family="JetBrains Mono,monospace" font-size="${Math.round(w * 0.013)}" fill="${surface.mut}">NYUCHI · O2</text>`
   const ruleY = pad + chip.h + 16
@@ -612,7 +627,7 @@ function layoutAnchor(ctx: Ctx): string {
 
   const cfs = Math.round(w * 0.013)
   const chipY = Math.round(pad * 0.75)
-  const chip = drawChip(pad, chipY, eyebrow.toUpperCase(), cfs, ctx.chipBg, ctx.chipFg)
+  const chip = drawChip(pad, chipY, eyebrow.toUpperCase(), cfs, cat.color, ctx.chipFg)
   svg += chip.svg
   const tsY = chipY + chip.h + Math.round(h * 0.06)
 
@@ -679,16 +694,33 @@ function layoutHalo(ctx: Ctx): string {
 
   const cfs = Math.round(w * 0.013)
   const chipText = eyebrow.toUpperCase()
-  const chip = drawChip((w - chipWidth(chipText, cfs)) / 2, Math.round(pad * 0.8), chipText, cfs, ctx.chipBg, ctx.chipFg)
+  const chip = drawChip((w - chipWidth(chipText, cfs)) / 2, Math.round(pad * 0.8), chipText, cfs, cat.color, ctx.chipFg)
   svg += chip.svg
 
   const tfw = w * 0.76
+  const sb = safeBottom(h, pad, opts.lockup)
   const tStart = Math.round(h * 0.085)
   const tfit = fitTitleHook(title || '', tfw, 3, '700 __SZ__ "Noto Serif",Georgia,serif', tStart, Math.round(h * 0.05), Math.round(h * 0.15))
   const tlh = tfit.size * 1.06
   const tblk = tfit.lines.length * tlh
-  const dfit = fitDek(ctx, Math.min(tfit.size, tStart), w * 0.65, 3)
-  const total = tblk + Math.round(h * 0.04) + dfit.lines.length * dfit.size * 1.3
+  const gapT = Math.round(h * 0.04)
+  const gapDek = Math.round(h * 0.035)
+  /* Budget the dek against safeBottom from its centered position, like the
+     non-centered layouts do — otherwise the loop below clips mid-sentence
+     while the opaque scrim stays sized for the missing lines. The title
+     block extends 0.88×ts (first baseline) + tblk below ty; the dek needs
+     its gap plus 0.58×s beyond the n×1.3×s line metric (ascent + descent). */
+  const dekRef = Math.min(tfit.size, tStart)
+  let dfit = fitDek(ctx, dekRef, w * 0.65, 3)
+  for (let i = 0; i < 3; i++) {
+    const ty0 = (h - (tblk + gapT + dfit.lines.length * dfit.size * 1.3)) / 2
+    const dekTop = ty0 + tfit.size * 0.88 + tblk
+    const avail = sb - dekTop
+    const need = gapDek + dfit.size * 0.58 + dfit.lines.length * dfit.size * 1.3
+    if (need <= avail) break
+    dfit = fitDek(ctx, dekRef, w * 0.65, 3, Math.max(20, avail - gapDek - dfit.size * 0.6))
+  }
+  const total = tblk + gapT + dfit.lines.length * dfit.size * 1.3
   const ty = (h - total) / 2
 
   /* Fully opaque scrim: the halo graph must never bleed through the text. */
@@ -702,7 +734,6 @@ function layoutHalo(ctx: Ctx): string {
   }
   svg += `<line x1="${w / 2 - 26}" y1="${tcy}" x2="${w / 2 + 26}" y2="${tcy}" stroke="${cat.color}" stroke-width="2" stroke-linecap="round"/>`
 
-  const sb = safeBottom(h, pad, opts.lockup)
   /* First baseline clears the divider by the dek's own ascent (like drawDek). */
   let dy = tcy + Math.round(h * 0.035) + dfit.size * 0.88
   for (const line of dfit.lines) {
@@ -723,7 +754,7 @@ function sqType(ctx: Ctx): string {
   if (opts.lattice) svg += drawEngBackground(w, h, surface.fg)
 
   const cfs = Math.round(w * 0.022)
-  const chip = drawChip(pad, pad, eyebrow.toUpperCase(), cfs, ctx.chipBg, ctx.chipFg)
+  const chip = drawChip(pad, pad, eyebrow.toUpperCase(), cfs, cat.color, ctx.chipFg)
   svg += chip.svg
   svg += `<text x="${w - pad}" y="${(pad + chip.h * 0.665).toFixed(1)}" text-anchor="end" font-family="JetBrains Mono,monospace" font-size="${Math.round(w * 0.016)}" fill="${surface.mut}">NYUCHI · O2</text>`
   const ruleY = pad + chip.h + 18
@@ -776,7 +807,7 @@ function sqAnchor(ctx: Ctx): string {
 
   const cfs = Math.round(w * 0.02)
   const chipY = ruleY + 20
-  const chip = drawChip(pad, chipY, eyebrow.toUpperCase(), cfs, ctx.chipBg, ctx.chipFg)
+  const chip = drawChip(pad, chipY, eyebrow.toUpperCase(), cfs, cat.color, ctx.chipFg)
   svg += chip.svg
 
   const sb = safeBottom(h, pad, opts.lockup)
@@ -836,15 +867,29 @@ function sqHalo(ctx: Ctx): string {
 
   const cfs = Math.round(w * 0.02)
   const chipText = eyebrow.toUpperCase()
-  const chip = drawChip((w - chipWidth(chipText, cfs)) / 2, Math.round(pad * 0.8), chipText, cfs, ctx.chipBg, ctx.chipFg)
+  const chip = drawChip((w - chipWidth(chipText, cfs)) / 2, Math.round(pad * 0.8), chipText, cfs, cat.color, ctx.chipFg)
   svg += chip.svg
 
   const tfw = w * 0.76
+  const sb = safeBottom(h, pad, opts.lockup)
   const tStart = Math.round(h * 0.062)
   const tfit = fitTitleHook(title || '', tfw, 3, '700 __SZ__ "Noto Serif",Georgia,serif', tStart, Math.round(h * 0.044), Math.round(h * 0.15))
   const tlh = tfit.size * 1.06, tblk = tfit.lines.length * tlh
-  const dfit = fitDek(ctx, Math.min(tfit.size, tStart), w * 0.7, 3)
-  const total = tblk + Math.round(h * 0.045) + dfit.lines.length * dfit.size * 1.3
+  const gapT = Math.round(h * 0.045)
+  const gapDek = Math.round(h * 0.034)
+  /* Same safeBottom budget as layoutHalo — shrink the dek instead of
+     clipping it under an opaque scrim sized for the missing lines. */
+  const dekRef = Math.min(tfit.size, tStart)
+  let dfit = fitDek(ctx, dekRef, w * 0.7, 3)
+  for (let i = 0; i < 3; i++) {
+    const ty0 = (h - (tblk + gapT + dfit.lines.length * dfit.size * 1.3)) / 2
+    const dekTop = ty0 + tfit.size * 0.88 + tblk
+    const avail = sb - dekTop
+    const need = gapDek + dfit.size * 0.58 + dfit.lines.length * dfit.size * 1.3
+    if (need <= avail) break
+    dfit = fitDek(ctx, dekRef, w * 0.7, 3, Math.max(20, avail - gapDek - dfit.size * 0.6))
+  }
+  const total = tblk + gapT + dfit.lines.length * dfit.size * 1.3
   const ty = (h - total) / 2
 
   /* Fully opaque scrim: the halo graph must never bleed through the text. */
@@ -858,7 +903,6 @@ function sqHalo(ctx: Ctx): string {
   }
   svg += `<line x1="${w / 2 - 26}" y1="${tcy}" x2="${w / 2 + 26}" y2="${tcy}" stroke="${cat.color}" stroke-width="2" stroke-linecap="round"/>`
 
-  const sb = safeBottom(h, pad, opts.lockup)
   /* First baseline clears the divider by the dek's own ascent (like drawDek). */
   let dy = tcy + Math.round(h * 0.034) + dfit.size * 0.88
   for (const line of dfit.lines) {
@@ -927,6 +971,11 @@ function layoutMineral(ctx: Ctx): string {
   const eg = makeGraph(seed, 7, { x: swX + gpad, y: swY + gpad, w: swW * 0.34, h: swH - gpad * 2 }, { k: 2, minDist: swH * 0.16, inset: 6 })
   svg += drawGraph(eg, { color: txtOn(cat.dark), edgeOpacity: 0.3, nodeOpacity: 0.5, strokeWidth: Math.max(1.5, w / 900), nodeRadius: Math.max(3, w / 240), coreRadius: Math.max(5, w / 170) })
   svg += `</g>`
+  if (ctx.accent) {
+    /* On the accent surface the swatch's dark half is the same hex as the
+       card background — outline the swatch so it keeps its silhouette. */
+    svg += `<rect x="${swX}" y="${swY}" width="${swW}" height="${swH}" rx="${rx}" fill="none" stroke="rgba(15,14,12,.4)" stroke-width="${Math.max(2, w / 540)}"/>`
+  }
 
   const idxFs = Math.round(swH * 0.16)
   if (opts.index) svg += `<text x="${swX + swW * 0.05}" y="${(swY + swH * 0.05 + idxFs).toFixed(1)}" font-family="Noto Serif,Georgia,serif" font-weight="700" font-size="${idxFs}" fill="${txtOn(cat.dark)}">${esc(opts.index)}</text>`
@@ -1006,7 +1055,7 @@ export function buildSVG(p: Params): BuildResult {
   const eyebrow = (p.eyebrow && p.eyebrow.trim()) || (catDef.name + ' · ' + catDef.role)
   const seed = hash((p.seedKey || '') + p.category + p.layout)
   const dekFill =
-    p.dekColor && /^#[0-9a-fA-F]{3,8}$/.test(p.dekColor) ? p.dekColor : surface.fg
+    p.dekColor && HEX_COLOR_RE.test(p.dekColor) ? p.dekColor : surface.fg
   const dekSize =
     typeof p.dekFontSize === 'number' && Number.isFinite(p.dekFontSize) && p.dekFontSize >= 10
       ? Math.round(p.dekFontSize)
@@ -1017,7 +1066,7 @@ export function buildSVG(p: Params): BuildResult {
     dek: p.dek || '',
     dekFill, dekSize,
     glow: themeKey === 'dark',
-    chipBg: themeKey === 'accent' ? '#0F0E0C' : accentColor,
+    accent: themeKey === 'accent',
     chipFg: themeKey === 'accent' ? catDef.dark : chipTextColor(accentColor),
     seed, eyebrow,
     opts: {

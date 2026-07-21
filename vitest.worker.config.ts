@@ -1,4 +1,3 @@
-import { readFileSync } from 'node:fs'
 import { defineConfig, type Plugin } from 'vitest/config'
 
 // mcp/src/raster.ts imports @resvg/resvg-wasm's binary the way Wrangler's
@@ -12,11 +11,12 @@ const compiledWasm: Plugin = {
   enforce: 'pre',
   load(id) {
     if (!id.endsWith('.wasm')) return null
-    const bytes = readFileSync(id)
+    // Emit a runtime read instead of base64-embedding the 1.2MB binary into
+    // a JS string literal — same semantics, no megabyte module to parse.
     return {
-      code: `const bytes = Uint8Array.from(atob(${JSON.stringify(
-        bytes.toString('base64'),
-      )}), (c) => c.charCodeAt(0));\nexport default new WebAssembly.Module(bytes);`,
+      code:
+        `import { readFileSync } from 'node:fs';\n` +
+        `export default new WebAssembly.Module(readFileSync(${JSON.stringify(id)}));`,
     }
   },
 }

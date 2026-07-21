@@ -195,8 +195,12 @@ describe('buildSVG — dek typography (2026-07 Studio fixes)', () => {
   it('dek renders near the title size (title ≈ 1.05-1.25× dek) for a wrapping title', () => {
     for (const format of FORMAT_KEYS) {
       for (const layout of [1, 2, 3, 4]) {
+        // Short words only: a long word like "discovered." legitimately
+        // shrinks the dek in the story-anchor's narrow column (unbreakable
+        // words now shrink instead of overflowing), which is not what this
+        // ratio check is about.
         const { svg } = buildSVG(
-          baseParams({ layout, format, title: WRAPPING_TITLE, dek: 'Gathering, discovered.' }),
+          baseParams({ layout, format, title: WRAPPING_TITLE, dek: 'Now for all of us.' }),
         )
         const dek = dekNodes(svg)
         expect(dek.length).toBeGreaterThan(0)
@@ -240,6 +244,47 @@ describe('buildSVG — dek typography (2026-07 Studio fixes)', () => {
     )
     expect(svg).not.toContain('<script>')
     expect(dekNodes(svg)[0].fill).toBe('#FAF9F5')
+  })
+
+  it('rejects 5- and 7-digit hex dekColors (invalid CSS renders as black)', () => {
+    for (const bad of ['#12345', '#1234567']) {
+      const { svg } = buildSVG(baseParams({ layout: 1, theme: 'dark', dek: 'Short dek.', dekColor: bad }))
+      expect(dekNodes(svg)[0].fill).toBe('#FAF9F5')
+    }
+    // 4- and 8-digit (alpha) forms are valid CSS and pass through.
+    const ok = buildSVG(baseParams({ layout: 1, theme: 'dark', dek: 'Short dek.', dekColor: '#FFD740CC' }))
+    expect(dekNodes(ok.svg)[0].fill).toBe('#FFD740CC')
+  })
+
+  it('halo layouts render the complete dek (budgeted, never clipped mid-sentence)', () => {
+    for (const format of FORMAT_KEYS) {
+      const { svg } = buildSVG(
+        baseParams({
+          layout: 4,
+          format,
+          title: 'Connected communities compound',
+          dek: 'How connected communities compound value across the continent.',
+        }),
+      )
+      // The dek's final word must appear — the old code dropped trailing
+      // lines under an opaque scrim sized as if they had rendered.
+      expect(svg).toContain('continent.')
+    }
+  })
+
+  it('fitText shrinks a single unbreakable word instead of overflowing the frame', () => {
+    const long = 'Uncompromisinglyinteroperable'
+    const { svg } = buildSVG(baseParams({ layout: 1, format: 'ig', title: long, dek: '' }))
+    const size = titleSize(svg)
+    // At the 70px start this word measures wider than the column; it must shrink.
+    expect(size).toBeLessThan(70)
+  })
+
+  it('accent + layout 5 outlines the swatch so it keeps its silhouette', () => {
+    const accent = buildSVG(baseParams({ layout: 5, theme: 'accent', category: 'malachite', title: 'Malachite' })).svg
+    expect(accent).toContain('stroke="rgba(15,14,12,.4)"')
+    const dark = buildSVG(baseParams({ layout: 5, theme: 'dark', category: 'malachite', title: 'Malachite' })).svg
+    expect(dark).not.toContain('stroke="rgba(15,14,12,.4)"')
   })
 
   it('accent theme: full-bleed mineral background with ink text', () => {
