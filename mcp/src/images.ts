@@ -16,6 +16,13 @@
 export interface ImagesEnv {
   CF_IMAGES_ACCOUNT_ID?: string;
   CF_IMAGES_TOKEN?: string;
+  /** Accepted alias — the production secret was provisioned under this
+      name; prefer CF_IMAGES_TOKEN for new setups. */
+  CF_IMAGE_TOKEN?: string;
+}
+
+function imagesToken(env: ImagesEnv): string | undefined {
+  return env.CF_IMAGES_TOKEN || env.CF_IMAGE_TOKEN;
 }
 
 export type UploadContentType = "image/png" | "image/svg+xml";
@@ -24,7 +31,7 @@ export type UploadContentType = "image/png" | "image/svg+xml";
 export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 
 export function imagesConfigured(env: ImagesEnv): boolean {
-  return Boolean(env.CF_IMAGES_ACCOUNT_ID && env.CF_IMAGES_TOKEN);
+  return Boolean(env.CF_IMAGES_ACCOUNT_ID && imagesToken(env));
 }
 
 /**
@@ -81,7 +88,7 @@ export async function uploadImage(
     `https://api.cloudflare.com/client/v4/accounts/${env.CF_IMAGES_ACCOUNT_ID}/images/v1`,
     {
       method: "POST",
-      headers: { Authorization: `Bearer ${env.CF_IMAGES_TOKEN}` },
+      headers: { Authorization: `Bearer ${imagesToken(env)}` },
       body: form,
     },
   );

@@ -75,7 +75,7 @@ CF_IMAGES_ACCOUNT_ID = "125a2dfbc21f76a25c980609609e8218"
 # Where the report_issue MCP tool files GitHub issues. The matching
 # GITHUB_FEEDBACK_TOKEN secret (fine-grained token, Issues: write on this
 # repo) is provisioned out-of-band — see the secrets note below.
-FEEDBACK_REPO = "nyuchitech/workspace-tools"
+FEEDBACK_REPO = "nyuchi/workspace-tools"
 
 # Secrets are deliberately NOT set here — they must never be committed to
 # git in plaintext. Provision each out-of-band with `wrangler secret put`:
@@ -87,7 +87,10 @@ FEEDBACK_REPO = "nyuchitech/workspace-tools"
 #     that could never mint a session. Never falls back to running open.
 #   CF_IMAGES_TOKEN        — Cloudflare Images API token (Images: edit) for
 #     the MCP upload tools. Without it, upload paths return a clear
-#     "not configured" tool error; SVG/PNG output still works.
+#     "not configured" tool error; SVG/PNG output still works. The alias
+#     CF_IMAGE_TOKEN is also accepted (the production secret was first
+#     provisioned under that name); delivery URLs come back from the API
+#     as https://imagedelivery.net/<account_hash>/<image_id>/<variant>.
 #   GITHUB_FEEDBACK_TOKEN  — fine-grained GitHub token (Issues: write on
 #     FEEDBACK_REPO) for the report_issue MCP tool. Without it, the tool
 #     returns a clear "not configured" error.

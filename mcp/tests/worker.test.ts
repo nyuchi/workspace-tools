@@ -942,7 +942,7 @@ describe('report_issue', () => {
   it('files a GitHub issue on the configured repo and returns its URL', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(
-        JSON.stringify({ html_url: 'https://github.com/nyuchitech/workspace-tools/issues/99', number: 99 }),
+        JSON.stringify({ html_url: 'https://github.com/nyuchi/workspace-tools/issues/99', number: 99 }),
         { status: 201 },
       ),
     )
@@ -969,14 +969,14 @@ describe('report_issue', () => {
     const result = body.result as { content: { text: string }[]; structuredContent?: Record<string, unknown> }
     const payload = JSON.parse(result.content[0].text) as { url: string; number: number; repo: string }
     expect(payload).toEqual({
-      url: 'https://github.com/nyuchitech/workspace-tools/issues/99',
+      url: 'https://github.com/nyuchi/workspace-tools/issues/99',
       number: 99,
-      repo: 'nyuchitech/workspace-tools',
+      repo: 'nyuchi/workspace-tools',
     })
     expect(result.structuredContent).toEqual(payload)
 
     const [url, init] = fetchSpy.mock.calls[0] as [string, RequestInit]
-    expect(url).toBe('https://api.github.com/repos/nyuchitech/workspace-tools/issues')
+    expect(url).toBe('https://api.github.com/repos/nyuchi/workspace-tools/issues')
     const sent = JSON.parse(init.body as string) as { title: string; body: string; labels: string[] }
     expect(sent.title).toBe('[generate_studio_card] Dek renders too small')
     expect(sent.body).toContain('**Severity:** high')

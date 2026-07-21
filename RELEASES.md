@@ -180,7 +180,7 @@ Additional steps for Admin features:
 
 ### Support
 
-- **Issues**: [GitHub Issues](https://github.com/nyuchitech/workspace-tools/issues)
+- **Issues**: [GitHub Issues](https://github.com/nyuchi/workspace-tools/issues)
 - **Documentation**: [README](./README.md)
 - **Security**: [SECURITY.md](./SECURITY.md)
 

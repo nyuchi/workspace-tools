@@ -92,12 +92,28 @@ describe('buildSVG — all 7 categories render with their palette', () => {
     })
   }
 
-  it('the mineral layout (5) prints both swatch hexes', () => {
+  it('the mineral layout (5) prints both swatch hexes on true mineral cards', () => {
     for (const key of CATEGORY_KEYS) {
-      const { svg } = buildSVG(baseParams({ category: key, layout: 5 }))
+      // Title IS the mineral name → this is a "meet this mineral" card.
+      const { svg } = buildSVG(baseParams({ category: key, layout: 5, title: CATEGORIES[key].name }))
       expect(svg).toContain(`DARK ${CATEGORIES[key].dark}`)
       expect(svg).toContain(`LIGHT ${CATEGORIES[key].light}`)
     }
+  })
+
+  it('layout 5 hides the hex labels on generic cards, with showHexes as override', () => {
+    // Generic title → spec labels hidden.
+    const generic = buildSVG(baseParams({ layout: 5, category: 'gold', title: 'The Hive Economy' })).svg
+    expect(generic).not.toContain('DARK #')
+    expect(generic).not.toContain('LIGHT #')
+    // No title at all → mineral card → shown.
+    const untitled = buildSVG(baseParams({ layout: 5, category: 'gold', title: '' })).svg
+    expect(untitled).toContain('DARK #FFD740')
+    // Explicit override wins in both directions.
+    const forced = buildSVG(baseParams({ layout: 5, category: 'gold', title: 'The Hive Economy', showHexes: true })).svg
+    expect(forced).toContain('DARK #FFD740')
+    const suppressed = buildSVG(baseParams({ layout: 5, category: 'gold', title: 'Gold', showHexes: false })).svg
+    expect(suppressed).not.toContain('DARK #')
   })
 })
 

@@ -7,7 +7,7 @@
  * choose where issues land:
  *
  *   FEEDBACK_REPO          — Worker var, `owner/repo` (defaults to the
- *                            nyuchitech/workspace-tools monorepo)
+ *                            nyuchi/workspace-tools monorepo)
  *   GITHUB_FEEDBACK_TOKEN  — secret (`wrangler secret put
  *                            GITHUB_FEEDBACK_TOKEN`), a fine-grained token
  *                            with Issues: write on that repo.
@@ -18,7 +18,7 @@ export interface FeedbackEnv {
   GITHUB_FEEDBACK_TOKEN?: string;
 }
 
-export const DEFAULT_FEEDBACK_REPO = "nyuchitech/workspace-tools";
+export const DEFAULT_FEEDBACK_REPO = "nyuchi/workspace-tools";
 
 export type FeedbackSeverity = "low" | "medium" | "high";
 export type FeedbackCategory = "bug" | "missing_capability" | "confusing_output" | "documentation";

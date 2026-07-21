@@ -302,6 +302,14 @@ function buildServer(env: Env): McpServer {
           ),
         index: z.string().optional().describe("Big index numeral on the mineral swatch (layout 5)."),
         footnote: z.string().optional().describe("Small mono footnote (layout 5)."),
+        showHexes: z
+          .boolean()
+          .optional()
+          .describe(
+            "Layout 5 only: show the mineral's DARK/LIGHT hex labels on the swatch. Default: only " +
+              "when the card is about the mineral itself (no title, or the title is the mineral " +
+              "name) — generic cards hide the spec labels automatically.",
+          ),
         role: z.string().optional().describe("Role label; defaults to the mineral's role."),
         brand: z
           .enum(TOP_BRAND_KEYS)
@@ -369,6 +377,7 @@ function buildServer(env: Env): McpServer {
       role?: string;
       brand?: StudioParams["brand"];
       seedKey?: string;
+      showHexes?: boolean;
       dekFontSize?: number;
       dekColor?: string;
       upload?: boolean;
@@ -389,6 +398,7 @@ function buildServer(env: Env): McpServer {
         footnote: args.footnote,
         role: args.role,
         brand: args.brand ?? "nyuchi",
+        showHexes: args.showHexes,
         dekFontSize: args.dekFontSize,
         dekColor: args.dekColor,
         // SPA defaults (StudioPage INITIAL state).

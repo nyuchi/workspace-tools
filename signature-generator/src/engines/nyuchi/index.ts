@@ -112,6 +112,10 @@ export interface Params {
   /** Dek fill as a hex color (#rgb…#rrggbbaa); invalid values are ignored.
       Default: the surface foreground (same off-white/ink as the title). */
   dekColor?: string
+  /** Layout 5 only: show the DARK/LIGHT hex labels on the mineral swatch.
+      Default: only when the card is about the mineral itself (no title, or
+      the title IS the mineral name); generic cards hide the spec labels. */
+  showHexes?: boolean
 }
 
 export interface BuildResult {
@@ -461,6 +465,7 @@ interface Ctx {
     facet: Facet
     angle: number
     cleave: boolean
+    showHexes: boolean
   }
 }
 
@@ -923,9 +928,13 @@ function layoutMineral(ctx: Ctx): string {
 
   const idxFs = Math.round(swH * 0.16)
   if (opts.index) svg += `<text x="${swX + swW * 0.05}" y="${(swY + swH * 0.05 + idxFs).toFixed(1)}" font-family="Noto Serif,Georgia,serif" font-weight="700" font-size="${idxFs}" fill="${txtOn(cat.dark)}">${esc(opts.index)}</text>`
-  const hexFs = Math.round(swH * 0.062)
-  svg += `<text x="${swX + swW * 0.05}" y="${(swY + swH - swH * 0.06).toFixed(1)}" font-family="JetBrains Mono,monospace" font-weight="600" font-size="${hexFs}" fill="${txtOn(cat.dark)}">DARK ${cat.dark}</text>`
-  svg += `<text x="${swX + swW - swW * 0.05}" y="${(swY + swH - swH * 0.06).toFixed(1)}" text-anchor="end" font-family="JetBrains Mono,monospace" font-weight="600" font-size="${hexFs}" fill="${txtOn(cat.light)}">LIGHT ${cat.light}</text>`
+  /* Spec labels are for "meet this mineral" cards; generic cards that just
+     borrow the swatch stay clean. */
+  if (opts.showHexes) {
+    const hexFs = Math.round(swH * 0.062)
+    svg += `<text x="${swX + swW * 0.05}" y="${(swY + swH - swH * 0.06).toFixed(1)}" font-family="JetBrains Mono,monospace" font-weight="600" font-size="${hexFs}" fill="${txtOn(cat.dark)}">DARK ${cat.dark}</text>`
+    svg += `<text x="${swX + swW - swW * 0.05}" y="${(swY + swH - swH * 0.06).toFixed(1)}" text-anchor="end" font-family="JetBrains Mono,monospace" font-weight="600" font-size="${hexFs}" fill="${txtOn(cat.light)}">LIGHT ${cat.light}</text>`
+  }
 
   let cy = swY + swH + Math.round(h * 0.058)
   const nameFs = Math.round(h * (tall ? 0.066 : wide ? 0.07 : 0.082))
@@ -1021,6 +1030,12 @@ export function buildSVG(p: Params): BuildResult {
       facet: p.facet || 'diagonal',
       angle: p.angle ?? 62,
       cleave: p.cleave !== false,
+      /* Hex spec labels default on only for true mineral cards: no title,
+         or the title IS the mineral name. */
+      showHexes:
+        p.showHexes ??
+        (!(p.title && p.title.trim()) ||
+          p.title.trim().toLowerCase() === catDef.name.toLowerCase()),
     },
   }
   const isSquare = Math.abs(fmt.w - fmt.h) < 4
