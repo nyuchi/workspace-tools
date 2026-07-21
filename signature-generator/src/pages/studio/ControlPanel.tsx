@@ -36,9 +36,10 @@ const FACETS: { v: Facet; label: string }[] = [
 ]
 
 const SURFACES: { v: SurfaceMode; label: string }[] = [
-  { v: 'auto',  label: 'Auto' },
-  { v: 'light', label: 'Light' },
-  { v: 'dark',  label: 'Dark' },
+  { v: 'auto',   label: 'Auto' },
+  { v: 'light',  label: 'Light' },
+  { v: 'dark',   label: 'Dark' },
+  { v: 'accent', label: 'Accent' },
 ]
 
 const BRANDS: { v: Brand; label: string }[] = [

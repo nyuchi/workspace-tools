@@ -36,42 +36,42 @@ const CONFIG = {
   divisions: {
     'lingo.nyuchi.com': {
       name: 'Nyuchi Lingo',
-      logo: 'https://raw.githubusercontent.com/nyuchitech/nyuchi-brand-assets/main/assets/logos/Nyuchi_Lingo_Logo_dark.png',
+      logo: 'https://raw.githubusercontent.com/nyuchi/nyuchi-brand-assets/main/assets/logos/Nyuchi_Lingo_Logo_dark.png',
       website: 'lingo.nyuchi.com'
     },
     'learning.nyuchi.com': {
       name: 'Nyuchi Learning',
-      logo: 'https://raw.githubusercontent.com/nyuchitech/nyuchi-brand-assets/main/assets/logos/Nyuchi_Learning_Logo_dark.png',
+      logo: 'https://raw.githubusercontent.com/nyuchi/nyuchi-brand-assets/main/assets/logos/Nyuchi_Learning_Logo_dark.png',
       website: 'learning.nyuchi.com'
     },
     'services.nyuchi.com': {
       name: 'Nyuchi Development',
-      logo: 'https://raw.githubusercontent.com/nyuchitech/nyuchi-brand-assets/main/assets/logos/Nyuchi_Development_Logo_dark.png',
+      logo: 'https://raw.githubusercontent.com/nyuchi/nyuchi-brand-assets/main/assets/logos/Nyuchi_Development_Logo_dark.png',
       website: 'services.nyuchi.com'
     },
     'travel-info.co.zw': {
       name: 'Zimbabwe Travel Information',
-      logo: 'https://raw.githubusercontent.com/nyuchitech/nyuchi-brand-assets/main/assets/logos/Zimbabwe_Travel_Information_Logo_dark.png',
+      logo: 'https://raw.githubusercontent.com/nyuchi/nyuchi-brand-assets/main/assets/logos/Zimbabwe_Travel_Information_Logo_dark.png',
       website: 'travel-info.co.zw'
     },
     'mukoko.com': {
       name: 'Mukoko',
-      logo: 'https://raw.githubusercontent.com/nyuchitech/nyuchi-brand-assets/main/assets/logos/Mukoko_Logo_dark.png',
+      logo: 'https://raw.githubusercontent.com/nyuchi/nyuchi-brand-assets/main/assets/logos/Mukoko_Logo_dark.png',
       website: 'mukoko.com'
     },
     'hararemetro.co.zw': {
       name: 'Mukoko News',
-      logo: 'https://raw.githubusercontent.com/nyuchitech/nyuchi-brand-assets/main/assets/logos/Mukoko_News_Logo_dark.png',
+      logo: 'https://raw.githubusercontent.com/nyuchi/nyuchi-brand-assets/main/assets/logos/Mukoko_News_Logo_dark.png',
       website: 'hararemetro.co.zw'
     },
     'news.mukoko.com': {
       name: 'Mukoko News',
-      logo: 'https://raw.githubusercontent.com/nyuchitech/nyuchi-brand-assets/main/assets/logos/Mukoko_News_Logo_dark.png',
+      logo: 'https://raw.githubusercontent.com/nyuchi/nyuchi-brand-assets/main/assets/logos/Mukoko_News_Logo_dark.png',
       website: 'news.mukoko.com'
     },
     'nyuchi.com': {
       name: 'Nyuchi Africa',
-      logo: 'https://raw.githubusercontent.com/nyuchitech/nyuchi-brand-assets/main/assets/logos/Nyuchi_Africa_Logo_dark.png',
+      logo: 'https://raw.githubusercontent.com/nyuchi/nyuchi-brand-assets/main/assets/logos/Nyuchi_Africa_Logo_dark.png',
       website: 'nyuchi.com',
       hideAttribution: true  // Don't show "A division of" for corporate emails
     },
@@ -79,12 +79,12 @@ const CONFIG = {
     // signature-generator/src/engines/brands/index.ts (the canonical registry).
     'bundu.org': {
       name: 'Bundu Foundation',
-      logo: 'https://raw.githubusercontent.com/nyuchitech/nyuchi-brand-assets/main/assets/logos/Bundu_Foundation_Logo_dark.png', // TODO(brand): confirm logo asset
+      logo: 'https://raw.githubusercontent.com/nyuchi/nyuchi-brand-assets/main/assets/logos/Bundu_Foundation_Logo_dark.png', // TODO(brand): confirm logo asset
       website: 'bundu.org'
     },
     'shamwari.ai': {
       name: 'Shamwari AI',
-      logo: 'https://raw.githubusercontent.com/nyuchitech/nyuchi-brand-assets/main/assets/logos/Shamwari_AI_Logo_dark.png', // TODO(brand): confirm logo asset
+      logo: 'https://raw.githubusercontent.com/nyuchi/nyuchi-brand-assets/main/assets/logos/Shamwari_AI_Logo_dark.png', // TODO(brand): confirm logo asset
       website: 'shamwari.ai'
     }
   },

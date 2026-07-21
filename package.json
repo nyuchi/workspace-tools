@@ -43,15 +43,16 @@
   "license": "UNLICENSED",
   "repository": {
     "type": "git",
-    "url": "https://github.com/nyuchitech/workspace-tools.git"
+    "url": "https://github.com/nyuchi/workspace-tools.git"
   },
   "bugs": {
-    "url": "https://github.com/nyuchitech/workspace-tools/issues"
+    "url": "https://github.com/nyuchi/workspace-tools/issues"
   },
-  "homepage": "https://github.com/nyuchitech/workspace-tools#readme",
+  "homepage": "https://github.com/nyuchi/workspace-tools#readme",
   "dependencies": {
     "@braintree/sanitize-url": "^7.1.1",
     "@modelcontextprotocol/sdk": "^1.29.0",
+    "@resvg/resvg-wasm": "^2.6.2",
     "hono": "^4.12.28",
     "jose": "^6.2.3",
     "zod": "^4.4.3"

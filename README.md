@@ -133,8 +133,10 @@ claude mcp add --transport http nyuchi-tools https://tools.nyuchi.dev/mcp
 | Tool | Status |
 |------|--------|
 | `generate_email_signature` | Live — same engine as the web generator, byte-identical HTML output |
-| `generate_studio_card` | Live — SVG from the same Studio engine as the `/studio` page, plus JSON metadata (size, seed) |
-| `generate_article_banner` | Live — SVG from the same banner engine as the `/banner` page, plus JSON metadata (size, seed) |
+| `generate_studio_card` | Live — same Studio engine as the `/studio` page. `returnFormat` picks the response: SVG source (default), inline PNG (rasterized server-side), or a public Cloudflare Images URL (`upload: true`) for scheduling straight to social |
+| `upload_asset` | Live — SVG (rasterized server-side) or base64 PNG in, stable public Cloudflare Images URL out |
+| `report_issue` | Live — files a GitHub issue on this repo (tool name, severity, category) so problems become tracked issues in the moment |
+| `generate_article_banner` | **Deprecated** — use `generate_studio_card` instead; kept only for existing callers pending removal |
 
 The endpoint requires a bearer token issued by WorkOS Connect (OAuth 2.1 +
 PKCE, dynamic client registration) — clients are prompted to sign in when

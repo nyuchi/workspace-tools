@@ -222,7 +222,9 @@ const StudioPage = () => {
 
   /* ── Meta strings ── */
   const catDef = CATEGORIES[state.category]
-  const dot = resolvedTheme === 'dark' ? catDef.dark : catDef.light
+  /* Accent cards use the mineral's dark hex as their surface, so the meta
+     dot shows the same hex there as on dark. */
+  const dot = resolvedTheme === 'light' ? catDef.light : catDef.dark
   const seedStr = 'seed ' + ('00000000' + built.seed.toString(16)).slice(-8)
   const layoutStr = 'L' + state.layout + ' · ' + LAYOUT_NAMES[state.layout]
   const exportStr = built.format.w * 2 + ' × ' + built.format.h * 2

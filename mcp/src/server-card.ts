@@ -29,7 +29,9 @@ export function buildServerCard(name: string, version: string, env: AuthEnv): Se
     serverInfo: { name, version },
     name,
     description:
-      "MCP server for Nyuchi Africa tools: email signatures, Nyuchi Studio social cards, and article banners.",
+      "MCP server for Nyuchi Africa tools: email signatures, Nyuchi Studio social cards " +
+      "(SVG, PNG, or hosted Cloudflare Images URL), asset uploads, and issue reporting. " +
+      "The legacy article-banner tool is deprecated in favor of the Studio.",
     websiteUrl: "https://tools.nyuchi.com",
     remotes: [{ transportType: "streamable-http", url: resourceUrl(env) }],
     capabilities: { tools: { listChanged: true } },

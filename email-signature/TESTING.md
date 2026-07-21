@@ -113,13 +113,13 @@ testDivisionDetection()
 test@lingo.nyuchi.com
   → Division: Nyuchi Lingo
   → Website: lingo.nyuchi.com
-  → Logo: https://raw.githubusercontent.com/nyuchitech/nyuchi-brand-assets...
+  → Logo: https://raw.githubusercontent.com/nyuchi/nyuchi-brand-assets...
   → Hide Attribution: false
 
 test@mukoko.com
   → Division: Mukoko
   → Website: mukoko.com
-  → Logo: https://raw.githubusercontent.com/nyuchitech/nyuchi-brand-assets...
+  → Logo: https://raw.githubusercontent.com/nyuchi/nyuchi-brand-assets...
   → Hide Attribution: false
 
 ...
@@ -169,7 +169,7 @@ testSignatureGeneration()
 === Signature for test@lingo.nyuchi.com ===
 
 Division: Nyuchi Lingo
-Logo: https://raw.githubusercontent.com/nyuchitech/nyuchi-brand-assets/main/assets/logos/Nyuchi_Lingo_Logo_dark.png
+Logo: https://raw.githubusercontent.com/nyuchi/nyuchi-brand-assets/main/assets/logos/Nyuchi_Lingo_Logo_dark.png
 
 First 500 characters of HTML:
 <table cellpadding="0" cellspacing="0" border="0"...

@@ -6,8 +6,16 @@ Worker, same code, two Workers Custom Domains; see the `MCP_RESOURCE`
 comment in `../wrangler.toml` for why `/mcp` lives on a separate hostname):
 
 - `/mcp` — Model Context Protocol server (streamable-HTTP JSON-RPC) exposing
-  `generate_email_signature`, `generate_studio_card`, and
-  `generate_article_banner`. Has its own bearer-token gate (see below); never
+  `generate_email_signature`, `generate_studio_card`, `upload_asset`,
+  `report_issue`, and the deprecated `generate_article_banner` (kept only for
+  existing callers; the Studio replaces it). `generate_studio_card` can
+  rasterize server-side (resvg-wasm + the TTFs under
+  `signature-generator/public/fonts/raster/`, fetched via the ASSETS binding)
+  and upload to Cloudflare Images (`returnFormat: url | png | svg`); uploads
+  need the `CF_IMAGES_ACCOUNT_ID` var + `CF_IMAGES_TOKEN` secret, and
+  `report_issue` needs the `GITHUB_FEEDBACK_TOKEN` secret (repo picked by the
+  `FEEDBACK_REPO` var). All four fail closed with a clear message when
+  unconfigured. Has its own bearer-token gate (see below); never
   double-gated by the site-wide login gate. Reachable on both domains, but
   `tools.nyuchi.dev/mcp` is the one advertised by discovery metadata.
 - `/.well-known/mcp/server-card.json` — static MCP Server Card (name,
