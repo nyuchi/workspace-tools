@@ -4,7 +4,7 @@
 **What:** the branch diff against `main`, plus the enclosing functions of every hunk (bugs in unchanged lines of a touched function are in scope).
 **Why:** this repo emits brand-locked HTML into inboxes and images into social feeds, and runs an authenticated public MCP surface — defects are user-visible and externally reachable.
 **When:** before a PR leaves draft; re-run after any substantive push. Record the result here (latest record below, newest first).
-**Where:** findings live in this file and, when actionable beyond the PR, as GitHub issues (the same loop `report_issue` gives MCP callers).
+**Where:** findings live in this file and, when actionable beyond the PR, as GitHub issues (the same loop `nyuchi_report_issue` gives MCP callers).
 
 ## How — the method
 
@@ -39,7 +39,7 @@ Eight finder angles over `main...HEAD` (~35 candidates), deduped and verified ag
   {"file": "signature-generator/src/engines/nyuchi/index.ts", "line": 200, "summary": "Hex validation accepted 5-/7-digit strings (invalid CSS → dek painted inherited black); regex also duplicated in the zod schema", "failure_scenario": "dekColor '#FFD74' passed both layers and rendered invisibly — shared HEX_COLOR_RE now allows only 3/4/6/8-digit forms"},
   {"file": "signature-generator/src/engines/nyuchi/index.ts", "line": 927, "summary": "Accent theme + layout 5: the swatch's dark half matched the card background exactly, dissolving the swatch silhouette", "failure_scenario": "accent malachite mineral card lost its rounded-rect boundary — accent cards now outline the swatch"},
   {"file": "signature-generator/src/pages/studio/StudioPage.tsx", "line": 225, "summary": "SPA meta-row mineral dot kept a binary theme conditional after ThemeKey widened — accent showed the light hex, a color absent from the card", "failure_scenario": "Accent+cobalt preview showed a #0047AB dot beside a #00B0FF card — accent now shows the dark hex"},
-  {"file": "mcp/src/index.ts", "line": 519, "summary": "upload_asset validated inputs by truthiness but dispatched on !== undefined — empty-string pngBase64 shadowed a valid svg", "failure_scenario": "{svg, pngBase64: ''} failed with a decode error instead of using the svg — dispatch now uses the same truthiness predicate"},
+  {"file": "mcp/src/index.ts", "line": 519, "summary": "nyuchi_upload_asset validated inputs by truthiness but dispatched on !== undefined — empty-string pngBase64 shadowed a valid svg", "failure_scenario": "{svg, pngBase64: ''} failed with a decode error instead of using the svg — dispatch now uses the same truthiness predicate"},
   {"file": "email-signature/signature.html", "line": 114, "summary": "Org rename missed the clasp project's HTML companions (signature.html/preview.html kept nyuchitech URLs)", "failure_scenario": "admins copying from the in-project reference would reintroduce the dead org — completed in commit 0bb9fbb along with the contradictory engine header comment"}
 ]
 ```

@@ -1,7 +1,7 @@
 /**
  * Registers the real per-brand icons (the same vendored PNGs the SPA's
  * Studio page uses) with the Studio engine's icon store, so
- * generate_studio_card draws the actual brand mark instead of falling back
+ * nyuchi_generate_studio_card draws the actual brand mark instead of falling back
  * to the engine's generic placeholder mark.
  *
  * loadBrandIcons() normally resolves its icon paths with the browser's own

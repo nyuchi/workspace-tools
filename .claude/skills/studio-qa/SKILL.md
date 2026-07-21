@@ -9,7 +9,7 @@ Assertions catch numbers; only renders catch collisions, contrast problems, and 
 
 ## Procedure
 
-1. Write a **temporary** vitest file in `mcp/tests/` (so it gets the wasm plugin + fonts) that calls the worker's `generate_studio_card` with `returnFormat: "png"` and writes PNGs to the session scratchpad. Serve ASSETS from `signature-generator/public` via a small fs-backed stub (copy the pattern in `mcp/tests/worker.test.ts` `FONT_ASSETS_STUB`).
+1. Write a **temporary** vitest file in `mcp/tests/` (so it gets the wasm plugin + fonts) that calls the worker's `nyuchi_generate_studio_card` with `returnFormat: "png"` and writes PNGs to the session scratchpad. Serve ASSETS from `signature-generator/public` via a small fs-backed stub (copy the pattern in `mcp/tests/worker.test.ts` `FONT_ASSETS_STUB`).
 2. Render at minimum:
    - layout 1, dark, short one-word title (hook mode) + dek
    - layout 1, accent theme, same content

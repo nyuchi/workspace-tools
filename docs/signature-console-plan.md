@@ -1,6 +1,6 @@
 # Signature Console — unification plan
 
-**Status: PROPOSED** (approved direction: Worker-native console; this doc is the review artifact — no code lands until it's signed off).
+**Status: IN PROGRESS** — architecture approved (Worker-native console); Phases 0/0b, the Phase 1 APIs, and the console UI scaffold are implemented (fail-closed until the §5 Google setup). See the decision log for what remains.
 
 **Who:** Bryan approves the architecture and performs the Google-side setup (§5); agents implement phase by phase, each phase its own PR with the full verify/review/docs-sync process.
 **What:** merge the three signature surfaces — the web Signature Generator, the Gmail add-on, and the `email-signature` batch script — into **one console at tools.nyuchi.com**, powered by **one engine**, with real orchestration: insert into your own Gmail directly, and (as admin) pull every domain user, generate all signatures, and push them back.
@@ -50,7 +50,7 @@ flowchart LR
 Key properties:
 - **One engine.** Every surface renders through `engines/signature` — the Worker exposes it as an API so nothing ever hand-syncs a template again.
 - **Two trust paths, matching today's model.** Self-service acts as the signed-in user (OAuth, least privilege). Bulk admin push uses a service account with domain-wide delegation — the same mechanism the Apps Script admin flows already require, just held by the Worker instead.
-- **Humans in the loop** (Mzizi doctrine): admin bulk push always previews first, supports dry-run, and reports per-user success/failure; failures can be filed through the existing `report_issue` loop.
+- **Humans in the loop** (Mzizi doctrine): admin bulk push always previews first, supports dry-run, and reports per-user success/failure; failures can be filed through the existing `nyuchi_report_issue` loop.
 
 ## 3. Phases
 
@@ -105,4 +105,5 @@ Key properties:
 ## 7. Decision log
 
 - 2026-07-21 — Architecture: **Worker-native console** (over Apps-Script-backend uplift). Plan-doc-first before implementation. Banner removal (#41) precedes this work.
+- 2026-07-21 — Implemented (parallel worktree build, integrated same day): Phase 0 (`POST /api/signature`), Phase 0b (both Apps Script projects rewired to it — their template copies and `email-signature`'s static HTML references deleted; NOTE: admin/batch signatures now render the engine's canonical design, dropping the old flag strip/division logos/Ubuntu footer), Phase 1 APIs (`/api/google/*`, `/api/self/insert`, `/api/admin/users`, `/api/admin/push` — all fail-closed until §5 setup), and the two-mode console UI scaffold. Remaining: §5 Google setup, live end-to-end acceptance, Phase 2 full Mzizi uplift, Phase 3 retirement.
 - 2026-07-21 — Implementation started in parallel (five worktree agents: render API, Apps Script rewiring, OAuth+self-insert, admin APIs, console UI), everything Google-facing fail-closed behind mocks. Gmail API + Admin SDK confirmed **already enabled** in the GCP project; remaining Google-side setup is only §5 steps 2–5 (OAuth web client + secret, service-account key, DWD grant, `wrangler secret put`).

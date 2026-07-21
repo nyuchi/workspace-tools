@@ -67,7 +67,7 @@ Two **Vitest** suites (node environment, no jsdom); `npm test` at the repo root 
 - Repo root: `npm run test:worker` (`vitest.worker.config.ts`, tests in `mcp/tests/`) — HTTP-level tests of the `nyuchi-tools` Worker, exercising the default export via `worker.fetch(new Request(...), env)`. These live at the root because the Worker's deps are root dependencies and `mcp/` intentionally has no package.json; `mcp/tsconfig.json` only includes `src/**`, so `typecheck:worker` never sees them.
 
 The Apps Script "tests" remain exported functions run manually from the Apps Script editor:
-- `email-signature/Code.js`: `runAllTests()`, `testSignatureGeneration()`, `testDivisionDetection()`, `testFlagColors()`, `testMySignature()`, plus dry-run `listAllUsersAndAliases()` and `updateSingleUserSignature(email)` before a full `updateAllUserSignatures()`.
+- `email-signature/Code.js`: `runAllTests()`, `testSignatureGeneration()`, `testDivisionDetection()`, `testMySignature()` (these now require `SIGNATURE_API_KEY` in Script Properties), plus dry-run `listAllUsersAndAliases()` and `updateSingleUserSignature(email)` before a full `updateAllUserSignatures()`.
 - `gmail-addon/Code.js`: `testSignatureGeneration()`, `testAdminSignature()`.
 
 ## Architecture notes
@@ -110,14 +110,17 @@ Consumers:
 - `signature-generator/src/engines/signature/index.ts` (`BRANDS`,
   `buildSignatureHtml`, `buildSignatureText`) — the signature template +
   the **historical signature copies** of the brand data, imported by both the
-  signature island and the Worker's `generate_email_signature` MCP tool. Its
+  signature island and the Worker's `nyuchi_generate_email_signature` MCP tool. Its
   `travel`/`learning` keys are legacy signature identities; emitted HTML for
   pre-existing keys is byte-locked, so never re-sync its wording/colors to
   the registry.
 - `engines/nyuchi` re-exports `Brand` from the registry and
   read `lockupLabel` from it.
-- The two Apps Script projects still hardcode their own brand/division list
-  (Apps Script cannot import npm modules):
+- The two Apps Script projects no longer carry signature TEMPLATES — since
+  Phase 0 of the Signature Console (docs/signature-console-plan.md) they
+  fetch emitted HTML from `POST /api/signature` (Worker render API, bearer
+  `SIGNATURE_API_KEY` from Script Properties). They still hardcode their own
+  brand/division CONFIG lists (Apps Script cannot import npm modules):
   - `gmail-addon/Code.js` → `BRANDS` object (keyed by brand slug, e.g. `nyuchi`, `bundu`)
     plus a second copy in `Dashboard.html`.
   - `email-signature/Code.js` → `CONFIG.divisions` (keyed by **email domain**, e.g. `lingo.nyuchi.com`, `bundu.org`).
@@ -131,7 +134,7 @@ GitHub).
 ### The emitted email-signature HTML is separate from the web-app UI
 The signature page (`signature-generator/src/pages/signature/`) has two visual surfaces:
 - **Web-app UI** — the panel + stage the user works in (studio layout pattern). Styled to the Mzizi mineral / dark design system.
-- **Emitted signature HTML** — the string the page previews and copies into Gmail, built by `src/engines/signature/index.ts` (`buildSignatureHtml`). This uses the historical signature styling (Plus Jakarta Sans / Noto Serif, brand primary colors) and must match the two Apps Script files so signatures render consistently across every recipient's inbox. Change it only in the engine module, never per-surface. The page injects the engine output verbatim for the live preview, so preview and clipboard share one code path.
+- **Emitted signature HTML** — the string the page previews and copies into Gmail, built by `src/engines/signature/index.ts` (`buildSignatureHtml`). This uses the historical signature styling (Plus Jakarta Sans / Noto Serif, brand primary colors) and is now the single template for every surface: the Apps Script projects fetch it via `POST /api/signature` instead of carrying copies. Change it only in the engine module, never per-surface. The page injects the engine output verbatim for the live preview, so preview and clipboard share one code path.
 
 Don't accidentally restyle the emitted HTML when working on the web-app UI. The distinction is important: the UI is behind the studio's mineral tokens; the signature markup is brand-locked to the historical Nyuchi purple.
 
@@ -149,13 +152,13 @@ The add-on has two tabs built by `buildTabbedCard`: a **User tab** (self-service
 - `email-signature` also handles aliases: for each user it applies a signature to the primary address plus every send-as alias.
 
 ### The Nyuchi Studio
-`/studio` is a React port of a vanilla-JS/HTML tool originally built in Claude Design. The ported SVG-generation engine lives under `signature-generator/src/engines/nyuchi/`. It is a **pure function** — `buildSVG(params) → { svg, format, seed }` — so the same code path is imported by the MCP server tool (`generate_studio_card`) without duplication.
+`/studio` is a React port of a vanilla-JS/HTML tool originally built in Claude Design. The ported SVG-generation engine lives under `signature-generator/src/engines/nyuchi/`. It is a **pure function** — `buildSVG(params) → { svg, format, seed }` — so the same code path is imported by the MCP server tool (`nyuchi_generate_studio_card`) without duplication.
 
 **The legacy Banner tool was removed entirely (2026-07)** — page, engine (`engines/banner`), and the `generate_article_banner` MCP tool are gone; the Studio covers every banner use case. `/banner` is a static redirect to `/studio` (astro.config `redirects`), and the worker suite asserts the removed tool name errors cleanly. Don't resurrect it.
 
 Studio behavior worth knowing (2026-07 passes): dek at ~0.88× the fitted title in the surface foreground with `dekFontSize`/`dekColor` overrides; `theme: 'accent'` (full-bleed mineral background, ink text, built per-category in `buildSVG`); a dark-theme radial mineral glow + filled eyebrow chip + oversized off-canvas graph in layouts 1/2/4; hook-mode titles (a single-line title grows toward poster size; the dek stays sized from the non-hooked title, and shrinks to fit the room above `safeBottom` rather than clipping mid-sentence); layout 5's hex spec labels render only on mineral-education cards (`showHexes` overrides).
 
-PNG rasterization is done client-side via `<canvas>` in the web app. On the MCP side, `generate_studio_card` also rasterizes **server-side** via `@resvg/resvg-wasm` (`mcp/src/raster.ts`): fonts come from the static TTFs in `signature-generator/public/fonts/raster/` (vendored from Google Fonts; served to the Worker through the ASSETS binding — keep them in `public/` or rasterization breaks). `returnFormat` controls the response: `'svg'` (default), `'png'` (inline image), or `'url'` (default when `upload: true` — rasterize, upload to **Cloudflare Images**, return only `{url, id, width, height, seed}`, no SVG body). `upload_asset` does the same for arbitrary SVG/PNG input, and `report_issue` files GitHub issues on `FEEDBACK_REPO`. Upload needs `CF_IMAGES_ACCOUNT_ID` + the `CF_IMAGES_TOKEN` secret; report_issue needs the `GITHUB_FEEDBACK_TOKEN` secret — all fail closed with clear tool errors when unconfigured (see `wrangler.toml`).
+PNG rasterization is done client-side via `<canvas>` in the web app. On the MCP side, `nyuchi_generate_studio_card` also rasterizes **server-side** via `@resvg/resvg-wasm` (`mcp/src/raster.ts`): fonts come from the static TTFs in `signature-generator/public/fonts/raster/` (vendored from Google Fonts; served to the Worker through the ASSETS binding — keep them in `public/` or rasterization breaks). `returnFormat` controls the response: `'svg'` (default), `'png'` (inline image), or `'url'` (default when `upload: true` — rasterize, upload to **Cloudflare Images**, return only `{url, id, width, height, seed}`, no SVG body). `nyuchi_upload_asset` does the same for arbitrary SVG/PNG input, and `nyuchi_report_issue` files GitHub issues on `FEEDBACK_REPO`. Beyond tools, the MCP server also exposes **resources** (`nyuchi://brands[/{key}]`, `nyuchi://minerals`, `nyuchi://studio/reference` — read-only JSON views of the canonical engine data) and **prompts** (`create_social_card`, `create_email_signature`, `mineral_education_card`), registered in `mcp/src/catalog.ts`; deterministic client-side evals live in `mcp/evals/evals.xml`. Upload needs `CF_IMAGES_ACCOUNT_ID` + the `CF_IMAGES_TOKEN` secret; nyuchi_report_issue needs the `GITHUB_FEEDBACK_TOKEN` secret — all fail closed with clear tool errors when unconfigured (see `wrangler.toml`).
 
 ### HTML generation & XSS
 All signature HTML is assembled from user input by hand. Both Apps Script files have an `escapeHtml()` helper; the React component additionally uses `@braintree/sanitize-url` plus `escapeHtml`/`createMailtoUrl`/`createTelUrl`/`createWhatsAppUrl` helpers. **Preserve this escaping when editing signature templates** — these strings end up as raw HTML in users' mailboxes.
@@ -163,7 +166,7 @@ All signature HTML is assembled from user input by hand. Both Apps Script files 
 ### Process docs, skills, and agents
 - `TEST.md` documents the test infrastructure (suites, stubs, commands, what CI runs, what needs manual/visual checks); `REVIEW.md` documents the review standard and holds the latest review record; `SECURITY.md` covers both the Apps Script and Worker/MCP security models. Keep all three in sync with the code — the `docs-sync` skill defines the sweep order (README → SECURITY → CLAUDE.md → TEST.md → REVIEW.md).
 - Repo skills in `.claude/skills/`: `verify` (full check sequence), `docs-sync` (documentation drift sweep), `studio-qa` (visual render verification after engine changes). Repo agents in `.claude/agents/` (`verifier`, `docs-curator`, `studio-qa`) run these repeatedly.
-- **Brand/architecture authority is Mzizi** (the design-system registry, also reachable as the Mzizi MCP server): mineral palettes, semantic tokens, pill geometry, touch targets, and the ecosystem taxonomy come from there — query it rather than inventing values (`@bundu/ui` is its shipped implementation). Its doctrine for Nyuchi tools also includes the feedback loop this repo implements as `report_issue`: failures become tracked GitHub issues with humans in the loop.
+- **Brand/architecture authority is Mzizi** (the design-system registry, also reachable as the Mzizi MCP server): mineral palettes, semantic tokens, pill geometry, touch targets, and the ecosystem taxonomy come from there — query it rather than inventing values (`@bundu/ui` is its shipped implementation). Its doctrine for Nyuchi tools also includes the feedback loop this repo implements as `nyuchi_report_issue`: failures become tracked GitHub issues with humans in the loop.
 
 ## Deployment
 
