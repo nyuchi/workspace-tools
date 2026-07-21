@@ -603,7 +603,8 @@ function buildServer(env: Env): McpServer {
         "`format` (canvas shape) and `layout` (composition) are independent axes — every combination " +
         "is valid, so pick each on its own merits rather than treating them as one choice. Default is " +
         "format 'ig' (square) + layout 1 (type-forward); reach for '16x9' when the banner needs a wide " +
-        "article-header shape, or 'og'/'li' for a link-preview unfurl. PNG rasterization is a follow-up. " +
+        "article-header shape, or 'og'/'li' for a link-preview unfurl. This tool returns SVG only — " +
+        "PNG and upload output exist on generate_studio_card, not here. " +
         "The second content item is JSON metadata: {format:{w,h}, seed}. Note: unlike " +
         "generate_studio_card, this engine has no 'story' format and only layouts 1-4 (no mineral swatch).",
       inputSchema: {
