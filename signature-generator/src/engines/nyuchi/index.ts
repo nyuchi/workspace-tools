@@ -2,12 +2,14 @@
    Pure functional: same seeded RNG, graph algorithm, and layouts as the
    original vanilla IIFE.
 
-   Typography intentionally diverges from the original port (2026-07 Studio
-   fixes): titles in layouts 1-4 are ~35% smaller, the dek renders at ~0.88×
-   the fitted title size in the title's foreground color (not a muted
-   caption), and layout 4's text scrim is fully opaque so the halo graph
-   never bleeds through the headline. Keep everything else (RNG, graph,
-   geometry) byte-stable. */
+   The 2026-07 Studio passes intentionally diverge from the original port:
+   typography (titles in layouts 1-4 ~35% smaller, dek at ~0.88× the fitted
+   title in the foreground color, opaque halo scrim, hook-mode title
+   scaling) AND graph presentation (bigger/bolder nodes, off-canvas bleed,
+   dark-theme glow, filled eyebrow chip, accent surface, conditional hex
+   labels). These are deliberate — see CLAUDE.md — do not "restore" the
+   original port's values. Keep the seeded RNG and graph *algorithm*
+   byte-stable so seedKey determinism holds. */
 
 import { measureWithMetrics } from '../metrics'
 import { TOP_BRANDS, type TopBrandKey } from '../brands'
