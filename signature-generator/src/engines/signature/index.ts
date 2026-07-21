@@ -2,7 +2,7 @@
  *
  * Pure module (no React, no DOM): imported by both the SPA
  * (src/components/EmailSignatureGenerator.tsx) and the nyuchi-tools Cloudflare
- * Worker MCP server (mcp/src/index.ts, tool `generate_email_signature`).
+ * Worker MCP server (mcp/src/index.ts, tool `nyuchi_generate_email_signature`).
  *
  * The logic was moved VERBATIM from EmailSignatureGenerator.tsx — the emitted
  * HTML must stay byte-identical for identical inputs. It is brand-locked to
