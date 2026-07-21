@@ -172,11 +172,15 @@ describe('buildSVG — dek typography (2026-07 Studio fixes)', () => {
     }
   })
 
-  it('dek renders near the title size (title ≈ 1.05-1.15× dek) for a short dek', () => {
+  // Long enough to wrap (or measure-cap the hook) in every layout's column,
+  // short enough that title + dek always clear the safe bottom.
+  const WRAPPING_TITLE = 'Connected communities compound'
+
+  it('dek renders near the title size (title ≈ 1.05-1.25× dek) for a wrapping title', () => {
     for (const format of FORMAT_KEYS) {
       for (const layout of [1, 2, 3, 4]) {
         const { svg } = buildSVG(
-          baseParams({ layout, format, title: 'Nhimbe', dek: 'Gathering, discovered.' }),
+          baseParams({ layout, format, title: WRAPPING_TITLE, dek: 'Gathering, discovered.' }),
         )
         const dek = dekNodes(svg)
         expect(dek.length).toBeGreaterThan(0)
@@ -187,12 +191,22 @@ describe('buildSVG — dek typography (2026-07 Studio fixes)', () => {
     }
   })
 
-  it('ig layout 1 lands on the validated reference sizes (title 70, dek ~60)', () => {
+  it('hook mode: a one-word ig title grows toward poster size, dek stays put', () => {
     const { svg } = buildSVG(
       baseParams({ layout: 1, format: 'ig', title: 'Nhimbe', dek: 'Gathering, discovered.' }),
     )
-    expect(titleSize(svg)).toBe(70)
+    const t = titleSize(svg)
+    expect(t).toBeGreaterThanOrEqual(150)
+    expect(t).toBeLessThanOrEqual(189) // capped at 0.175h on the 1080 canvas
+    // The dek is sized from the non-hooked title (70px → 62px), not the poster size.
     expect(dekNodes(svg)[0].size).toBe(62)
+  })
+
+  it('hook mode leaves wrapping titles at the validated default (ig layout 1 start 70)', () => {
+    const { svg } = buildSVG(
+      baseParams({ layout: 1, format: 'ig', title: WRAPPING_TITLE, dek: 'Gathering, discovered.' }),
+    )
+    expect(titleSize(svg)).toBeLessThanOrEqual(70)
   })
 
   it('honors dekFontSize and dekColor overrides', () => {
@@ -210,6 +224,40 @@ describe('buildSVG — dek typography (2026-07 Studio fixes)', () => {
     )
     expect(svg).not.toContain('<script>')
     expect(dekNodes(svg)[0].fill).toBe('#FAF9F5')
+  })
+
+  it('accent theme: full-bleed mineral background with ink text', () => {
+    for (const layout of [1, 2, 4]) {
+      const { svg } = buildSVG(baseParams({ layout, format: 'ig', theme: 'accent', category: 'malachite' }))
+      expect(svg).toContain(`<rect width="1080" height="1080" fill="#64FFDA"/>`)
+      // Title + dek in ink on the mineral surface.
+      expect(svg).toContain('fill="#0F0E0C">The Hive Economy</text>')
+      for (const d of dekNodes(svg)) expect(d.fill).toBe('#0F0E0C')
+      // No dark-theme glow on the accent surface.
+      expect(svg).not.toContain('radialGradient')
+    }
+  })
+
+  it('dark theme layouts 1/2/4 draw the mineral glow; light theme and layout 3 do not', () => {
+    for (const layout of [1, 2, 4]) {
+      expect(buildSVG(baseParams({ layout, format: 'ig', theme: 'dark' })).svg).toContain('radialGradient')
+      expect(buildSVG(baseParams({ layout, format: 'ig', theme: 'light' })).svg).not.toContain('radialGradient')
+    }
+    expect(buildSVG(baseParams({ layout: 3, format: 'ig', theme: 'dark' })).svg).not.toContain('radialGradient')
+  })
+
+  it('the eyebrow renders as a filled chip with contrast-checked text', () => {
+    // Dark theme, cobalt: vivid #00B0FF chip must carry INK text (white
+    // would be 2.4:1) — the exact case the relative-luminance check fixes.
+    const dark = buildSVG(baseParams({ layout: 1, format: 'ig', theme: 'dark', category: 'cobalt' })).svg
+    expect(dark).toContain('rx="') // pill chip present
+    expect(dark).toMatch(/<rect [^>]*fill="#00B0FF"\/><text [^>]*fill="#0F0E0C">COBALT · KNOWLEDGE<\/text>/)
+    // Dark theme, sodalite #3D5AFE is a dark blue — chip text flips to white.
+    const sodalite = buildSVG(baseParams({ layout: 1, format: 'ig', theme: 'dark', category: 'sodalite', eyebrow: 'DEEP BLUE' })).svg
+    expect(sodalite).toMatch(/<rect [^>]*fill="#3D5AFE"\/><text [^>]*fill="#FFFFFF">DEEP BLUE<\/text>/)
+    // Accent theme: ink chip with mineral text.
+    const accent = buildSVG(baseParams({ layout: 1, format: 'ig', theme: 'accent', category: 'gold', eyebrow: 'CAMPAIGN' })).svg
+    expect(accent).toMatch(/<rect [^>]*fill="#0F0E0C"\/><text [^>]*fill="#FFD740">CAMPAIGN<\/text>/)
   })
 
   it('layout 4 (halo) draws a fully opaque text scrim — no graph bleed-through', () => {

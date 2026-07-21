@@ -242,7 +242,8 @@ function buildServer(env: Env): McpServer {
         "design/editing/debugging; 'png' returns the rasterized image inline, no upload; 'url' " +
         "(default when `upload` is true) rasterizes, uploads to Cloudflare Images, and returns just " +
         "{url, id, width, height, seed} — the right choice when scheduling to social (Buffer, " +
-        "Instagram, X all need a public image URL).",
+        "Instagram, X all need a public image URL). Short single-line titles automatically scale up " +
+        "to poster size (hook mode); wrapping titles keep the standard sizing.",
       inputSchema: {
         title: z.string().describe("Card title."),
         dek: z.string().optional().describe("Supporting line under the title."),
@@ -277,8 +278,20 @@ function buildServer(env: Env): McpServer {
               "a dark panel — the boldest, most color-blocked option. " +
               "4 halo: everything centered, with the node graph arcing around the text like a halo.",
           ),
-        theme: z.enum(["light", "dark"]).optional().default("dark").describe("Surface theme."),
-        eyebrow: z.string().optional().describe("Kicker line; defaults to '<Mineral> · <role>'."),
+        theme: z
+          .enum(["light", "dark", "accent"])
+          .optional()
+          .default("dark")
+          .describe(
+            "Surface theme. 'dark' (default) adds a mineral glow behind the node graph; 'accent' is " +
+              "a full-bleed mineral background with ink text — the boldest, most feed-stopping option.",
+          ),
+        eyebrow: z
+          .string()
+          .optional()
+          .describe(
+            "Kicker line, rendered as a filled pill chip; defaults to '<Mineral> · <role>'.",
+          ),
         index: z.string().optional().describe("Big index numeral on the mineral swatch (layout 5)."),
         footnote: z.string().optional().describe("Small mono footnote (layout 5)."),
         role: z.string().optional().describe("Role label; defaults to the mineral's role."),

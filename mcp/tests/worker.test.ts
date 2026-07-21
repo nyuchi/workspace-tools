@@ -652,6 +652,25 @@ describe('generate_studio_card — returnFormat / upload', () => {
     expect(svg).toContain('font-size="44" fill="#FFD740"')
   })
 
+  it("theme 'accent' renders the full-bleed mineral surface with ink text", async () => {
+    const res = await post(
+      '/mcp',
+      rpc(
+        'tools/call',
+        {
+          name: 'generate_studio_card',
+          arguments: { title: 'Nhimbe', category: 'malachite', layout: 1, theme: 'accent' },
+        },
+        45,
+      ),
+    )
+    const body = (await res.json()) as JsonRpcResponse
+    expect(body.error).toBeUndefined()
+    const svg = (body.result as { content: { text: string }[] }).content[0].text
+    expect(svg).toContain('<rect width="1080" height="1080" fill="#64FFDA"/>')
+    expect(svg).toContain('fill="#0F0E0C">Nhimbe</text>')
+  })
+
   it('rejects a non-hex dekColor at the schema layer', async () => {
     const res = await post(
       '/mcp',
