@@ -2,7 +2,7 @@
  * POST /api/signature — render byte-locked signature HTML over plain HTTP.
  *
  * The same canonical engine (`engines/signature`) that powers the web
- * island and the `generate_email_signature` MCP tool, exposed as a JSON
+ * island and the `nyuchi_generate_email_signature` MCP tool, exposed as a JSON
  * endpoint so the Apps Script projects (and any future console surface) can
  * fetch the emitted HTML instead of hand-syncing their own template copies
  * (signature-console-plan.md, Phase 0). The response HTML is byte-identical
@@ -36,7 +36,7 @@ export interface SignatureApiEnv extends SiteAuthEnv {
 
 export const SIGNATURE_API_PATH = "/api/signature";
 
-/** Mirrors the `generate_email_signature` MCP tool's input schema (index.ts)
+/** Mirrors the `nyuchi_generate_email_signature` MCP tool's input schema (index.ts)
  * and the engine's SignatureParams shape — keep the three in lockstep. */
 const signatureParamsSchema = z.object({
   brand: z.enum(BRAND_KEYS),

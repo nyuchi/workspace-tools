@@ -312,7 +312,7 @@ export async function refreshIfNeeded(
 
 // -----------------------------------------------------------------------------
 // POST /api/self/insert request body — the same schema as the
-// generate_email_signature MCP tool (index.ts), as a standalone object.
+// nyuchi_generate_email_signature MCP tool (index.ts), as a standalone object.
 // -----------------------------------------------------------------------------
 
 const SIGNATURE_PARAMS_SCHEMA = z.object({

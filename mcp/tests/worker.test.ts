@@ -58,7 +58,7 @@ const SITE_ENV = { SESSION_SECRET: TEST_SESSION_SECRET }
 const ASSETS_STUB = { fetch: async () => new Response('stub-asset') }
 
 /** Stub ASSETS binding that answers brand-icon `.b64.txt` requests with a
- * fixed fake payload, so tests can verify generate_studio_card actually
+ * fixed fake payload, so tests can verify nyuchi_generate_studio_card actually
  * embeds a real per-brand icon (via mcp/src/brand-icons.ts) instead of
  * falling back to the engine's generic placeholder mark — the exact bug
  * this guards against regressing to. */
@@ -141,7 +141,7 @@ describe('GET /mcp — discovery', () => {
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({
       name: 'nyuchi-tools',
-      version: '0.1.0',
+      version: '0.2.0',
       protocol: `mcp/${LATEST_PROTOCOL_VERSION}`,
       endpoint: '/mcp',
     })
@@ -168,7 +168,7 @@ describe('POST /mcp — JSON-RPC', () => {
       serverInfo: { name: string; version: string }
     }
     expect(result.serverInfo.name).toBe('nyuchi-tools')
-    expect(result.serverInfo.version).toBe('0.1.0')
+    expect(result.serverInfo.version).toBe('0.2.0')
     expect(result.protocolVersion).toBe('2024-11-05')
   })
 
@@ -178,10 +178,10 @@ describe('POST /mcp — JSON-RPC', () => {
     const body = (await res.json()) as JsonRpcResponse
     const tools = (body.result as { tools: { name: string }[] }).tools
     expect(tools.map((t) => t.name).sort()).toEqual([
-      'generate_email_signature',
-      'generate_studio_card',
-      'report_issue',
-      'upload_asset',
+      'nyuchi_generate_email_signature',
+      'nyuchi_generate_studio_card',
+      'nyuchi_report_issue',
+      'nyuchi_upload_asset',
     ])
   })
 
@@ -195,6 +195,15 @@ describe('POST /mcp — JSON-RPC', () => {
     // on SDK version) — either way, never a successful render.
     const result = body.result as { isError?: boolean } | undefined
     expect(Boolean(body.error) || Boolean(result?.isError)).toBe(true)
+  })
+
+  it('the pre-0.2.0 unprefixed tool names error cleanly (renamed with the nyuchi_ prefix)', async () => {
+    for (const name of ['generate_email_signature', 'generate_studio_card', 'upload_asset', 'report_issue']) {
+      const res = await post('/mcp', rpc('tools/call', { name, arguments: {} }, 4))
+      const body = (await res.json()) as JsonRpcResponse
+      const result = body.result as { isError?: boolean } | undefined
+      expect(Boolean(body.error) || Boolean(result?.isError)).toBe(true)
+    }
   })
 
   it('tools carry behavior annotations and (where stable) output schemas', async () => {
@@ -211,23 +220,23 @@ describe('POST /mcp — JSON-RPC', () => {
     ).tools
     const byName = Object.fromEntries(tools.map((t) => [t.name, t]))
     // Pure generators are read-only and closed-world.
-    expect(byName['generate_email_signature'].annotations).toMatchObject({ readOnlyHint: true, openWorldHint: false })
+    expect(byName['nyuchi_generate_email_signature'].annotations).toMatchObject({ readOnlyHint: true, openWorldHint: false })
     // Anything that can publish externally is open-world, non-destructive.
-    for (const name of ['generate_studio_card', 'upload_asset', 'report_issue']) {
+    for (const name of ['nyuchi_generate_studio_card', 'nyuchi_upload_asset', 'nyuchi_report_issue']) {
       expect(byName[name].annotations).toMatchObject({ readOnlyHint: false, destructiveHint: false, openWorldHint: true })
     }
-    expect(Object.keys(byName['upload_asset'].outputSchema?.properties ?? {}).sort()).toEqual(['contentType', 'id', 'url'])
-    expect(Object.keys(byName['report_issue'].outputSchema?.properties ?? {}).sort()).toEqual(['number', 'repo', 'url'])
+    expect(Object.keys(byName['nyuchi_upload_asset'].outputSchema?.properties ?? {}).sort()).toEqual(['contentType', 'id', 'url'])
+    expect(Object.keys(byName['nyuchi_report_issue'].outputSchema?.properties ?? {}).sort()).toEqual(['number', 'repo', 'url'])
   })
 
 
-  it('tools/call generate_email_signature returns HTML with escaped fields', async () => {
+  it('tools/call nyuchi_generate_email_signature returns HTML with escaped fields', async () => {
     const res = await post(
       '/mcp',
       rpc(
         'tools/call',
         {
-          name: 'generate_email_signature',
+          name: 'nyuchi_generate_email_signature',
           arguments: {
             brand: 'nyuchi',
             name: 'Eve <script>alert(1)</script> & Co',
@@ -252,13 +261,13 @@ describe('POST /mcp — JSON-RPC', () => {
     expect(html).toContain('color: #5D4037;">Nyuchi Africa</span>')
   })
 
-  it('tools/call generate_email_signature accepts the new bundu brand', async () => {
+  it('tools/call nyuchi_generate_email_signature accepts the new bundu brand', async () => {
     const res = await post(
       '/mcp',
       rpc(
         'tools/call',
         {
-          name: 'generate_email_signature',
+          name: 'nyuchi_generate_email_signature',
           arguments: { brand: 'bundu', name: 'Tariro Chikafu', email: 'tariro@bundu.org' },
         },
         30,
@@ -273,13 +282,13 @@ describe('POST /mcp — JSON-RPC', () => {
     expect(html).toContain('>bundu.org</a>')
   })
 
-  it('tools/call generate_email_signature accepts the new shamwari brand', async () => {
+  it('tools/call nyuchi_generate_email_signature accepts the new shamwari brand', async () => {
     const res = await post(
       '/mcp',
       rpc(
         'tools/call',
         {
-          name: 'generate_email_signature',
+          name: 'nyuchi_generate_email_signature',
           arguments: { brand: 'shamwari', name: 'Farai Gumbo', email: 'farai@shamwari.ai' },
         },
         31,
@@ -297,7 +306,7 @@ describe('POST /mcp — JSON-RPC', () => {
       '/mcp',
       rpc(
         'tools/call',
-        { name: 'generate_email_signature', arguments: { brand: 'acme', name: 'X', email: 'x@x.com' } },
+        { name: 'nyuchi_generate_email_signature', arguments: { brand: 'acme', name: 'X', email: 'x@x.com' } },
         4,
       ),
     )
@@ -313,13 +322,13 @@ describe('POST /mcp — JSON-RPC', () => {
     expect(result.content[0].text).toContain('brand')
   })
 
-  it('tools/call generate_studio_card returns a real Studio SVG plus JSON metadata', async () => {
+  it('tools/call nyuchi_generate_studio_card returns a real Studio SVG plus JSON metadata', async () => {
     const res = await post(
       '/mcp',
       rpc(
         'tools/call',
         {
-          name: 'generate_studio_card',
+          name: 'nyuchi_generate_studio_card',
           arguments: {
             title: 'Seven minerals, one ecosystem',
             dek: 'How the bundu palette carries meaning across every brand we build.',
@@ -355,13 +364,13 @@ describe('POST /mcp — JSON-RPC', () => {
     expect(typeof meta.seed).toBe('number')
   })
 
-  it('generate_studio_card keeps markup in the title escaped', async () => {
+  it('nyuchi_generate_studio_card keeps markup in the title escaped', async () => {
     const res = await post(
       '/mcp',
       rpc(
         'tools/call',
         {
-          name: 'generate_studio_card',
+          name: 'nyuchi_generate_studio_card',
           arguments: {
             title: 'Attack <script>alert(1)</script> & Co',
             category: 'cobalt',
@@ -379,13 +388,13 @@ describe('POST /mcp — JSON-RPC', () => {
     expect(svg).toContain('&lt;script&gt;')
   })
 
-  it('generate_studio_card is deterministic for identical arguments', async () => {
+  it('nyuchi_generate_studio_card is deterministic for identical arguments', async () => {
     const args = { title: 'Determinism', category: 'malachite', format: '16x9', layout: 3 }
     const first = (await (
-      await post('/mcp', rpc('tools/call', { name: 'generate_studio_card', arguments: args }, 12))
+      await post('/mcp', rpc('tools/call', { name: 'nyuchi_generate_studio_card', arguments: args }, 12))
     ).json()) as JsonRpcResponse
     const second = (await (
-      await post('/mcp', rpc('tools/call', { name: 'generate_studio_card', arguments: args }, 13))
+      await post('/mcp', rpc('tools/call', { name: 'nyuchi_generate_studio_card', arguments: args }, 13))
     ).json()) as JsonRpcResponse
     const a = (first.result as { content: { text: string }[] }).content
     const b = (second.result as { content: { text: string }[] }).content
@@ -393,13 +402,13 @@ describe('POST /mcp — JSON-RPC', () => {
     expect(b[1].text).toBe(a[1].text)
   })
 
-  it('generate_studio_card renders a bundu-branded card (lockup wordmark)', async () => {
+  it('nyuchi_generate_studio_card renders a bundu-branded card (lockup wordmark)', async () => {
     const res = await post(
       '/mcp',
       rpc(
         'tools/call',
         {
-          name: 'generate_studio_card',
+          name: 'nyuchi_generate_studio_card',
           arguments: { title: 'The wilderness holds the hive', category: 'copper', brand: 'bundu' },
         },
         32,
@@ -414,12 +423,12 @@ describe('POST /mcp — JSON-RPC', () => {
     expect(svg).not.toContain('>nyuchi.com</text>')
   })
 
-  it('generate_studio_card rejects an unknown brand', async () => {
+  it('nyuchi_generate_studio_card rejects an unknown brand', async () => {
     const res = await post(
       '/mcp',
       rpc(
         'tools/call',
-        { name: 'generate_studio_card', arguments: { title: 'X', category: 'gold', brand: 'acme' } },
+        { name: 'nyuchi_generate_studio_card', arguments: { title: 'X', category: 'gold', brand: 'acme' } },
         33,
       ),
     )
@@ -430,12 +439,12 @@ describe('POST /mcp — JSON-RPC', () => {
     expect(result.content[0].text).toContain('-32602')
   })
 
-  it('generate_studio_card rejects an unknown format', async () => {
+  it('nyuchi_generate_studio_card rejects an unknown format', async () => {
     const res = await post(
       '/mcp',
       rpc(
         'tools/call',
-        { name: 'generate_studio_card', arguments: { title: 'X', category: 'gold', format: 'a4' } },
+        { name: 'nyuchi_generate_studio_card', arguments: { title: 'X', category: 'gold', format: 'a4' } },
         14,
       ),
     )
@@ -456,13 +465,13 @@ describe('POST /mcp — JSON-RPC', () => {
   // one Worker isolate's lifetime), so once these run, every studio
   // test after them would also see real icons instead of the wordmark-only
   // fallback the tests above assert around.
-  it('generate_studio_card embeds the real brand icon when ASSETS is available', async () => {
+  it('nyuchi_generate_studio_card embeds the real brand icon when ASSETS is available', async () => {
     const res = await post(
       '/mcp',
       rpc(
         'tools/call',
         {
-          name: 'generate_studio_card',
+          name: 'nyuchi_generate_studio_card',
           arguments: { title: 'What is nhimbe?', category: 'malachite', brand: 'mukoko' },
         },
         18,
@@ -513,7 +522,7 @@ describe('POST /mcp — JSON-RPC', () => {
 /* These run after the icon tests above on purpose: they pass an ASSETS
  * binding, which (like one real isolate) populates the module-level
  * brand-icon cache for every later call in this file. */
-describe('generate_studio_card — returnFormat / upload', () => {
+describe('nyuchi_generate_studio_card — returnFormat / upload', () => {
   afterEach(() => {
     vi.restoreAllMocks()
   })
@@ -524,7 +533,7 @@ describe('generate_studio_card — returnFormat / upload', () => {
       rpc(
         'tools/call',
         {
-          name: 'generate_studio_card',
+          name: 'nyuchi_generate_studio_card',
           arguments: {
             title: 'Nhimbe',
             dek: 'Gathering, discovered.',
@@ -549,7 +558,7 @@ describe('generate_studio_card — returnFormat / upload', () => {
       rpc(
         'tools/call',
         {
-          name: 'generate_studio_card',
+          name: 'nyuchi_generate_studio_card',
           arguments: { title: 'Nhimbe', category: 'malachite', layout: 1, theme: 'accent' },
         },
         45,
@@ -568,7 +577,7 @@ describe('generate_studio_card — returnFormat / upload', () => {
       rpc(
         'tools/call',
         {
-          name: 'generate_studio_card',
+          name: 'nyuchi_generate_studio_card',
           arguments: { title: 'X', category: 'gold', dekColor: 'red"onload="x' },
         },
         41,
@@ -586,7 +595,7 @@ describe('generate_studio_card — returnFormat / upload', () => {
       rpc(
         'tools/call',
         {
-          name: 'generate_studio_card',
+          name: 'nyuchi_generate_studio_card',
           arguments: {
             title: 'Seven minerals',
             dek: 'One ecosystem.',
@@ -629,7 +638,7 @@ describe('generate_studio_card — returnFormat / upload', () => {
       rpc(
         'tools/call',
         {
-          name: 'generate_studio_card',
+          name: 'nyuchi_generate_studio_card',
           arguments: { title: 'Both', category: 'gold', layout: 1, upload: true, returnFormat: 'png' },
         },
         46,
@@ -651,7 +660,7 @@ describe('generate_studio_card — returnFormat / upload', () => {
       rpc(
         'tools/call',
         {
-          name: 'generate_studio_card',
+          name: 'nyuchi_generate_studio_card',
           arguments: { title: 'X', category: 'gold', upload: true, returnFormat: 'svg' },
         },
         47,
@@ -670,7 +679,7 @@ describe('generate_studio_card — returnFormat / upload', () => {
       rpc(
         'tools/call',
         {
-          name: 'generate_studio_card',
+          name: 'nyuchi_generate_studio_card',
           arguments: { title: 'X', category: 'gold', upload: true },
         },
         43,
@@ -701,7 +710,7 @@ describe('generate_studio_card — returnFormat / upload', () => {
       rpc(
         'tools/call',
         {
-          name: 'generate_studio_card',
+          name: 'nyuchi_generate_studio_card',
           arguments: {
             title: 'Nhimbe harvest',
             dek: "Africa's gathering, discovered.",
@@ -743,7 +752,7 @@ describe('generate_studio_card — returnFormat / upload', () => {
   })
 })
 
-describe('upload_asset', () => {
+describe('nyuchi_upload_asset', () => {
   afterEach(() => {
     vi.restoreAllMocks()
   })
@@ -762,7 +771,7 @@ describe('upload_asset', () => {
     )
     const res = await post(
       '/mcp',
-      rpc('tools/call', { name: 'upload_asset', arguments: { pngBase64: TINY_PNG_B64 } }, 50),
+      rpc('tools/call', { name: 'nyuchi_upload_asset', arguments: { pngBase64: TINY_PNG_B64 } }, 50),
       UPLOAD_ENV,
     )
     const body = (await res.json()) as JsonRpcResponse
@@ -794,7 +803,7 @@ describe('upload_asset', () => {
       '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><rect width="40" height="40" fill="#FFD740"/></svg>'
     const res = await post(
       '/mcp',
-      rpc('tools/call', { name: 'upload_asset', arguments: { svg } }, 51),
+      rpc('tools/call', { name: 'nyuchi_upload_asset', arguments: { svg } }, 51),
       UPLOAD_ENV,
     )
     const body = (await res.json()) as JsonRpcResponse
@@ -819,7 +828,7 @@ describe('upload_asset', () => {
       '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"><rect width="20" height="20" fill="#64FFDA"/></svg>'
     const res = await post(
       '/mcp',
-      rpc('tools/call', { name: 'upload_asset', arguments: { svg, pngBase64: '' } }, 55),
+      rpc('tools/call', { name: 'nyuchi_upload_asset', arguments: { svg, pngBase64: '' } }, 55),
       UPLOAD_ENV,
     )
     const body = (await res.json()) as JsonRpcResponse
@@ -835,7 +844,7 @@ describe('upload_asset', () => {
       '/mcp',
       rpc(
         'tools/call',
-        { name: 'upload_asset', arguments: { svg: '<svg/>', pngBase64: TINY_PNG_B64 } },
+        { name: 'nyuchi_upload_asset', arguments: { svg: '<svg/>', pngBase64: TINY_PNG_B64 } },
         52,
       ),
       UPLOAD_ENV,
@@ -851,7 +860,7 @@ describe('upload_asset', () => {
       '/mcp',
       rpc(
         'tools/call',
-        { name: 'upload_asset', arguments: { pngBase64: Buffer.from('not a png').toString('base64') } },
+        { name: 'nyuchi_upload_asset', arguments: { pngBase64: Buffer.from('not a png').toString('base64') } },
         53,
       ),
       UPLOAD_ENV,
@@ -865,7 +874,7 @@ describe('upload_asset', () => {
   it('fails closed with a clear message when Images is unconfigured', async () => {
     const res = await post(
       '/mcp',
-      rpc('tools/call', { name: 'upload_asset', arguments: { pngBase64: TINY_PNG_B64 } }, 54),
+      rpc('tools/call', { name: 'nyuchi_upload_asset', arguments: { pngBase64: TINY_PNG_B64 } }, 54),
       { ...OPEN_ENV, ASSETS: FONT_ASSETS_STUB },
     )
     const body = (await res.json()) as JsonRpcResponse
@@ -875,7 +884,7 @@ describe('upload_asset', () => {
   })
 })
 
-describe('report_issue', () => {
+describe('nyuchi_report_issue', () => {
   afterEach(() => {
     vi.restoreAllMocks()
   })
@@ -892,11 +901,11 @@ describe('report_issue', () => {
       rpc(
         'tools/call',
         {
-          name: 'report_issue',
+          name: 'nyuchi_report_issue',
           arguments: {
             title: 'Dek renders too small',
-            description: 'Called generate_studio_card with layout 1; the dek was unreadable at feed size.',
-            tool_name: 'generate_studio_card',
+            description: 'Called nyuchi_generate_studio_card with layout 1; the dek was unreadable at feed size.',
+            tool_name: 'nyuchi_generate_studio_card',
             severity: 'high',
             category: 'bug',
           },
@@ -919,7 +928,7 @@ describe('report_issue', () => {
     const [url, init] = fetchSpy.mock.calls[0] as [string, RequestInit]
     expect(url).toBe('https://api.github.com/repos/nyuchi/workspace-tools/issues')
     const sent = JSON.parse(init.body as string) as { title: string; body: string; labels: string[] }
-    expect(sent.title).toBe('[generate_studio_card] Dek renders too small')
+    expect(sent.title).toBe('[nyuchi_generate_studio_card] Dek renders too small')
     expect(sent.body).toContain('**Severity:** high')
     expect(sent.labels).toEqual(['mcp-feedback', 'bug', 'severity:high'])
     expect((init.headers as Record<string, string>).Authorization).toBe('Bearer gh123')
@@ -931,11 +940,11 @@ describe('report_issue', () => {
       rpc(
         'tools/call',
         {
-          name: 'report_issue',
+          name: 'nyuchi_report_issue',
           arguments: {
             title: 'Some problem',
             description: 'Long enough description of the problem.',
-            tool_name: 'upload_asset',
+            tool_name: 'nyuchi_upload_asset',
             category: 'bug',
           },
         },
@@ -957,11 +966,11 @@ describe('report_issue', () => {
       rpc(
         'tools/call',
         {
-          name: 'report_issue',
+          name: 'nyuchi_report_issue',
           arguments: {
             title: 'Some problem',
             description: 'Long enough description of the problem.',
-            tool_name: 'upload_asset',
+            tool_name: 'nyuchi_upload_asset',
             category: 'documentation',
           },
         },
@@ -1048,7 +1057,7 @@ describe('GET /.well-known/mcp/server-card.json', () => {
     expect(res.status).toBe(200)
     expect(res.headers.get('content-type')).toContain('application/json')
     expect(await res.json()).toEqual({
-      serverInfo: { name: 'nyuchi-tools', version: '0.1.0' },
+      serverInfo: { name: 'nyuchi-tools', version: '0.2.0' },
       name: 'nyuchi-tools',
       description:
         'MCP server for Nyuchi Africa tools: email signatures, Nyuchi Studio social cards ' +
@@ -1621,12 +1630,12 @@ describe('POST /api/signature', () => {
     expect(body.error).toBe('invalid_params')
   })
 
-  it('emits HTML byte-identical to the generate_email_signature MCP tool', async () => {
+  it('emits HTML byte-identical to the nyuchi_generate_email_signature MCP tool', async () => {
     const httpRes = await postSignature(PARAMS, SIG_ENV, { Authorization: `Bearer ${TEST_API_KEY}` })
     const { html } = (await httpRes.json()) as { html: string }
     const mcpRes = await post(
       '/mcp',
-      rpc('tools/call', { name: 'generate_email_signature', arguments: PARAMS }, 70),
+      rpc('tools/call', { name: 'nyuchi_generate_email_signature', arguments: PARAMS }, 70),
     )
     const mcpBody = (await mcpRes.json()) as JsonRpcResponse
     const mcpHtml = (mcpBody.result as { content: { text: string }[] }).content[0].text
@@ -2678,7 +2687,7 @@ describe('POST /mcp — resources & prompts (catalog)', () => {
     expect(messages).toHaveLength(1)
     expect(messages[0].role).toBe('user')
     expect(messages[0].content.text).toContain('Malachite quarterly growth report')
-    expect(messages[0].content.text).toContain('generate_studio_card')
+    expect(messages[0].content.text).toContain('nyuchi_generate_studio_card')
     expect(messages[0].content.text).toContain('nyuchi://minerals')
   })
 

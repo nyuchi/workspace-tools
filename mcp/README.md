@@ -6,14 +6,14 @@ Worker, same code, two Workers Custom Domains; see the `MCP_RESOURCE`
 comment in `../wrangler.toml` for why `/mcp` lives on a separate hostname):
 
 - `/mcp` — Model Context Protocol server (streamable-HTTP JSON-RPC) exposing
-  `generate_email_signature`, `generate_studio_card`, `upload_asset`, and
-  `report_issue` (the legacy `generate_article_banner` was removed — the
-  Studio replaces it). `generate_studio_card` can
+  `nyuchi_generate_email_signature`, `nyuchi_generate_studio_card`, `nyuchi_upload_asset`, and
+  `nyuchi_report_issue` (the legacy `generate_article_banner` was removed — the
+  Studio replaces it). `nyuchi_generate_studio_card` can
   rasterize server-side (resvg-wasm + the TTFs under
   `signature-generator/public/fonts/raster/`, fetched via the ASSETS binding)
   and upload to Cloudflare Images (`returnFormat: url | png | svg`); uploads
   need the `CF_IMAGES_ACCOUNT_ID` var + `CF_IMAGES_TOKEN` secret, and
-  `report_issue` needs the `GITHUB_FEEDBACK_TOKEN` secret (repo picked by the
+  `nyuchi_report_issue` needs the `GITHUB_FEEDBACK_TOKEN` secret (repo picked by the
   `FEEDBACK_REPO` var). Both fail closed with a clear message when
   unconfigured. Has its own bearer-token gate (see below); never
   double-gated by the site-wide login gate. Reachable on both domains, but
@@ -129,10 +129,10 @@ Never use a throwaway value like that in production — set the real one with
 
 ## Notes
 
-- `generate_email_signature` imports the shared pure engine at
+- `nyuchi_generate_email_signature` imports the shared pure engine at
   `signature-generator/src/engines/signature` (the same module the SPA uses),
   so both surfaces emit byte-identical signature HTML.
-- `generate_studio_card` imports the real SVG engine
+- `nyuchi_generate_studio_card` imports the real SVG engine
   (`signature-generator/src/engines/nyuchi`) — the
   same module the `/studio` page renders with. Workers have no
   canvas, so text measurement falls back to a committed font-metrics table

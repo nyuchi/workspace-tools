@@ -55,7 +55,7 @@ export function registerCatalog(server: McpServer): void {
         "The canonical Bundu-ecosystem taxonomy: the four top-level brands " +
         "(bundu foundation, nyuchi commercial, mukoko consumer, shamwari community AI), " +
         "their divisions, and the Bundu Foundation initiatives. Same data the " +
-        "generate_email_signature and generate_studio_card tools use.",
+        "nyuchi_generate_email_signature and nyuchi_generate_studio_card tools use.",
       mimeType: "application/json",
     },
     async (uri) =>
@@ -104,7 +104,7 @@ export function registerCatalog(server: McpServer): void {
       description:
         "The seven Mzizi mineral palettes (name, semantic role, light/dark hex " +
         "pairs) plus the light/dark surface tokens — the palette system behind " +
-        "generate_studio_card's `category` parameter. Pick the mineral whose " +
+        "nyuchi_generate_studio_card's `category` parameter. Pick the mineral whose " +
         "role matches the content: Cobalt=Knowledge, Sodalite=Intelligence, " +
         "Tanzanite=Identity, Malachite=Growth, Gold=Value, Copper=Stewardship, " +
         "Terracotta=Community.",
@@ -121,7 +121,7 @@ export function registerCatalog(server: McpServer): void {
       description:
         "Canvas formats (pixel sizes per platform), the five layout " +
         "compositions, and the three surface themes accepted by " +
-        "generate_studio_card. Format and layout are independent axes.",
+        "nyuchi_generate_studio_card. Format and layout are independent axes.",
       mimeType: "application/json",
     },
     async (uri) =>
@@ -149,7 +149,7 @@ export function registerCatalog(server: McpServer): void {
     {
       title: "Create an eye-catching social card",
       description:
-        "Guided workflow for generate_studio_card: picks mineral by topic, " +
+        "Guided workflow for nyuchi_generate_studio_card: picks mineral by topic, " +
         "format by platform, and applies the hook-title/theme guidance.",
       argsSchema: {
         topic: z.string().describe("What the post is about (drives title, dek, and mineral choice)."),
@@ -168,7 +168,7 @@ export function registerCatalog(server: McpServer): void {
     ({ topic, platform, brand }) =>
       userMessage(
         `Create an eye-catching social card about: ${topic}\n\n` +
-          `Use the generate_studio_card tool. Guidance:\n` +
+          `Use the nyuchi_generate_studio_card tool. Guidance:\n` +
           `- Read nyuchi://minerals and pick the mineral whose ROLE best matches the topic ` +
           `(e.g. growth news → malachite, community → terracotta).\n` +
           `- Format: ${platform ? `use the format matching '${platform}'` : "default 'ig' unless the destination implies otherwise"} ` +
@@ -187,7 +187,7 @@ export function registerCatalog(server: McpServer): void {
     {
       title: "Create a branded email signature",
       description:
-        "Guided workflow for generate_email_signature: collects the signer's " +
+        "Guided workflow for nyuchi_generate_email_signature: collects the signer's " +
         "details and renders the byte-locked Nyuchi signature HTML.",
       argsSchema: {
         name: z.string().describe("Full name of the signer."),
@@ -201,7 +201,7 @@ export function registerCatalog(server: McpServer): void {
     ({ name, email, brand }) =>
       userMessage(
         `Generate an email signature for ${name} <${email}>.\n\n` +
-          `Use the generate_email_signature tool. Guidance:\n` +
+          `Use the nyuchi_generate_email_signature tool. Guidance:\n` +
           `- Brand: ${brand ?? "derive from the email domain via nyuchi://brands (e.g. @nyuchi.com → nyuchi, @bundu.org → bundu, @mukoko.com → mukoko, @shamwari.ai → shamwari)"}.\n` +
           `- Include title/phone/whatsapp/socials only if provided — never invent contact details.\n` +
           `- Return the emitted HTML verbatim; it is byte-locked to the historical design and must not be edited.`,
@@ -224,7 +224,7 @@ export function registerCatalog(server: McpServer): void {
     ({ mineral }) =>
       userMessage(
         `Create a mineral-education card introducing the Mzizi mineral '${mineral}'.\n\n` +
-          `Use generate_studio_card with: category '${mineral}', layout 5, and the mineral's ` +
+          `Use nyuchi_generate_studio_card with: category '${mineral}', layout 5, and the mineral's ` +
           `name as the title (hex spec labels then show automatically; pass showHexes: true to force them). ` +
           `Read nyuchi://minerals for its role and hex pair, and use the role as the card's dek or eyebrow.`,
       ),

@@ -24,7 +24,7 @@
   </qa_pair>
   <qa_pair>
     <question>What pixel dimensions does the studio card engine use for the "story" format?</question>
-    <answer>1080 × 1920 (nyuchi://studio/reference, or the format metadata returned by generate_studio_card with format "story").</answer>
+    <answer>1080 × 1920 (nyuchi://studio/reference, or the format metadata returned by nyuchi_generate_studio_card with format "story").</answer>
   </qa_pair>
   <qa_pair>
     <question>Which studio layout is the "meet this mineral" educational card, and is it the default layout?</question>
@@ -39,12 +39,12 @@
     <answer>Only when the card is about the mineral itself — no title, or the title equals the mineral's name; generic cards hide them (overridable with showHexes).</answer>
   </qa_pair>
   <qa_pair>
-    <question>What tagline does the generate_email_signature output carry for the bundu brand?</question>
+    <question>What tagline does the nyuchi_generate_email_signature output carry for the bundu brand?</question>
     <answer>"The wilderness holds the hive" (visible in the emitted signature HTML for brand "bundu", and in nyuchi://brands).</answer>
   </qa_pair>
   <qa_pair>
     <question>Which of this server's tools are annotated read-only, and which can publish to the outside world?</question>
-    <answer>generate_email_signature is read-only/closed-world; generate_studio_card, upload_asset, and report_issue are open-world (upload/publish or file issues) but non-destructive.</answer>
+    <answer>nyuchi_generate_email_signature is read-only/closed-world; nyuchi_generate_studio_card, nyuchi_upload_asset, and nyuchi_report_issue are open-world (upload/publish or file issues) but non-destructive.</answer>
   </qa_pair>
   <qa_pair>
     <question>According to the create_social_card prompt, which mineral should a post about community stories use?</question>

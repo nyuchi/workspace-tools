@@ -50,7 +50,7 @@ flowchart LR
 Key properties:
 - **One engine.** Every surface renders through `engines/signature` — the Worker exposes it as an API so nothing ever hand-syncs a template again.
 - **Two trust paths, matching today's model.** Self-service acts as the signed-in user (OAuth, least privilege). Bulk admin push uses a service account with domain-wide delegation — the same mechanism the Apps Script admin flows already require, just held by the Worker instead.
-- **Humans in the loop** (Mzizi doctrine): admin bulk push always previews first, supports dry-run, and reports per-user success/failure; failures can be filed through the existing `report_issue` loop.
+- **Humans in the loop** (Mzizi doctrine): admin bulk push always previews first, supports dry-run, and reports per-user success/failure; failures can be filed through the existing `nyuchi_report_issue` loop.
 
 ## 3. Phases
 

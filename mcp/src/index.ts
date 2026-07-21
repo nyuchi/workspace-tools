@@ -137,7 +137,7 @@ const MINERALS = [
 ] as const;
 
 const SERVER_NAME = "nyuchi-tools";
-const SERVER_VERSION = "0.1.0";
+const SERVER_VERSION = "0.2.0";
 /** Display-only (GET /mcp ping): actual negotiation is per-request in the SDK. */
 const MCP_PROTOCOL_VERSION = LATEST_PROTOCOL_VERSION;
 
@@ -197,11 +197,11 @@ function buildServer(env: Env): McpServer {
     version: SERVER_VERSION,
   });
 
-  // --- generate_email_signature -------------------------------------------
+  // --- nyuchi_generate_email_signature -------------------------------------------
   // Shares the pure signature engine with the SPA so both surfaces emit
   // byte-identical signature HTML.
   server.registerTool(
-    "generate_email_signature",
+    "nyuchi_generate_email_signature",
     {
       title: "Generate email signature",
       description: "Generate a branded Nyuchi email signature as HTML.",
@@ -233,12 +233,12 @@ function buildServer(env: Env): McpServer {
     },
   );
 
-  // --- generate_studio_card -----------------------------------------------
+  // --- nyuchi_generate_studio_card -----------------------------------------------
   // The real Studio engine — the same pure module the SPA's /studio page
   // renders with. Text is measured from the committed font-metrics table
   // (Workers have no canvas); all user input is escaped inside the engine.
   server.registerTool(
-    "generate_studio_card",
+    "nyuchi_generate_studio_card",
     {
       title: "Generate Nyuchi Studio social card",
       description:
@@ -477,20 +477,20 @@ function buildServer(env: Env): McpServer {
     },
   );
 
-  // --- upload_asset --------------------------------------------------------
+  // --- nyuchi_upload_asset --------------------------------------------------------
   // Standalone "give me a public URL" tool: takes SVG (rasterized
   // server-side) or ready PNG bytes and uploads to Cloudflare Images, so a
   // generated image can be attached to anything that needs a fetchable URL
   // (Buffer, Instagram, X, ...).
   server.registerTool(
-    "upload_asset",
+    "nyuchi_upload_asset",
     {
       title: "Upload an image asset, get a public URL",
       description:
         "Upload a generated image to Cloudflare Images and return a stable public URL in one call. " +
-        "Give it either `svg` (e.g. the output of generate_studio_card — it is rasterized to PNG " +
+        "Give it either `svg` (e.g. the output of nyuchi_generate_studio_card — it is rasterized to PNG " +
         "server-side, no client SVG→PNG pipeline needed) or `pngBase64` (pre-rasterized bytes). " +
-        "For generate_studio_card output, prefer calling that tool with upload=true instead — one " +
+        "For nyuchi_generate_studio_card output, prefer calling that tool with upload=true instead — one " +
         "call, no SVG round-trip.",
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
       outputSchema: {
@@ -580,11 +580,11 @@ function buildServer(env: Env): McpServer {
     },
   );
 
-  // --- report_issue --------------------------------------------------------
+  // --- nyuchi_report_issue --------------------------------------------------------
   // Feedback loop: file a real GitHub issue on the Nyuchi Tools repo from
   // inside a session, instead of relying on someone writing a doc afterward.
   server.registerTool(
-    "report_issue",
+    "nyuchi_report_issue",
     {
       title: "Report an issue with a Nyuchi Tools tool",
       description:
@@ -609,8 +609,8 @@ function buildServer(env: Env): McpServer {
           .string()
           .max(100)
           .describe(
-            "Which tool this concerns (e.g. generate_studio_card, upload_asset, " +
-              "generate_email_signature) — be unambiguous.",
+            "Which tool this concerns (e.g. nyuchi_generate_studio_card, nyuchi_upload_asset, " +
+              "nyuchi_generate_email_signature) — be unambiguous.",
           ),
         severity: z
           .enum(["low", "medium", "high"])

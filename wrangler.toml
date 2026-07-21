@@ -67,12 +67,12 @@ MCP_RESOURCE = "https://tools.nyuchi.dev/mcp"
 # discover it via /.well-known/oauth-protected-resource and self-register
 # through its dynamic client registration. Unset to run the MCP open.
 AUTHKIT_DOMAIN = "identity.nyuchi.com"
-# Cloudflare Images account for the MCP upload tools (generate_studio_card's
-# returnFormat 'url' / upload_asset). Same account as account_id above. The
+# Cloudflare Images account for the MCP upload tools (nyuchi_generate_studio_card's
+# returnFormat 'url' / nyuchi_upload_asset). Same account as account_id above. The
 # matching CF_IMAGES_TOKEN secret (an API token with Cloudflare Images edit
 # permission) is provisioned out-of-band — see the secrets note below.
 CF_IMAGES_ACCOUNT_ID = "125a2dfbc21f76a25c980609609e8218"
-# Where the report_issue MCP tool files GitHub issues. The matching
+# Where the nyuchi_report_issue MCP tool files GitHub issues. The matching
 # GITHUB_FEEDBACK_TOKEN secret (fine-grained token, Issues: write on this
 # repo) is provisioned out-of-band — see the secrets note below.
 FEEDBACK_REPO = "nyuchi/workspace-tools"
@@ -99,7 +99,7 @@ GOOGLE_WORKSPACE_DOMAIN = "nyuchi.com"
 #     provisioned under that name); delivery URLs come back from the API
 #     as https://imagedelivery.net/<account_hash>/<image_id>/<variant>.
 #   GITHUB_FEEDBACK_TOKEN  — fine-grained GitHub token (Issues: write on
-#     FEEDBACK_REPO) for the report_issue MCP tool. Without it, the tool
+#     FEEDBACK_REPO) for the nyuchi_report_issue MCP tool. Without it, the tool
 #     returns a clear "not configured" error.
 #   SIGNATURE_API_KEY      — shared bearer key for POST /api/signature
 #     (Apps Script → Worker). Bearer path fails closed without it; the
