@@ -11,6 +11,10 @@ This guide helps you test the Google Apps Script functions before deploying sign
 5. Enable required APIs:
    - Admin SDK API (directory_v1)
    - Gmail API
+6. Set Script Properties (Project Settings > Script Properties) — signature
+   HTML now comes from the `tools.nyuchi.com` render API, not a local template:
+   - `SIGNATURE_API_KEY` (required) — bearer token for `POST /api/signature`
+   - `SIGNATURE_API_URL` (optional) — defaults to `https://tools.nyuchi.com`
 
 ## Quick Start: Run All Tests
 
@@ -26,11 +30,10 @@ This guide helps you test the Google Apps Script functions before deploying sign
 
 **What it tests**:
 - ✅ Configuration display (CONFIG object)
-- ✅ Flag colors validation (Zimbabwe flag)
-- ✅ Division detection (email domain mapping)
-- ✅ Signature generation with mock data
+- ✅ Division detection (email domain → API brand slug mapping)
+- ✅ Signature generation with mock data (requires `SIGNATURE_API_KEY` — HTML is fetched from the render API)
 - ✅ All users and aliases (requires Admin SDK)
-- ✅ Your own signature (requires Admin SDK)
+- ✅ Your own signature (requires Admin SDK + `SIGNATURE_API_KEY`)
 
 **Expected output**:
 ```
@@ -43,14 +46,13 @@ This guide helps you test the Google Apps Script functions before deploying sign
 TEST SUMMARY
 ======================================================================
 ✓ PASS: Configuration Display
-✓ PASS: Flag Colors Validation
 ✓ PASS: Division Detection
-✓ PASS: Signature Generation (Mock Data)
+✓ PASS: Signature Generation (render API)
 ✓ PASS: All Users and Aliases (Admin SDK)
-✓ PASS: My Own Signature (Admin SDK)
+✓ PASS: My Own Signature (Admin SDK + render API)
 
-Total Tests: 6
-Passed: 6 (100%)
+Total Tests: 5
+Passed: 5 (100%)
 Failed: 0 (0%)
 
 🎉 All tests passed! Email signature system is ready for deployment.
@@ -78,21 +80,19 @@ showConfig()
 ========== NYUCHI EMAIL SIGNATURE CONFIGURATION ==========
 
 Domain: nyuchi.com
-Company: Nyuchi Africa
-Tagline: I am because we are
-Ubuntu Footer: 🇿🇼 Built with Ubuntu • Powered by Community
+Signature HTML: rendered by the tools.nyuchi.com API (SIGNATURE_API_KEY / SIGNATURE_API_URL in Script Properties)
 
 Promotional Banner:
-  Image URL: https://drive.google.com/uc?export=view&id=...
-  Link URL: https://nyuchi.com
-  Alt Text: Nyuchi - I am because we are
+  Image URL: https://drive.google.com/...
+  Link URL: https://www.nyuchi.com
+  Alt Text: Ubuntu - I am because we are
 
-Divisions (7 total):
+Divisions (10 total):
 
   lingo.nyuchi.com:
     Name: Nyuchi Lingo
     Website: lingo.nyuchi.com
-    Hide Attribution: false
+    API brand slug: nyuchi
 
   ...
 ```
@@ -113,49 +113,22 @@ testDivisionDetection()
 test@lingo.nyuchi.com
   → Division: Nyuchi Lingo
   → Website: lingo.nyuchi.com
-  → Logo: https://raw.githubusercontent.com/nyuchi/nyuchi-brand-assets...
-  → Hide Attribution: false
+  → API brand slug: nyuchi
 
 test@mukoko.com
   → Division: Mukoko
   → Website: mukoko.com
-  → Logo: https://raw.githubusercontent.com/nyuchi/nyuchi-brand-assets...
-  → Hide Attribution: false
+  → API brand slug: mukoko
 
 ...
+PASS: testDivisionDetection
 ```
 
-#### 0c. Test Flag Colors (testFlagColors)
+#### 0c. Test Signature Generation (testSignatureGeneration)
 
-**Purpose**: Validate Zimbabwe flag configuration
+**Purpose**: Fetch signatures from the render API with mock data and validate content
 
-**How to run**:
-```javascript
-testFlagColors()
-```
-
-**Expected output**:
-```
-========== TESTING ZIMBABWE FLAG COLORS ==========
-
-Flag configuration (5 equal stripes at 20% each):
-1. Green:  #729b63  (0-20%)
-2. Yellow: #f6ad55 (20-40%)
-3. Red:    #d4634a    (40-60%)
-4. Black:  #171717  (60-80%)
-5. White:  #ffffff  (80-100%)
-
-Generated CSS gradient:
-linear-gradient(to bottom, #729b63 0%, #729b63 20%, ...)
-
-✓ Flag is always 4px vertical left edge
-✓ No repeating colors
-✓ Equal 20% distribution
-```
-
-#### 0d. Test Signature Generation (testSignatureGeneration)
-
-**Purpose**: Generate signatures with mock data and validate content
+**Requires**: `SIGNATURE_API_KEY` in Script Properties (calls the live `tools.nyuchi.com` API)
 
 **How to run**:
 ```javascript
@@ -164,25 +137,21 @@ testSignatureGeneration()
 
 **Expected output**:
 ```
-========== TESTING SIGNATURE GENERATION ==========
+========== TESTING SIGNATURE GENERATION (render API) ==========
 
 === Signature for test@lingo.nyuchi.com ===
 
-Division: Nyuchi Lingo
-Logo: https://raw.githubusercontent.com/nyuchi/nyuchi-brand-assets/main/assets/logos/Nyuchi_Lingo_Logo_dark.png
+Division: Nyuchi Lingo (API brand slug: nyuchi)
 
 First 500 characters of HTML:
-<table cellpadding="0" cellspacing="0" border="0"...
+<table cellpadding="0" cellspacing="0" style="font-family: 'Plus Jakarta Sans'...
 
 Validation checks:
-  ✓ Zimbabwe flag gradient
-  ✓ Division logo
   ✓ User name
   ✓ Email address
   ✓ Phone number
-  ✓ Ubuntu footer
   ✓ Promotional banner
-  ✓ All text black
+PASS: testSignatureGeneration
 ```
 
 ---
@@ -217,8 +186,7 @@ Your aliases: alias1@division.com, alias2@division.com
 **What to check**:
 - ✅ Your email address is detected correctly
 - ✅ All your aliases are listed
-- ✅ The signature HTML includes the correct division logo
-- ✅ Zimbabwe flag gradient is present (5 colors)
+- ✅ The signature HTML comes back from the render API (canonical engine markup — brand name/tagline/website, no local template)
 - ✅ All placeholders are replaced with your actual data
 
 ---
@@ -264,31 +232,19 @@ Bob Wilson (bob@nyuchi.com) - Nyuchi Africa
 previewSignature('john@lingo.nyuchi.com')
 ```
 
-**Expected output**:
+**Expected output** (canonical engine markup from the render API):
 ```html
-<table cellpadding="0" cellspacing="0" border="0" style="font-family: 'Noto Sans'...">
-  <tr>
-    <td style="width: 4px; background: linear-gradient(to bottom, #729b63 0%..."></td>
-    <td style="padding: 20px 0 20px 12px;">
-      <div style="margin-bottom: 16px;">
-        <img src="https://raw.githubusercontent.com/.../Nyuchi_Lingo_Logo_dark.png"...>
-      </div>
-      [Rest of signature HTML]
-    </td>
-  </tr>
+<table cellpadding="0" cellspacing="0" style="font-family: 'Plus Jakarta Sans', Arial, sans-serif; ...">
+  [Name, title, brand name + tagline, email/phone/website links, promo banner]
 </table>
 ```
 
 **What to check**:
-- ✅ Correct division logo URL for the email domain
-- ✅ Zimbabwe flag gradient with 5 colors (green, yellow, red, black, white)
 - ✅ User's name is populated correctly
 - ✅ Job title is present (if user has one in Google Workspace)
 - ✅ Phone number is formatted correctly
 - ✅ Email address matches the input
-- ✅ Division website is correct
-- ✅ "A division of Nyuchi Africa" text (unless @nyuchi.com)
-- ✅ Ubuntu footer is present
+- ✅ Brand name/website match the email domain's `brandSlug` mapping
 - ✅ Promotional banner is included
 
 ---
@@ -373,16 +329,21 @@ Logger.log('');
 
 ## Division Mapping Reference
 
-| Email Domain | Division Name | Logo File |
-|--------------|---------------|-----------|
-| `lingo.nyuchi.com` | Nyuchi Lingo | Nyuchi_Lingo_Logo_dark.png |
-| `learning.nyuchi.com` | Nyuchi Learning | Nyuchi_Learning_Logo_dark.png |
-| `services.nyuchi.com` | Nyuchi Development | Nyuchi_Development_Logo_dark.png |
-| `travel-info.co.zw` | Zimbabwe Travel Information | Zimbabwe_Travel_Information_Logo_dark.png |
-| `mukoko.com` | Mukoko | Mukoko_Logo_dark.png |
-| `hararemetro.co.zw` | Mukoko News | Mukoko_News_Logo_dark.png |
-| `news.mukoko.com` | Mukoko News | Mukoko_News_Logo_dark.png |
-| `nyuchi.com` | Nyuchi Africa | Nyuchi_Africa_Logo_dark.png |
+`brandSlug` is what gets sent to the render API; divisions without their own
+engine signature identity render under their parent brand.
+
+| Email Domain | Division Name | API brand slug |
+|--------------|---------------|----------------|
+| `lingo.nyuchi.com` | Nyuchi Lingo | `nyuchi` |
+| `learning.nyuchi.com` | Nyuchi Learning | `learning` |
+| `services.nyuchi.com` | Nyuchi Development | `nyuchi` |
+| `travel-info.co.zw` | Zimbabwe Travel Information | `travel` |
+| `mukoko.com` | Mukoko | `mukoko` |
+| `hararemetro.co.zw` | Mukoko News | `mukoko` |
+| `news.mukoko.com` | Mukoko News | `mukoko` |
+| `nyuchi.com` | Nyuchi Africa | `nyuchi` |
+| `bundu.org` | Bundu Foundation | `bundu` |
+| `shamwari.ai` | Shamwari AI | `shamwari` |
 
 ---
 
@@ -423,8 +384,11 @@ Access restricted to service accounts that have been delegated domain-wide autho
 ### Issue: "Division shows as Nyuchi Africa for all emails"
 **Solution**: Check that the email domain exactly matches the CONFIG.divisions keys
 
-### Issue: "Logo images don't load"
-**Solution**: Verify GitHub URLs are correct and logos exist in the repository
+### Issue: "SIGNATURE_API_KEY is not set in Script Properties"
+**Solution**: Add `SIGNATURE_API_KEY` (and optionally `SIGNATURE_API_URL`) under Project Settings > Script Properties — signature HTML is fetched from the `tools.nyuchi.com` render API and there is no local fallback
+
+### Issue: "Signature API request failed (HTTP 401/403)"
+**Solution**: The bearer token is wrong or revoked — update `SIGNATURE_API_KEY`
 
 ### Issue: "Phone number is null"
 **Solution**: Add phone numbers to user profiles in Google Admin Console
@@ -435,13 +399,11 @@ Access restricted to service accounts that have been delegated domain-wide autho
 
 Before running `updateAllUserSignatures()`:
 
+- [ ] Confirm `SIGNATURE_API_KEY` is set in Script Properties (and `SIGNATURE_API_URL` if not using the default)
 - [ ] Test with `testMySignature()` - verify your own signature
 - [ ] Test with `listAllUsersAndAliases()` - verify all users and divisions
 - [ ] Test with `previewSignature()` for 2-3 users - check HTML output
-- [ ] Verify all division logos load from GitHub URLs
-- [ ] Verify promotional banner image loads from Google Drive
-- [ ] Check Zimbabwe flag colors are correct (green, yellow, red, black, white)
-- [ ] Confirm all text is black (#000000)
+- [ ] Verify promotional banner image loads
 - [ ] Test on one user with `updateSingleUserSignature()` first
 - [ ] Review the signature in Gmail to ensure proper rendering
 - [ ] Only then run `updateAllUserSignatures()` for everyone
@@ -450,8 +412,6 @@ Before running `updateAllUserSignatures()`:
 
 ## Notes
 
-- **Zimbabwe Flag Rule**: ALWAYS 4px vertical left edge (5 colors: green, yellow, red, black, white - 20% each)
-- **Text Color**: All text must be black (#000000) for readability
-- **Division Attribution**: Hidden for @nyuchi.com emails, shown for division emails
-- **Logos**: All pulled from GitHub raw URLs (120px wide)
-- **Banner**: Clickable promotional banner at bottom (max 550px wide)
+- **Template ownership**: the emitted markup is byte-locked in the canonical engine (`signature-generator/src/engines/signature`), served via `POST https://tools.nyuchi.com/api/signature`. This script only maps directory data onto API params — to change the signature's look, change the engine.
+- **Fail loud**: any API failure (missing key, non-200, bad JSON) throws; there is no local-template fallback.
+- **Banner**: the `CONFIG.banner` image/link is passed to the API as `promoBanner`/`promoLink` for every signature.

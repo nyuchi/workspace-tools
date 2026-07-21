@@ -1,18 +1,28 @@
 /**
  * Nyuchi Africa Email Signature Generator
  *
- * Automatically generates and applies branded email signatures
- * for all users and their aliases in your Google Workspace domain.
+ * Automatically applies branded email signatures for all users and their
+ * aliases in your Google Workspace domain.
+ *
+ * SIGNATURE HTML COMES FROM THE WORKER RENDER API (Phase 0b of
+ * docs/signature-console-plan.md): this script no longer carries its own
+ * signature template. `fetchSignatureHtml()` POSTs to
+ * https://tools.nyuchi.com/api/signature, which renders through the ONE
+ * canonical engine (signature-generator/src/engines/signature).
  *
  * SETUP REQUIREMENTS:
  * 1. Enable the Gmail API and Admin SDK Directory API in your Google Cloud Project
  * 2. Run this script as a Workspace admin
  * 3. Configure domain-wide delegation
+ * 4. Script Properties (Project Settings > Script Properties):
+ *    - SIGNATURE_API_KEY  (required) — bearer token for the render API
+ *    - SIGNATURE_API_URL  (optional) — base URL, default https://tools.nyuchi.com
  *
  * SCOPES REQUIRED:
  * - https://www.googleapis.com/auth/admin.directory.user.readonly
  * - https://www.googleapis.com/auth/gmail.settings.basic
  * - https://www.googleapis.com/auth/gmail.settings.sharing
+ * - https://www.googleapis.com/auth/script.external_request
  */
 
 // ============================================================================
@@ -21,81 +31,74 @@
 
 const CONFIG = {
   domain: 'nyuchi.com',
-  companyName: 'Nyuchi Africa',
-  tagline: 'I am because we are',
-  ubuntuFooter: '🇿🇼 Built with Ubuntu • Powered by Community',
 
-  // Promotional banner
+  // Promotional banner passed to the render API for every signature
+  // (the retired inline template always included it).
   banner: {
     imageUrl: 'https://drive.google.com/file/d/1QoMdrAUZB7_0Ls12vr6YNo6NfQn74-di/view?usp=sharing',
     linkUrl: 'https://www.nyuchi.com',
     altText: 'Ubuntu - I am because we are'
   },
 
-  // Division mappings (email domain to division info)
+  // Division mappings (email domain to division info).
+  // `name`/`website` are display metadata for logs; `brandSlug` is what gets
+  // sent to the render API (one of: nyuchi, bundu, mukoko, shamwari, travel,
+  // learning — BRAND_KEYS in signature-generator/src/engines/signature).
+  // Divisions without their own signature identity in the engine render under
+  // their parent brand's slug.
   divisions: {
     'lingo.nyuchi.com': {
       name: 'Nyuchi Lingo',
-      logo: 'https://raw.githubusercontent.com/nyuchi/nyuchi-brand-assets/main/assets/logos/Nyuchi_Lingo_Logo_dark.png',
-      website: 'lingo.nyuchi.com'
+      website: 'lingo.nyuchi.com',
+      brandSlug: 'nyuchi' // Nyuchi Africa division — no engine identity
     },
     'learning.nyuchi.com': {
       name: 'Nyuchi Learning',
-      logo: 'https://raw.githubusercontent.com/nyuchi/nyuchi-brand-assets/main/assets/logos/Nyuchi_Learning_Logo_dark.png',
-      website: 'learning.nyuchi.com'
+      website: 'learning.nyuchi.com',
+      brandSlug: 'learning'
     },
     'services.nyuchi.com': {
       name: 'Nyuchi Development',
-      logo: 'https://raw.githubusercontent.com/nyuchi/nyuchi-brand-assets/main/assets/logos/Nyuchi_Development_Logo_dark.png',
-      website: 'services.nyuchi.com'
+      website: 'services.nyuchi.com',
+      brandSlug: 'nyuchi' // Nyuchi Africa division — no engine identity
     },
     'travel-info.co.zw': {
       name: 'Zimbabwe Travel Information',
-      logo: 'https://raw.githubusercontent.com/nyuchi/nyuchi-brand-assets/main/assets/logos/Zimbabwe_Travel_Information_Logo_dark.png',
-      website: 'travel-info.co.zw'
+      website: 'travel-info.co.zw',
+      brandSlug: 'travel'
     },
     'mukoko.com': {
       name: 'Mukoko',
-      logo: 'https://raw.githubusercontent.com/nyuchi/nyuchi-brand-assets/main/assets/logos/Mukoko_Logo_dark.png',
-      website: 'mukoko.com'
+      website: 'mukoko.com',
+      brandSlug: 'mukoko'
     },
     'hararemetro.co.zw': {
       name: 'Mukoko News',
-      logo: 'https://raw.githubusercontent.com/nyuchi/nyuchi-brand-assets/main/assets/logos/Mukoko_News_Logo_dark.png',
-      website: 'hararemetro.co.zw'
+      website: 'hararemetro.co.zw',
+      brandSlug: 'mukoko' // Mukoko division — no engine identity
     },
     'news.mukoko.com': {
       name: 'Mukoko News',
-      logo: 'https://raw.githubusercontent.com/nyuchi/nyuchi-brand-assets/main/assets/logos/Mukoko_News_Logo_dark.png',
-      website: 'news.mukoko.com'
+      website: 'news.mukoko.com',
+      brandSlug: 'mukoko' // Mukoko division — no engine identity
     },
     'nyuchi.com': {
       name: 'Nyuchi Africa',
-      logo: 'https://raw.githubusercontent.com/nyuchi/nyuchi-brand-assets/main/assets/logos/Nyuchi_Africa_Logo_dark.png',
       website: 'nyuchi.com',
-      hideAttribution: true  // Don't show "A division of" for corporate emails
+      brandSlug: 'nyuchi'
     },
     // Bundu-ecosystem pillar brands — hand-synced from
     // signature-generator/src/engines/brands/index.ts (the canonical registry).
     'bundu.org': {
       name: 'Bundu Foundation',
-      logo: 'https://raw.githubusercontent.com/nyuchi/nyuchi-brand-assets/main/assets/logos/Bundu_Foundation_Logo_dark.png', // TODO(brand): confirm logo asset
-      website: 'bundu.org'
+      website: 'bundu.org',
+      brandSlug: 'bundu'
     },
     'shamwari.ai': {
       name: 'Shamwari AI',
-      logo: 'https://raw.githubusercontent.com/nyuchi/nyuchi-brand-assets/main/assets/logos/Shamwari_AI_Logo_dark.png', // TODO(brand): confirm logo asset
-      website: 'shamwari.ai'
+      website: 'shamwari.ai',
+      brandSlug: 'shamwari'
     }
-  },
-
-  // Zimbabwe flag colors (5 equal stripes: green, yellow, red, black, white)
-  flagColors: {
-    green: '#729b63',
-    yellow: '#f6ad55',
-    red: '#d4634a',
-    black: '#171717',
-    white: '#ffffff'
   }
 };
 
@@ -200,6 +203,7 @@ function previewSignature(email) {
     Logger.log('1. Admin SDK API is enabled in GCP project');
     Logger.log('2. You have admin permissions');
     Logger.log('3. The email address exists in your domain');
+    Logger.log('4. SIGNATURE_API_KEY is set in Script Properties (signature HTML comes from the tools.nyuchi.com API)');
     return null;
   }
 }
@@ -233,6 +237,7 @@ function testMySignature() {
     Logger.log('3. You have authorized all required OAuth scopes');
     Logger.log('4. You have admin permissions in your Google Workspace');
     Logger.log('5. Re-authorize the script after updating scopes (Run > Clear all authorizations, then re-run)');
+    Logger.log('6. SIGNATURE_API_KEY is set in Script Properties (signature HTML comes from the tools.nyuchi.com API)');
   }
 }
 
@@ -243,7 +248,7 @@ function testMySignature() {
 /**
  * Get division info from email address
  * @param {string} email - Email address
- * @returns {Object} Division info
+ * @returns {Object} Division info ({name, website, brandSlug})
  */
 function getDivisionFromEmail(email) {
   if (!email || typeof email !== 'string') {
@@ -255,15 +260,68 @@ function getDivisionFromEmail(email) {
 }
 
 /**
- * Generate the HTML signature for a user
+ * Fetch signature HTML from the Worker render API.
+ *
+ * POST {base}/api/signature with a JSON body of
+ * {brand, name, email, title?, phone?, whatsapp?, profileImage?, linkedin?,
+ *  twitter?, facebook?, instagram?, promoBanner?, promoLink?}
+ * and an Authorization: Bearer header. Returns the byte-locked engine HTML.
+ *
+ * There is deliberately NO local-template fallback: a failure throws so the
+ * caller surfaces it (fail loud) instead of silently applying stale markup.
+ *
+ * Script Properties: SIGNATURE_API_KEY (required),
+ * SIGNATURE_API_URL (optional, default https://tools.nyuchi.com).
+ */
+function fetchSignatureHtml(params) {
+  const props = PropertiesService.getScriptProperties();
+  const apiKey = props.getProperty('SIGNATURE_API_KEY');
+  if (!apiKey) {
+    throw new Error('SIGNATURE_API_KEY is not set in Script Properties. Add it under Project Settings > Script Properties before generating signatures.');
+  }
+  const baseUrl = (props.getProperty('SIGNATURE_API_URL') || 'https://tools.nyuchi.com').replace(/\/+$/, '');
+
+  const response = UrlFetchApp.fetch(baseUrl + '/api/signature', {
+    method: 'post',
+    contentType: 'application/json',
+    headers: { Authorization: 'Bearer ' + apiKey },
+    payload: JSON.stringify(params),
+    muteHttpExceptions: true
+  });
+
+  const code = response.getResponseCode();
+  const body = response.getContentText() || '';
+  if (code !== 200) {
+    throw new Error('Signature API request failed (HTTP ' + code + ') for brand "' + params.brand + '": ' + body.slice(0, 300));
+  }
+
+  let parsed;
+  try {
+    parsed = JSON.parse(body);
+  } catch (err) {
+    throw new Error('Signature API returned invalid JSON (HTTP 200): ' + body.slice(0, 300));
+  }
+  if (!parsed || typeof parsed.html !== 'string' || !parsed.html) {
+    throw new Error('Signature API response is missing the "html" field: ' + body.slice(0, 300));
+  }
+  return parsed.html;
+}
+
+/**
+ * Generate the HTML signature for a user.
+ *
+ * Thin wrapper over the Worker render API — derives the same fields the old
+ * inline template used (directory name/title/phone, division/brand from the
+ * email domain, the CONFIG promo banner) and returns the canonical engine
+ * HTML. The name and signature are kept; the inline template is gone.
+ *
  * @param {Object} user - Google Workspace user object
  * @param {string} emailAddress - The email address to display (primary or alias)
- * @returns {string} HTML signature
+ * @returns {string} HTML signature from the render API
  */
 function generateSignatureHtml(user, emailAddress) {
   if (!user) {
-    Logger.log('Error: User object is required');
-    return '';
+    throw new Error('User object is required to generate a signature');
   }
 
   const name = (user.name && user.name.fullName) ? user.name.fullName : (user.primaryEmail ? user.primaryEmail.split('@')[0] : 'User');
@@ -272,93 +330,15 @@ function generateSignatureHtml(user, emailAddress) {
   const email = emailAddress || (user.primaryEmail || 'email@nyuchi.com');
   const division = getDivisionFromEmail(email);
 
-  // Zimbabwe flag gradient (5 colors: green, yellow, red, black, white - 20% each)
-  const flagGradient = `linear-gradient(to bottom, ${CONFIG.flagColors.green} 0%, ${CONFIG.flagColors.green} 20%, ${CONFIG.flagColors.yellow} 20%, ${CONFIG.flagColors.yellow} 40%, ${CONFIG.flagColors.red} 40%, ${CONFIG.flagColors.red} 60%, ${CONFIG.flagColors.black} 60%, ${CONFIG.flagColors.black} 80%, ${CONFIG.flagColors.white} 80%, ${CONFIG.flagColors.white} 100%)`;
-
-  return `
-<table cellpadding="0" cellspacing="0" border="0" style="font-family: 'Noto Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; font-size: 14px; line-height: 1.5; color: #000000; max-width: 600px;">
-  <tr>
-    <!-- Zimbabwe Flag Strip - 4px Vertical Left Edge -->
-    <td style="width: 4px; background: ${flagGradient}; padding: 0;"></td>
-
-    <!-- Signature Content -->
-    <td style="padding: 20px 0 20px 12px;">
-      <!-- Division Logo (Primary) -->
-      <div style="margin-bottom: 16px;">
-        <img src="${division.logo}" alt="${escapeHtml(division.name)}" width="120" style="display: block; height: auto;">
-      </div>
-
-      <!-- Name and Title -->
-      <table cellpadding="0" cellspacing="0" border="0">
-        <tr>
-          <td>
-            <div style="font-size: 18px; font-weight: 700; color: #000000; margin-bottom: 4px;">
-              ${escapeHtml(name)}
-            </div>
-            ${title ? `<div style="font-size: 14px; color: #000000; margin-bottom: 12px;">${escapeHtml(title)}</div>` : ''}
-          </td>
-        </tr>
-      </table>
-
-      <!-- Contact Information -->
-      <table cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 12px;">
-        <tr>
-          <td style="padding-right: 12px; color: #000000; font-weight: 600;">E:</td>
-          <td>
-            <a href="mailto:${email}" style="color: #000000; text-decoration: none;">${email}</a>
-          </td>
-        </tr>
-        ${phone ? `
-        <tr>
-          <td style="padding-right: 12px; color: #000000; font-weight: 600; padding-top: 4px;">P:</td>
-          <td style="padding-top: 4px;">
-            <a href="tel:${phone.replace(/\s/g, '')}" style="color: #000000; text-decoration: none;">${phone}</a>
-          </td>
-        </tr>` : ''}
-        <tr>
-          <td style="padding-right: 12px; color: #000000; font-weight: 600; padding-top: 4px;">W:</td>
-          <td style="padding-top: 4px;">
-            <a href="https://${division.website}" style="color: #000000; text-decoration: none;">${division.website}</a>
-          </td>
-        </tr>
-      </table>
-
-      <!-- Parent Company (Nyuchi Africa) -->
-      ${!division.hideAttribution ? `
-      <table cellpadding="0" cellspacing="0" border="0" style="margin-top: 16px; padding-top: 12px; border-top: 1px solid #e5e5e5;">
-        <tr>
-          <td>
-            <div style="font-size: 13px; color: #666666; margin-bottom: 4px;">A division of</div>
-            <div style="font-size: 16px; font-weight: 700; color: #000000; margin-bottom: 4px;">${CONFIG.companyName}</div>
-            <div style="font-size: 13px; font-style: italic; color: #000000;">${CONFIG.tagline}</div>
-          </td>
-        </tr>
-      </table>` : `
-      <table cellpadding="0" cellspacing="0" border="0" style="margin-top: 16px; padding-top: 12px; border-top: 1px solid #e5e5e5;">
-        <tr>
-          <td>
-            <div style="font-size: 16px; font-weight: 700; color: #000000; margin-bottom: 4px;">${CONFIG.companyName}</div>
-            <div style="font-size: 13px; font-style: italic; color: #000000;">${CONFIG.tagline}</div>
-          </td>
-        </tr>
-      </table>`}
-
-      <!-- Ubuntu Footer -->
-      <div style="margin-top: 16px; font-size: 11px; color: #000000;">
-        ${CONFIG.ubuntuFooter}
-      </div>
-
-      <!-- Promotional Banner -->
-      <div style="margin-top: 20px;">
-        <a href="${CONFIG.banner.linkUrl}" style="display: block; text-decoration: none;">
-          <img src="${CONFIG.banner.imageUrl}" alt="${CONFIG.banner.altText}" width="100%" style="display: block; max-width: 550px; height: auto; border-radius: 4px;">
-        </a>
-      </div>
-
-    </td>
-  </tr>
-</table>
-`.trim();
+  return fetchSignatureHtml({
+    brand: division.brandSlug || 'nyuchi',
+    name: name,
+    email: email,
+    title: title || '',
+    phone: phone || '',
+    promoBanner: CONFIG.banner.imageUrl,
+    promoLink: CONFIG.banner.linkUrl
+  });
 }
 
 // ============================================================================
@@ -515,21 +495,6 @@ function formatPhoneNumber(phone) {
   return phone;
 }
 
-/**
- * Escape HTML special characters
- * @param {string} text - Text to escape
- * @returns {string} Escaped text
- */
-function escapeHtml(text) {
-  if (!text) return '';
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
-}
-
 // ============================================================================
 // MENU & TRIGGERS
 // ============================================================================
@@ -608,8 +573,11 @@ function removeDailyTrigger() {
 }
 
 // ============================================================================
-// SIMPLE TEST FUNCTIONS (No Admin SDK Required)
+// SIMPLE TEST FUNCTIONS
 // ============================================================================
+// testDivisionDetection/showConfig run offline; testSignatureGeneration calls
+// the live render API, so SIGNATURE_API_KEY must be set in Script Properties
+// (and SIGNATURE_API_URL if not using the default https://tools.nyuchi.com).
 
 /**
  * Test division detection for various email domains
@@ -629,22 +597,26 @@ function testDivisionDetection() {
     'test@unknown-domain.com'
   ];
 
+  let failed = 0;
   testEmails.forEach(email => {
     const division = getDivisionFromEmail(email);
+    const ok = division && division.name && division.website && division.brandSlug;
+    if (!ok) failed++;
     Logger.log(`${email}`);
     Logger.log(`  → Division: ${division.name}`);
     Logger.log(`  → Website: ${division.website}`);
-    Logger.log(`  → Logo: ${division.logo.substring(0, 60)}...`);
-    Logger.log(`  → Hide Attribution: ${division.hideAttribution || false}`);
+    Logger.log(`  → API brand slug: ${division.brandSlug}`);
     Logger.log('');
   });
+  Logger.log(failed === 0 ? 'PASS: testDivisionDetection' : `FAIL: testDivisionDetection — ${failed} email(s) resolved incompletely`);
 }
 
 /**
- * Test signature HTML generation with mock data
+ * Test signature HTML generation with mock data (calls the render API)
  */
 function testSignatureGeneration() {
-  Logger.log('========== TESTING SIGNATURE GENERATION ==========\n');
+  Logger.log('========== TESTING SIGNATURE GENERATION (render API) ==========\n');
+  Logger.log('Note: requires SIGNATURE_API_KEY in Script Properties.\n');
 
   // Mock user object
   const mockUser = {
@@ -660,57 +632,32 @@ function testSignatureGeneration() {
     'test@nyuchi.com'
   ];
 
+  let failed = 0;
   testEmails.forEach(email => {
     Logger.log(`\n=== Signature for ${email} ===\n`);
     const division = getDivisionFromEmail(email);
-    Logger.log(`Division: ${division.name}`);
-    Logger.log(`Logo: ${division.logo}`);
+    Logger.log(`Division: ${division.name} (API brand slug: ${division.brandSlug})`);
 
     const signature = generateSignatureHtml(mockUser, email);
     Logger.log('\nFirst 500 characters of HTML:');
     Logger.log(signature.substring(0, 500) + '...\n');
 
-    // Check for key elements
+    // Check for key elements of the canonical engine output
     const checks = {
-      'Zimbabwe flag gradient': signature.includes('linear-gradient(to bottom'),
-      'Division logo': signature.includes(division.logo),
       'User name': signature.includes(mockUser.name.fullName),
       'Email address': signature.includes(email),
-      'Phone number': signature.includes('+263 77 123 4567'),
-      'Ubuntu footer': signature.includes('Built with Ubuntu'),
-      'Promotional banner': signature.includes('drive.google.com'),
-      'All text black': signature.includes('color: #000000')
+      'Phone number': signature.includes(getPhoneNumber(mockUser)),
+      'Promotional banner': signature.includes('drive.google.com')
     };
 
     Logger.log('Validation checks:');
     Object.keys(checks).forEach(check => {
+      if (!checks[check]) failed++;
       Logger.log(`  ${checks[check] ? '✓' : '✗'} ${check}`);
     });
     Logger.log('');
   });
-}
-
-/**
- * Test Zimbabwe flag color configuration
- */
-function testFlagColors() {
-  Logger.log('========== TESTING ZIMBABWE FLAG COLORS ==========\n');
-
-  Logger.log('Flag configuration (5 equal stripes at 20% each):');
-  Logger.log(`1. Green:  ${CONFIG.flagColors.green}  (0-20%)`);
-  Logger.log(`2. Yellow: ${CONFIG.flagColors.yellow} (20-40%)`);
-  Logger.log(`3. Red:    ${CONFIG.flagColors.red}    (40-60%)`);
-  Logger.log(`4. Black:  ${CONFIG.flagColors.black}  (60-80%)`);
-  Logger.log(`5. White:  ${CONFIG.flagColors.white}  (80-100%)`);
-
-  const flagGradient = `linear-gradient(to bottom, ${CONFIG.flagColors.green} 0%, ${CONFIG.flagColors.green} 20%, ${CONFIG.flagColors.yellow} 20%, ${CONFIG.flagColors.yellow} 40%, ${CONFIG.flagColors.red} 40%, ${CONFIG.flagColors.red} 60%, ${CONFIG.flagColors.black} 60%, ${CONFIG.flagColors.black} 80%, ${CONFIG.flagColors.white} 80%, ${CONFIG.flagColors.white} 100%)`;
-
-  Logger.log('\nGenerated CSS gradient:');
-  Logger.log(flagGradient);
-
-  Logger.log('\n✓ Flag is always 4px vertical left edge');
-  Logger.log('✓ No repeating colors');
-  Logger.log('✓ Equal 20% distribution');
+  Logger.log(failed === 0 ? 'PASS: testSignatureGeneration' : `FAIL: testSignatureGeneration — ${failed} check(s) failed`);
 }
 
 /**
@@ -720,9 +667,7 @@ function showConfig() {
   Logger.log('========== NYUCHI EMAIL SIGNATURE CONFIGURATION ==========\n');
 
   Logger.log('Domain: ' + CONFIG.domain);
-  Logger.log('Company: ' + CONFIG.companyName);
-  Logger.log('Tagline: ' + CONFIG.tagline);
-  Logger.log('Ubuntu Footer: ' + CONFIG.ubuntuFooter);
+  Logger.log('Signature HTML: rendered by the tools.nyuchi.com API (SIGNATURE_API_KEY / SIGNATURE_API_URL in Script Properties)');
   Logger.log('\nPromotional Banner:');
   Logger.log('  Image URL: ' + CONFIG.banner.imageUrl);
   Logger.log('  Link URL: ' + CONFIG.banner.linkUrl);
@@ -734,12 +679,7 @@ function showConfig() {
     Logger.log(`\n  ${domain}:`);
     Logger.log(`    Name: ${div.name}`);
     Logger.log(`    Website: ${div.website}`);
-    Logger.log(`    Hide Attribution: ${div.hideAttribution || false}`);
-  });
-
-  Logger.log('\nZimbabwe Flag Colors:');
-  Object.keys(CONFIG.flagColors).forEach(color => {
-    Logger.log(`  ${color}: ${CONFIG.flagColors[color]}`);
+    Logger.log(`    API brand slug: ${div.brandSlug}`);
   });
 }
 
@@ -806,6 +746,10 @@ function showDelegationSetup() {
 /**
  * Run all test functions in sequence and report any errors
  * This is the main function to test the entire email signature system
+ *
+ * Requires SIGNATURE_API_KEY in Script Properties (signature HTML is fetched
+ * from the tools.nyuchi.com render API) plus Admin SDK access for the last
+ * two tests.
  */
 function runAllTests() {
   Logger.log('╔═══════════════════════════════════════════════════════════════════╗');
@@ -814,11 +758,10 @@ function runAllTests() {
 
   const tests = [
     { name: 'Configuration Display', func: showConfig },
-    { name: 'Flag Colors Validation', func: testFlagColors },
     { name: 'Division Detection', func: testDivisionDetection },
-    { name: 'Signature Generation (Mock Data)', func: testSignatureGeneration },
+    { name: 'Signature Generation (render API)', func: testSignatureGeneration },
     { name: 'All Users and Aliases (Admin SDK)', func: listAllUsersAndAliases },
-    { name: 'My Own Signature (Admin SDK)', func: testMySignature }
+    { name: 'My Own Signature (Admin SDK + render API)', func: testMySignature }
   ];
 
   let passedCount = 0;
