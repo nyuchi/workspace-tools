@@ -647,7 +647,10 @@ function testSignatureGeneration() {
       'User name': signature.includes(mockUser.name.fullName),
       'Email address': signature.includes(email),
       'Phone number': signature.includes(getPhoneNumber(mockUser)),
-      'Promotional banner': signature.includes('drive.google.com')
+      // Assert the exact configured banner URL — a bare host-substring
+      // check reads like URL sanitization (trips CodeQL) and would also
+      // pass on unrelated hosts.
+      'Promotional banner': signature.includes(CONFIG.banner.imageUrl)
     };
 
     Logger.log('Validation checks:');
