@@ -34,7 +34,7 @@ npm run test:worker        # worker suite (root vitest.worker.config.ts)
 - **Wasm**: `vitest.worker.config.ts` mirrors wrangler's CompiledWasm module rule (a `.wasm` import resolves to a compiled `WebAssembly.Module`) and inlines `@resvg/resvg-wasm` so node tests exercise the real rasterizer.
 - **ASSETS stubs**: `FONT_ASSETS_STUB` serves the vendored raster TTFs from `signature-generator/public/fonts/raster/` plus fake brand icons; tests that pass an ASSETS binding run **after** the icon tests because brand icons cache per module load (mirroring one isolate's lifetime).
 - **External calls are mocked**: Cloudflare Images and GitHub issue creation are `vi.spyOn(globalThis, 'fetch')` mocks — no network, no real uploads. WorkOS JWT verification is exercised with real locally-generated RS256 keys.
-- MCP behavior under test: four tools listed with annotations/output schemas, removed-banner-tool rejection, returnFormat svg/png/url paths (PNG asserted down to signature bytes), upload guardrails, report_issue payloads, fail-closed errors when secrets are absent, OAuth discovery in both auth modes, the login gate.
+- MCP behavior under test: four tools listed with annotations/output schemas, removed-banner-tool rejection, returnFormat svg/png/url paths (PNG asserted down to signature bytes), upload guardrails, report_issue payloads, fail-closed errors when secrets are absent, OAuth discovery in both auth modes, the login gate. Signature Console coverage: POST /api/signature auth paths + byte-identity, /api/google/* OAuth flow with forged encrypted session cookies, /api/self/insert Gmail PATCH, /api/admin/users directory mapping, /api/admin/push dry-run/impersonation/backoff — all Google endpoints mocked, no live calls.
 
 ## Visual verification (manual, after engine changes)
 
@@ -42,7 +42,7 @@ Rendered output must be *looked at*, not just asserted on: rasterize sample card
 
 ## Apps Script (manual — no CI)
 
-- `email-signature/Code.js`: `runAllTests()`, `testSignatureGeneration()`, `testDivisionDetection()`, `testFlagColors()`, `testMySignature()`; dry-run `listAllUsersAndAliases()` and `updateSingleUserSignature(email)` before any full `updateAllUserSignatures()`.
+- `email-signature/Code.js`: `runAllTests()`, `testSignatureGeneration()`, `testDivisionDetection()`, `testMySignature()` (require `SIGNATURE_API_KEY` in Script Properties since HTML comes from the Worker render API); dry-run `listAllUsersAndAliases()` and `updateSingleUserSignature(email)` before any full `updateAllUserSignatures()`.
 - `gmail-addon/Code.js`: `testSignatureGeneration()`, `testAdminSignature()`.
 
 ## What cannot be tested locally

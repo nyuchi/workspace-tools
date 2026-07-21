@@ -76,6 +76,13 @@ CF_IMAGES_ACCOUNT_ID = "125a2dfbc21f76a25c980609609e8218"
 # GITHUB_FEEDBACK_TOKEN secret (fine-grained token, Issues: write on this
 # repo) is provisioned out-of-band — see the secrets note below.
 FEEDBACK_REPO = "nyuchi/workspace-tools"
+# Signature Console (docs/signature-console-plan.md): the Google Workspace
+# domain whose users the admin mode lists/pushes. The Google OAuth client id
+# is public but environment-specific — set it here once created (plan §5):
+#   GOOGLE_CLIENT_ID = "<web-app client id>.apps.googleusercontent.com"
+# Until it and its secret exist, all /api/google/* and /api/self|admin/*
+# routes fail closed with clear "not configured" errors.
+GOOGLE_WORKSPACE_DOMAIN = "nyuchi.com"
 
 # Secrets are deliberately NOT set here — they must never be committed to
 # git in plaintext. Provision each out-of-band with `wrangler secret put`:
@@ -94,3 +101,12 @@ FEEDBACK_REPO = "nyuchi/workspace-tools"
 #   GITHUB_FEEDBACK_TOKEN  — fine-grained GitHub token (Issues: write on
 #     FEEDBACK_REPO) for the report_issue MCP tool. Without it, the tool
 #     returns a clear "not configured" error.
+#   SIGNATURE_API_KEY      — shared bearer key for POST /api/signature
+#     (Apps Script → Worker). Bearer path fails closed without it; the
+#     site-session path is unaffected. Mirror the value into each Apps
+#     Script project's Script Properties (same key name).
+#   GOOGLE_CLIENT_SECRET   — OAuth web-client secret for /api/google/*
+#     (Signature Console self-insert + admin listing).
+#   GOOGLE_SA_KEY          — JSON service-account key (client_email +
+#     private_key) authorized for domain-wide delegation with
+#     gmail.settings.basic; powers /api/admin/push impersonation.

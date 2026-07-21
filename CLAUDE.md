@@ -67,7 +67,7 @@ Two **Vitest** suites (node environment, no jsdom); `npm test` at the repo root 
 - Repo root: `npm run test:worker` (`vitest.worker.config.ts`, tests in `mcp/tests/`) — HTTP-level tests of the `nyuchi-tools` Worker, exercising the default export via `worker.fetch(new Request(...), env)`. These live at the root because the Worker's deps are root dependencies and `mcp/` intentionally has no package.json; `mcp/tsconfig.json` only includes `src/**`, so `typecheck:worker` never sees them.
 
 The Apps Script "tests" remain exported functions run manually from the Apps Script editor:
-- `email-signature/Code.js`: `runAllTests()`, `testSignatureGeneration()`, `testDivisionDetection()`, `testFlagColors()`, `testMySignature()`, plus dry-run `listAllUsersAndAliases()` and `updateSingleUserSignature(email)` before a full `updateAllUserSignatures()`.
+- `email-signature/Code.js`: `runAllTests()`, `testSignatureGeneration()`, `testDivisionDetection()`, `testMySignature()` (these now require `SIGNATURE_API_KEY` in Script Properties), plus dry-run `listAllUsersAndAliases()` and `updateSingleUserSignature(email)` before a full `updateAllUserSignatures()`.
 - `gmail-addon/Code.js`: `testSignatureGeneration()`, `testAdminSignature()`.
 
 ## Architecture notes
@@ -116,8 +116,11 @@ Consumers:
   the registry.
 - `engines/nyuchi` re-exports `Brand` from the registry and
   read `lockupLabel` from it.
-- The two Apps Script projects still hardcode their own brand/division list
-  (Apps Script cannot import npm modules):
+- The two Apps Script projects no longer carry signature TEMPLATES — since
+  Phase 0 of the Signature Console (docs/signature-console-plan.md) they
+  fetch emitted HTML from `POST /api/signature` (Worker render API, bearer
+  `SIGNATURE_API_KEY` from Script Properties). They still hardcode their own
+  brand/division CONFIG lists (Apps Script cannot import npm modules):
   - `gmail-addon/Code.js` → `BRANDS` object (keyed by brand slug, e.g. `nyuchi`, `bundu`)
     plus a second copy in `Dashboard.html`.
   - `email-signature/Code.js` → `CONFIG.divisions` (keyed by **email domain**, e.g. `lingo.nyuchi.com`, `bundu.org`).
@@ -131,7 +134,7 @@ GitHub).
 ### The emitted email-signature HTML is separate from the web-app UI
 The signature page (`signature-generator/src/pages/signature/`) has two visual surfaces:
 - **Web-app UI** — the panel + stage the user works in (studio layout pattern). Styled to the Mzizi mineral / dark design system.
-- **Emitted signature HTML** — the string the page previews and copies into Gmail, built by `src/engines/signature/index.ts` (`buildSignatureHtml`). This uses the historical signature styling (Plus Jakarta Sans / Noto Serif, brand primary colors) and must match the two Apps Script files so signatures render consistently across every recipient's inbox. Change it only in the engine module, never per-surface. The page injects the engine output verbatim for the live preview, so preview and clipboard share one code path.
+- **Emitted signature HTML** — the string the page previews and copies into Gmail, built by `src/engines/signature/index.ts` (`buildSignatureHtml`). This uses the historical signature styling (Plus Jakarta Sans / Noto Serif, brand primary colors) and is now the single template for every surface: the Apps Script projects fetch it via `POST /api/signature` instead of carrying copies. Change it only in the engine module, never per-surface. The page injects the engine output verbatim for the live preview, so preview and clipboard share one code path.
 
 Don't accidentally restyle the emitted HTML when working on the web-app UI. The distinction is important: the UI is behind the studio's mineral tokens; the signature markup is brand-locked to the historical Nyuchi purple.
 
