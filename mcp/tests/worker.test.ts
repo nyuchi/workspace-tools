@@ -22,6 +22,16 @@ import {
   SITE_CLIENT_ID,
   verifySessionCookie,
 } from '../src/site-auth'
+import {
+  decryptGoogleSession,
+  encryptGoogleSession,
+  GMAIL_SETTINGS_BASIC_SCOPE,
+  GOOGLE_CALLBACK_PATH,
+  GOOGLE_COOKIE_NAME,
+  GOOGLE_STATE_COOKIE_NAME,
+  refreshIfNeeded,
+  type GoogleSession,
+} from '../src/google-auth'
 import { buildSignatureHtml } from '../../signature-generator/src/engines/signature'
 
 const BASE = 'https://tools.nyuchi.com'
@@ -1611,5 +1621,484 @@ describe('POST /api/signature', () => {
     const mcpBody = (await mcpRes.json()) as JsonRpcResponse
     const mcpHtml = (mcpBody.result as { content: { text: string }[] }).content[0].text
     expect(html).toBe(mcpHtml)
+  })
+})
+
+// -----------------------------------------------------------------------------
+// Google OAuth plumbing + self insert (mcp/src/google-auth.ts).
+// -----------------------------------------------------------------------------
+
+/** Google OAuth fully configured (values fake; Google endpoints are mocked
+ * per test — no live calls). */
+const GOOGLE_ENV = {
+  SESSION_SECRET: TEST_SESSION_SECRET,
+  GOOGLE_CLIENT_ID: 'google-client-id',
+  GOOGLE_CLIENT_SECRET: 'google-client-secret',
+}
+
+/** Every /api/google/* and /api/self/* path sits BEHIND the site login
+ * gate, so requests need a valid `nyuchi_session` cookie to get through. */
+async function siteSessionCookie(): Promise<string> {
+  const value = await mintSessionCookie(SITE_ENV, { sub: 'user_123', email: 'bryan@nyuchi.com' })
+  return `${SESSION_COOKIE_NAME}=${value}`
+}
+
+function request(path: string, env: Env, init: RequestInit): Promise<Response> {
+  return Promise.resolve(worker.fetch(new Request(`${BASE}${path}`, init), env))
+}
+
+function futureGoogleSession(overrides: Partial<GoogleSession> = {}): GoogleSession {
+  return {
+    access_token: 'ya29.test-access-token',
+    expiry: Math.floor(Date.now() / 1000) + 3600,
+    scopes: ['openid', 'email', GMAIL_SETTINGS_BASIC_SCOPE],
+    email: 'bryan@nyuchi.com',
+    ...overrides,
+  }
+}
+
+describe('Google session cookie (google-auth.ts) — encrypt/decrypt', () => {
+  it('round-trips a session through encrypt → decrypt', async () => {
+    const session = futureGoogleSession({ refresh_token: '1//refresh' })
+    const value = await encryptGoogleSession(GOOGLE_ENV, session)
+    expect(await decryptGoogleSession(GOOGLE_ENV, value)).toEqual(session)
+  })
+
+  it('produces a different ciphertext each time (random IV) that still decrypts', async () => {
+    const session = futureGoogleSession()
+    const a = await encryptGoogleSession(GOOGLE_ENV, session)
+    const b = await encryptGoogleSession(GOOGLE_ENV, session)
+    expect(a).not.toBe(b)
+    expect(await decryptGoogleSession(GOOGLE_ENV, b)).toEqual(session)
+  })
+
+  it('encrypt throws when SESSION_SECRET is unset (fails closed, never plaintext)', async () => {
+    await expect(encryptGoogleSession({}, futureGoogleSession())).rejects.toThrow('SESSION_SECRET')
+  })
+
+  it('decrypt returns null for a tampered cookie', async () => {
+    const value = await encryptGoogleSession(GOOGLE_ENV, futureGoogleSession())
+    const tampered = `${value.slice(0, -4)}AAAA`
+    expect(await decryptGoogleSession(GOOGLE_ENV, tampered)).toBeNull()
+  })
+
+  it('decrypt returns null under a different secret', async () => {
+    const value = await encryptGoogleSession(GOOGLE_ENV, futureGoogleSession())
+    expect(await decryptGoogleSession({ SESSION_SECRET: 'another-secret' }, value)).toBeNull()
+  })
+
+  it('decrypt returns null when SESSION_SECRET is unset (fails closed, not open)', async () => {
+    const value = await encryptGoogleSession(GOOGLE_ENV, futureGoogleSession())
+    expect(await decryptGoogleSession({}, value)).toBeNull()
+  })
+
+  it('decrypt returns null for garbage / empty values', async () => {
+    expect(await decryptGoogleSession(GOOGLE_ENV, undefined)).toBeNull()
+    expect(await decryptGoogleSession(GOOGLE_ENV, '')).toBeNull()
+    expect(await decryptGoogleSession(GOOGLE_ENV, 'not-base64url-!!!')).toBeNull()
+    expect(await decryptGoogleSession(GOOGLE_ENV, 'AAAA')).toBeNull()
+  })
+})
+
+describe('GET /api/google/login', () => {
+  it('sits behind the site login gate (no site session → redirect to /login)', async () => {
+    const res = await get('/api/google/login', GOOGLE_ENV)
+    expect(res.status).toBe(302)
+    expect(res.headers.get('Location')).toContain('/login?return_to=')
+  })
+
+  it('fails clearly (JSON 503, not a broken redirect) when Google OAuth is unconfigured', async () => {
+    const res = await request('/api/google/login', SITE_ENV, {
+      headers: { Cookie: await siteSessionCookie() },
+    })
+    expect(res.status).toBe(503)
+    const body = (await res.json()) as { error: string; detail: string }
+    expect(body.error).toBe('google_not_configured')
+    expect(body.detail).toContain('GOOGLE_CLIENT_ID')
+  })
+
+  it('never 302s to Google when SESSION_SECRET is missing (fails closed)', async () => {
+    const env = { GOOGLE_CLIENT_ID: 'gid', GOOGLE_CLIENT_SECRET: 'gsec' }
+    const res = await get('/api/google/login', env)
+    // Without SESSION_SECRET there is no site session either, so the gate
+    // redirects to /login first — either way, nothing reaches Google.
+    expect(res.headers.get('Location') ?? '').not.toContain('accounts.google.com')
+  })
+
+  it('mode=self: 302 to Google authorize with the self scopes and a state cookie', async () => {
+    const res = await request('/api/google/login?mode=self', GOOGLE_ENV, {
+      headers: { Cookie: await siteSessionCookie() },
+    })
+    expect(res.status).toBe(302)
+    const url = new URL(res.headers.get('Location')!)
+    expect(url.origin + url.pathname).toBe('https://accounts.google.com/o/oauth2/v2/auth')
+    expect(url.searchParams.get('response_type')).toBe('code')
+    expect(url.searchParams.get('client_id')).toBe('google-client-id')
+    expect(url.searchParams.get('redirect_uri')).toBe(`${BASE}${GOOGLE_CALLBACK_PATH}`)
+    expect(url.searchParams.get('scope')).toBe(`openid email ${GMAIL_SETTINGS_BASIC_SCOPE}`)
+    expect(url.searchParams.get('access_type')).toBe('offline')
+    expect(url.searchParams.get('prompt')).toBe('consent')
+    expect(url.searchParams.get('include_granted_scopes')).toBe('true')
+
+    const setCookie = res.headers.get('Set-Cookie')
+    expect(setCookie).toContain(`${GOOGLE_STATE_COOKIE_NAME}=`)
+    expect(setCookie).toContain('HttpOnly')
+    expect(setCookie).toContain('Secure')
+    expect(setCookie).toContain('SameSite=Lax')
+    const state = cookieValueFrom(setCookie, GOOGLE_STATE_COOKIE_NAME)
+    expect(state).toBeTruthy()
+    expect(url.searchParams.get('state')).toBe(state)
+  })
+
+  it('mode=admin: scope additionally carries admin.directory.user.readonly', async () => {
+    const res = await request('/api/google/login?mode=admin', GOOGLE_ENV, {
+      headers: { Cookie: await siteSessionCookie() },
+    })
+    expect(res.status).toBe(302)
+    const url = new URL(res.headers.get('Location')!)
+    expect(url.searchParams.get('scope')).toBe(
+      `openid email ${GMAIL_SETTINGS_BASIC_SCOPE} https://www.googleapis.com/auth/admin.directory.user.readonly`,
+    )
+  })
+
+  it('defaults to the self scopes when mode is absent', async () => {
+    const res = await request('/api/google/login', GOOGLE_ENV, {
+      headers: { Cookie: await siteSessionCookie() },
+    })
+    const url = new URL(res.headers.get('Location')!)
+    expect(url.searchParams.get('scope')).toBe(`openid email ${GMAIL_SETTINGS_BASIC_SCOPE}`)
+  })
+})
+
+describe('GET /api/google/callback', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('rejects a state mismatch cleanly — no token exchange, no session cookie', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch')
+    const res = await request(`${GOOGLE_CALLBACK_PATH}?code=abc&state=WRONG`, GOOGLE_ENV, {
+      headers: {
+        Cookie: `${await siteSessionCookie()}; ${GOOGLE_STATE_COOKIE_NAME}=expected-state`,
+      },
+    })
+    expect(res.status).toBe(302)
+    expect(res.headers.get('Location')).toBe('/signature-generator?google=error')
+    expect(fetchSpy).not.toHaveBeenCalled()
+    // Only the state cookie is cleared; no `nyuchi_google` session cookie
+    // is ever set on a failed callback.
+    expect(res.headers.get('Set-Cookie') ?? '').not.toContain(`${GOOGLE_COOKIE_NAME}=`)
+  })
+
+  it('rejects a callback with no state cookie at all', async () => {
+    const res = await request(`${GOOGLE_CALLBACK_PATH}?code=abc&state=whatever`, GOOGLE_ENV, {
+      headers: { Cookie: await siteSessionCookie() },
+    })
+    expect(res.status).toBe(302)
+    expect(res.headers.get('Location')).toBe('/signature-generator?google=error')
+    expect(res.headers.get('Set-Cookie') ?? '').not.toContain(`${GOOGLE_COOKIE_NAME}=`)
+  })
+
+  it('rejects a callback when Google OAuth is unconfigured', async () => {
+    const res = await request(`${GOOGLE_CALLBACK_PATH}?code=abc&state=s`, SITE_ENV, {
+      headers: { Cookie: `${await siteSessionCookie()}; ${GOOGLE_STATE_COOKIE_NAME}=s` },
+    })
+    expect(res.status).toBe(302)
+    expect(res.headers.get('Location')).toBe('/signature-generator?google=error')
+  })
+
+  it('exchanges the code, fetches the userinfo email, and sets the encrypted session cookie', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+      if (url === 'https://oauth2.googleapis.com/token') {
+        const params = new URLSearchParams(String(init?.body))
+        expect(params.get('grant_type')).toBe('authorization_code')
+        expect(params.get('code')).toBe('auth-code-1')
+        expect(params.get('client_id')).toBe('google-client-id')
+        expect(params.get('client_secret')).toBe('google-client-secret')
+        expect(params.get('redirect_uri')).toBe(`${BASE}${GOOGLE_CALLBACK_PATH}`)
+        return new Response(
+          JSON.stringify({
+            access_token: 'ya29.fresh',
+            refresh_token: '1//refresh-1',
+            expires_in: 3599,
+            scope: `openid email ${GMAIL_SETTINGS_BASIC_SCOPE}`,
+            token_type: 'Bearer',
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        )
+      }
+      if (url === 'https://openidconnect.googleapis.com/v1/userinfo') {
+        const auth = (init?.headers as Record<string, string> | undefined)?.Authorization
+        expect(auth).toBe('Bearer ya29.fresh')
+        return new Response(JSON.stringify({ email: 'bryan@nyuchi.com', email_verified: true }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })
+      }
+      throw new Error(`Unexpected fetch in test: ${url}`)
+    })
+
+    const res = await request(`${GOOGLE_CALLBACK_PATH}?code=auth-code-1&state=expected-state`, GOOGLE_ENV, {
+      headers: {
+        Cookie: `${await siteSessionCookie()}; ${GOOGLE_STATE_COOKIE_NAME}=expected-state`,
+      },
+    })
+    expect(res.status).toBe(302)
+    expect(res.headers.get('Location')).toBe('/signature-generator')
+
+    const setCookie = res.headers.get('Set-Cookie')
+    expect(setCookie).toContain(`${GOOGLE_COOKIE_NAME}=`)
+    expect(setCookie).toContain('HttpOnly')
+    expect(setCookie).toContain('Secure')
+    expect(setCookie).toContain('SameSite=Lax')
+    const cookieValue = cookieValueFrom(setCookie, GOOGLE_COOKIE_NAME)
+    const session = await decryptGoogleSession(GOOGLE_ENV, cookieValue ?? undefined)
+    expect(session).toMatchObject({
+      access_token: 'ya29.fresh',
+      refresh_token: '1//refresh-1',
+      email: 'bryan@nyuchi.com',
+      scopes: ['openid', 'email', GMAIL_SETTINGS_BASIC_SCOPE],
+    })
+    expect(session!.expiry).toBeGreaterThan(Math.floor(Date.now() / 1000))
+  })
+
+  it('denies (no cookie) when the token exchange fails upstream', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ error: 'invalid_grant' }), { status: 400 }),
+    )
+    const res = await request(`${GOOGLE_CALLBACK_PATH}?code=bad&state=expected-state`, GOOGLE_ENV, {
+      headers: {
+        Cookie: `${await siteSessionCookie()}; ${GOOGLE_STATE_COOKIE_NAME}=expected-state`,
+      },
+    })
+    expect(res.status).toBe(302)
+    expect(res.headers.get('Location')).toBe('/signature-generator?google=error')
+    expect(res.headers.get('Set-Cookie') ?? '').not.toContain(`${GOOGLE_COOKIE_NAME}=`)
+  })
+})
+
+describe('GET /api/google/status', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('reports {connected:false} with no Google cookie', async () => {
+    const res = await request('/api/google/status', GOOGLE_ENV, {
+      headers: { Cookie: await siteSessionCookie() },
+    })
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ connected: false })
+  })
+
+  it('reports {connected:false} for an undecryptable cookie', async () => {
+    const res = await request('/api/google/status', GOOGLE_ENV, {
+      headers: { Cookie: `${await siteSessionCookie()}; ${GOOGLE_COOKIE_NAME}=garbage` },
+    })
+    expect(await res.json()).toEqual({ connected: false })
+  })
+
+  it('reports connected with email + scopes (never tokens) for a live session', async () => {
+    const cookie = await encryptGoogleSession(GOOGLE_ENV, futureGoogleSession())
+    const res = await request('/api/google/status', GOOGLE_ENV, {
+      headers: { Cookie: `${await siteSessionCookie()}; ${GOOGLE_COOKIE_NAME}=${cookie}` },
+    })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(body).toEqual({
+      connected: true,
+      email: 'bryan@nyuchi.com',
+      scopes: ['openid', 'email', GMAIL_SETTINGS_BASIC_SCOPE],
+    })
+    expect(JSON.stringify(body)).not.toContain('ya29.')
+  })
+
+  it('refreshes an expired access token via the refresh_token and re-sets the cookie', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+      if (url === 'https://oauth2.googleapis.com/token') {
+        const params = new URLSearchParams(String(init?.body))
+        expect(params.get('grant_type')).toBe('refresh_token')
+        expect(params.get('refresh_token')).toBe('1//refresh-2')
+        return new Response(
+          JSON.stringify({ access_token: 'ya29.renewed', expires_in: 3600, token_type: 'Bearer' }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        )
+      }
+      throw new Error(`Unexpected fetch in test: ${url}`)
+    })
+    const expired = futureGoogleSession({
+      expiry: Math.floor(Date.now() / 1000) - 10,
+      refresh_token: '1//refresh-2',
+    })
+    const cookie = await encryptGoogleSession(GOOGLE_ENV, expired)
+    const res = await request('/api/google/status', GOOGLE_ENV, {
+      headers: { Cookie: `${await siteSessionCookie()}; ${GOOGLE_COOKIE_NAME}=${cookie}` },
+    })
+    expect(res.status).toBe(200)
+    expect(await res.json()).toMatchObject({ connected: true, email: 'bryan@nyuchi.com' })
+    const setCookie = res.headers.get('Set-Cookie')
+    const renewed = await decryptGoogleSession(GOOGLE_ENV, cookieValueFrom(setCookie, GOOGLE_COOKIE_NAME) ?? undefined)
+    expect(renewed).toMatchObject({ access_token: 'ya29.renewed', refresh_token: '1//refresh-2' })
+  })
+
+  it('reports {connected:false} when the refresh fails (revoked token)', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ error: 'invalid_grant' }), { status: 400 }),
+    )
+    const expired = futureGoogleSession({
+      expiry: Math.floor(Date.now() / 1000) - 10,
+      refresh_token: '1//revoked',
+    })
+    const cookie = await encryptGoogleSession(GOOGLE_ENV, expired)
+    const res = await request('/api/google/status', GOOGLE_ENV, {
+      headers: { Cookie: `${await siteSessionCookie()}; ${GOOGLE_COOKIE_NAME}=${cookie}` },
+    })
+    expect(await res.json()).toEqual({ connected: false })
+  })
+
+  it('reports {connected:false} when expired with no refresh_token', async () => {
+    const expired = futureGoogleSession({ expiry: Math.floor(Date.now() / 1000) - 10 })
+    const cookie = await encryptGoogleSession(GOOGLE_ENV, expired)
+    const res = await request('/api/google/status', GOOGLE_ENV, {
+      headers: { Cookie: `${await siteSessionCookie()}; ${GOOGLE_COOKIE_NAME}=${cookie}` },
+    })
+    expect(await res.json()).toEqual({ connected: false })
+  })
+})
+
+describe('refreshIfNeeded (google-auth.ts)', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('passes a still-valid session through untouched (no network)', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch')
+    const session = futureGoogleSession()
+    expect(await refreshIfNeeded(GOOGLE_ENV, session)).toEqual({ session, refreshed: false })
+    expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
+  it('returns null for an expired session when Google OAuth is unconfigured (cannot refresh)', async () => {
+    const expired = futureGoogleSession({
+      expiry: Math.floor(Date.now() / 1000) - 10,
+      refresh_token: '1//refresh',
+    })
+    expect(await refreshIfNeeded({ SESSION_SECRET: TEST_SESSION_SECRET }, expired)).toBeNull()
+  })
+})
+
+describe('POST /api/google/logout', () => {
+  it('clears the Google cookie and answers {ok:true}', async () => {
+    const res = await request('/api/google/logout', GOOGLE_ENV, {
+      method: 'POST',
+      headers: { Cookie: await siteSessionCookie() },
+    })
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ ok: true })
+    const setCookie = res.headers.get('Set-Cookie')
+    expect(setCookie).toContain(`${GOOGLE_COOKIE_NAME}=;`)
+    expect(setCookie).toMatch(/Max-Age=0/)
+  })
+})
+
+describe('POST /api/self/insert', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  const PARAMS = {
+    brand: 'nyuchi' as const,
+    name: 'Bryan Fawcett',
+    email: 'bryan@nyuchi.com',
+    title: 'Founder',
+  }
+
+  function insert(env: Env, cookie: string, body: unknown = PARAMS): Promise<Response> {
+    return request('/api/self/insert', env, {
+      method: 'POST',
+      headers: { Cookie: cookie, 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+  }
+
+  it('sits behind the site login gate (no site session → redirect to /login)', async () => {
+    const res = await request('/api/self/insert', GOOGLE_ENV, { method: 'POST' })
+    expect(res.status).toBe(302)
+    expect(res.headers.get('Location')).toContain('/login?return_to=')
+  })
+
+  it('401 google_not_connected without a Google session cookie', async () => {
+    const res = await insert(GOOGLE_ENV, await siteSessionCookie())
+    expect(res.status).toBe(401)
+    const body = (await res.json()) as { error: string }
+    expect(body.error).toBe('google_not_connected')
+  })
+
+  it('401 google_not_connected when the session lacks the gmail.settings.basic scope', async () => {
+    const noScope = futureGoogleSession({ scopes: ['openid', 'email'] })
+    const cookie = await encryptGoogleSession(GOOGLE_ENV, noScope)
+    const res = await insert(GOOGLE_ENV, `${await siteSessionCookie()}; ${GOOGLE_COOKIE_NAME}=${cookie}`)
+    expect(res.status).toBe(401)
+    const body = (await res.json()) as { error: string; detail: string }
+    expect(body.error).toBe('google_not_connected')
+    expect(body.detail).toContain(GMAIL_SETTINGS_BASIC_SCOPE)
+  })
+
+  it('400 invalid_params for a body that fails the signature schema', async () => {
+    const cookie = await encryptGoogleSession(GOOGLE_ENV, futureGoogleSession())
+    const res = await insert(
+      GOOGLE_ENV,
+      `${await siteSessionCookie()}; ${GOOGLE_COOKIE_NAME}=${cookie}`,
+      { brand: 'not-a-brand', name: 'x' },
+    )
+    expect(res.status).toBe(400)
+    const body = (await res.json()) as { error: string }
+    expect(body.error).toBe('invalid_params')
+  })
+
+  it('PATCHes the engine-rendered signature to the session email send-as (happy path)', async () => {
+    let patchUrl = ''
+    let patchInit: RequestInit | undefined
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      patchUrl = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+      patchInit = init
+      return new Response(JSON.stringify({ sendAsEmail: 'bryan@nyuchi.com' }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    })
+
+    const cookie = await encryptGoogleSession(GOOGLE_ENV, futureGoogleSession())
+    const res = await insert(GOOGLE_ENV, `${await siteSessionCookie()}; ${GOOGLE_COOKIE_NAME}=${cookie}`)
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ ok: true, email: 'bryan@nyuchi.com', sendAs: 'bryan@nyuchi.com' })
+
+    expect(patchUrl).toBe(
+      'https://gmail.googleapis.com/gmail/v1/users/me/settings/sendAs/bryan%40nyuchi.com',
+    )
+    expect(patchInit?.method).toBe('PATCH')
+    expect((patchInit?.headers as Record<string, string>).Authorization).toBe('Bearer ya29.test-access-token')
+    // The body is exactly {signature: <byte-locked engine output>} — the
+    // same HTML the MCP tool and the web preview emit for these params.
+    const sent = JSON.parse(String(patchInit?.body)) as { signature: string }
+    expect(sent).toEqual({ signature: buildSignatureHtml(PARAMS) })
+  })
+
+  it('502 gmail_api_error surfacing the upstream message (never the token)', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ error: { code: 403, message: 'Insufficient Permission' } }), {
+        status: 403,
+        headers: { 'content-type': 'application/json' },
+      }),
+    )
+    const cookie = await encryptGoogleSession(GOOGLE_ENV, futureGoogleSession())
+    const res = await insert(GOOGLE_ENV, `${await siteSessionCookie()}; ${GOOGLE_COOKIE_NAME}=${cookie}`)
+    expect(res.status).toBe(502)
+    const body = (await res.json()) as { error: string; detail: string }
+    expect(body.error).toBe('gmail_api_error')
+    expect(body.detail).toContain('403')
+    expect(body.detail).toContain('Insufficient Permission')
+    expect(JSON.stringify(body)).not.toContain('ya29.')
   })
 })

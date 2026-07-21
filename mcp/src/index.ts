@@ -99,6 +99,7 @@ import {
   SIGNATURE_API_PATH,
   type SignatureApiEnv,
 } from "./signature-api.js";
+import { registerGoogleRoutes, type GoogleAuthEnv } from "./google-auth.js";
 
 /** Chunked bytes → base64 (no Buffer dependency; works in Workers + node). */
 function bytesToBase64(bytes: Uint8Array): string {
@@ -685,7 +686,7 @@ function authorizationServerMetadataHandler(wellKnownPath: "oauth-authorization-
  * site-wide login gate's signing secret, and the static-assets binding the
  * post-auth catch-all route serves the built Astro site from.
  */
-interface Env extends SiteAuthEnv, ImagesEnv, FeedbackEnv, SignatureApiEnv {
+interface Env extends SiteAuthEnv, ImagesEnv, FeedbackEnv, SignatureApiEnv, GoogleAuthEnv {
   ASSETS: Fetcher;
 }
 
@@ -957,6 +958,12 @@ app.all("/mcp/*", (c) => c.json({ error: "not found", hint: "POST /mcp for JSON-
 // engine, for Apps Script and other server-to-server callers. Does its own
 // auth (bearer key or session cookie); exempted from the site gate above.
 registerSignatureApi(app);
+
+// Google OAuth + self-service Gmail insert (see google-auth.ts). These
+// paths are deliberately NOT on the site-gate exempt list: they require a
+// signed-in site session, and the gate middleware above (registered first)
+// runs before any of them.
+registerGoogleRoutes(app);
 
 // Everything else, once the login gate above has passed (or the path was
 // exempt): the built Astro site as static assets (see [assets] in
