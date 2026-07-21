@@ -160,6 +160,11 @@ PNG rasterization is done client-side via `<canvas>` in the web app. On the MCP 
 ### HTML generation & XSS
 All signature HTML is assembled from user input by hand. Both Apps Script files have an `escapeHtml()` helper; the React component additionally uses `@braintree/sanitize-url` plus `escapeHtml`/`createMailtoUrl`/`createTelUrl`/`createWhatsAppUrl` helpers. **Preserve this escaping when editing signature templates** — these strings end up as raw HTML in users' mailboxes.
 
+### Process docs, skills, and agents
+- `TEST.md` documents the test infrastructure (suites, stubs, commands, what CI runs, what needs manual/visual checks); `REVIEW.md` documents the review standard and holds the latest review record; `SECURITY.md` covers both the Apps Script and Worker/MCP security models. Keep all three in sync with the code — the `docs-sync` skill defines the sweep order (README → SECURITY → CLAUDE.md → TEST.md → REVIEW.md).
+- Repo skills in `.claude/skills/`: `verify` (full check sequence), `docs-sync` (documentation drift sweep), `studio-qa` (visual render verification after engine changes). Repo agents in `.claude/agents/` (`verifier`, `docs-curator`, `studio-qa`) run these repeatedly.
+- **Brand/architecture authority is Mzizi** (the design-system registry, also reachable as the Mzizi MCP server): mineral palettes, semantic tokens, pill geometry, touch targets, and the ecosystem taxonomy come from there — query it rather than inventing values (`@bundu/ui` is its shipped implementation). Its doctrine for Nyuchi tools also includes the feedback loop this repo implements as `report_issue`: failures become tracked GitHub issues with humans in the loop.
+
 ## Deployment
 
 - The whole web surface deploys as one Worker: `cd signature-generator && npm run build`, then `npm run deploy:tools` at the repo root (wrangler picks up `CLOUDFLARE_API_TOKEN`; the account is pinned in `wrangler.toml`). Workers Builds (GitHub app) is the intended CI path — root dir `mcp`, deploy `npx wrangler deploy`, watch paths `mcp/**` and `signature-generator/**`.
