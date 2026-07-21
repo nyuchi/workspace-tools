@@ -100,6 +100,7 @@ import {
   type SignatureApiEnv,
 } from "./signature-api.js";
 import { registerGoogleRoutes, type GoogleAuthEnv } from "./google-auth.js";
+import { registerCatalog } from "./catalog.js";
 import { registerGoogleAdminRoutes, type GoogleAdminEnv } from "./google-admin.js";
 
 /** Chunked bytes → base64 (no Buffer dependency; works in Workers + node). */
@@ -643,6 +644,10 @@ function buildServer(env: Env): McpServer {
     },
   );
 
+  // --- Resources + prompts (mcp/src/catalog.ts) ---------------------------
+  // Read-only views of the canonical engine data (brand registry, mineral
+  // palettes, studio reference) and guided prompts for the common workflows.
+  registerCatalog(server);
 
   return server;
 }

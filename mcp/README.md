@@ -18,6 +18,13 @@ comment in `../wrangler.toml` for why `/mcp` lives on a separate hostname):
   unconfigured. Has its own bearer-token gate (see below); never
   double-gated by the site-wide login gate. Reachable on both domains, but
   `tools.nyuchi.dev/mcp` is the one advertised by discovery metadata.
+  Besides tools, the server exposes **resources** (`nyuchi://brands`,
+  `nyuchi://brands/{key}`, `nyuchi://minerals`, `nyuchi://studio/reference` —
+  read-only JSON views of the canonical engine data) and **prompts**
+  (`create_social_card`, `create_email_signature`, `mineral_education_card`),
+  all registered in `mcp/src/catalog.ts`. `mcp/evals/evals.xml` holds ten
+  deterministic read-only Q&A evaluations for exercising the server
+  end-to-end from an MCP client.
 - `/.well-known/mcp/server-card.json` — static MCP Server Card (name,
   version, website, remote transport, capabilities) for agent-readiness
   scanners and MCP clients that discover servers this way instead of via
@@ -142,7 +149,7 @@ Never use a throwaway value like that in production — set the real one with
   gate (`verifyBearer`) and the site-wide login callback (`site-auth.ts`,
   verifying the access token from its own PKCE token exchange) call it —
   neither reimplements the jose/JWKS logic.
-- The three `client:only="react"` tool islands
+- The two `client:only="react"` tool islands
   (`signature-generator/src/pages/{signature,studio}/*Page.tsx`) each
   feature-detect `document.modelContext` (WebMCP) and, when present, register
   1–2 tools that call the exact same functions the UI's own buttons call

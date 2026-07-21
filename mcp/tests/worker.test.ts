@@ -1055,7 +1055,11 @@ describe('GET /.well-known/mcp/server-card.json', () => {
         '(SVG, PNG, or hosted Cloudflare Images URL), asset uploads, and issue reporting.',
       websiteUrl: 'https://tools.nyuchi.com',
       remotes: [{ transportType: 'streamable-http', url: 'https://tools.nyuchi.dev/mcp' }],
-      capabilities: { tools: { listChanged: true } },
+      capabilities: {
+        tools: { listChanged: true },
+        resources: { listChanged: true },
+        prompts: { listChanged: true },
+      },
     })
   })
 
@@ -2566,5 +2570,126 @@ describe('POST /api/admin/push', () => {
     expect(body.results[0].status).toBe('pushed')
     // The retry waited out the backoff via the injectable sleep hook.
     expect(sleepSpy).toHaveBeenCalledWith(1000)
+  })
+})
+
+describe('POST /mcp — resources & prompts (catalog)', () => {
+  it('resources/list exposes the three static catalog resources', async () => {
+    const res = await post('/mcp', rpc('resources/list', {}, 1))
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as JsonRpcResponse
+    const resources = (body.result as { resources: { uri: string; mimeType?: string }[] }).resources
+    expect(resources.map((r) => r.uri).sort()).toEqual([
+      'nyuchi://brands',
+      'nyuchi://minerals',
+      'nyuchi://studio/reference',
+    ])
+    for (const r of resources) expect(r.mimeType).toBe('application/json')
+  })
+
+  it('resources/templates/list exposes the per-brand template', async () => {
+    const res = await post('/mcp', rpc('resources/templates/list', {}, 1))
+    const body = (await res.json()) as JsonRpcResponse
+    const templates = (body.result as { resourceTemplates: { uriTemplate: string }[] }).resourceTemplates
+    expect(templates.map((t) => t.uriTemplate)).toEqual(['nyuchi://brands/{key}'])
+  })
+
+  it('resources/read nyuchi://brands returns the canonical registry', async () => {
+    const res = await post('/mcp', rpc('resources/read', { uri: 'nyuchi://brands' }, 1))
+    const body = (await res.json()) as JsonRpcResponse
+    const contents = (body.result as { contents: { uri: string; mimeType: string; text: string }[] }).contents
+    expect(contents).toHaveLength(1)
+    const data = JSON.parse(contents[0].text) as {
+      brands: Record<string, { name: string; pillar: string }>
+      divisions: Record<string, unknown[]>
+      initiatives: Record<string, { name: string }>
+    }
+    expect(Object.keys(data.brands).sort()).toEqual(['bundu', 'mukoko', 'nyuchi', 'shamwari'])
+    expect(data.brands.nyuchi.name).toBe('Nyuchi Africa')
+    expect(data.brands.nyuchi.pillar).toBe('commercial')
+    expect(data.divisions.nyuchi).toHaveLength(4)
+    expect(data.initiatives.telia.name).toContain('TELIA')
+  })
+
+  it('resources/read nyuchi://brands/{key} resolves one brand and rejects unknown keys', async () => {
+    const ok = await post('/mcp', rpc('resources/read', { uri: 'nyuchi://brands/mukoko' }, 1))
+    const okBody = (await ok.json()) as JsonRpcResponse
+    const contents = (okBody.result as { contents: { text: string }[] }).contents
+    const brand = JSON.parse(contents[0].text) as { key: string; domain: string; divisions: unknown[] }
+    expect(brand.key).toBe('mukoko')
+    expect(brand.domain).toBe('mukoko.com')
+    expect(brand.divisions).toHaveLength(1)
+
+    const bad = await post('/mcp', rpc('resources/read', { uri: 'nyuchi://brands/acme' }, 2))
+    const badBody = (await bad.json()) as JsonRpcResponse
+    expect(badBody.error).toBeDefined()
+    expect(badBody.error!.message).toContain("Unknown brand 'acme'")
+  })
+
+  it('resources/read nyuchi://minerals matches the engine palette table', async () => {
+    const { CATEGORIES } = await import('../../signature-generator/src/engines/nyuchi')
+    const res = await post('/mcp', rpc('resources/read', { uri: 'nyuchi://minerals' }, 1))
+    const body = (await res.json()) as JsonRpcResponse
+    const contents = (body.result as { contents: { text: string }[] }).contents
+    const data = JSON.parse(contents[0].text) as {
+      minerals: Record<string, { role: string; light: string; dark: string }>
+      surfaces: Record<string, { bg: string }>
+    }
+    expect(data.minerals).toEqual(CATEGORIES)
+    expect(data.minerals.gold.dark).toBe('#FFD740')
+    expect(data.surfaces.dark.bg).toBe('#0F0E0C')
+  })
+
+  it('resources/read nyuchi://studio/reference lists formats, layouts, themes', async () => {
+    const res = await post('/mcp', rpc('resources/read', { uri: 'nyuchi://studio/reference' }, 1))
+    const body = (await res.json()) as JsonRpcResponse
+    const data = JSON.parse(
+      (body.result as { contents: { text: string }[] }).contents[0].text,
+    ) as { formats: Record<string, { w: number; h: number }>; layouts: Record<string, string>; themes: Record<string, string> }
+    expect(data.formats.ig).toMatchObject({ w: 1080, h: 1080 })
+    expect(Object.keys(data.layouts)).toHaveLength(5)
+    expect(Object.keys(data.themes).sort()).toEqual(['accent', 'dark', 'light'])
+  })
+
+  it('prompts/list exposes the three guided prompts with their arguments', async () => {
+    const res = await post('/mcp', rpc('prompts/list', {}, 1))
+    const body = (await res.json()) as JsonRpcResponse
+    const prompts = (
+      body.result as { prompts: { name: string; arguments?: { name: string; required?: boolean }[] }[] }
+    ).prompts
+    expect(prompts.map((p) => p.name).sort()).toEqual([
+      'create_email_signature',
+      'create_social_card',
+      'mineral_education_card',
+    ])
+    const social = prompts.find((p) => p.name === 'create_social_card')!
+    const argByName = Object.fromEntries((social.arguments ?? []).map((a) => [a.name, a]))
+    expect(argByName.topic.required).toBe(true)
+    expect(argByName.platform.required ?? false).toBe(false)
+  })
+
+  it('prompts/get create_social_card interpolates the topic and cites the resources', async () => {
+    const res = await post(
+      '/mcp',
+      rpc('prompts/get', { name: 'create_social_card', arguments: { topic: 'Malachite quarterly growth report' } }, 1),
+    )
+    const body = (await res.json()) as JsonRpcResponse
+    const messages = (body.result as { messages: { role: string; content: { type: string; text: string } }[] }).messages
+    expect(messages).toHaveLength(1)
+    expect(messages[0].role).toBe('user')
+    expect(messages[0].content.text).toContain('Malachite quarterly growth report')
+    expect(messages[0].content.text).toContain('generate_studio_card')
+    expect(messages[0].content.text).toContain('nyuchi://minerals')
+  })
+
+  it('prompts/get mineral_education_card names the mineral and layout 5', async () => {
+    const res = await post(
+      '/mcp',
+      rpc('prompts/get', { name: 'mineral_education_card', arguments: { mineral: 'copper' } }, 1),
+    )
+    const body = (await res.json()) as JsonRpcResponse
+    const text = (body.result as { messages: { content: { text: string } }[] }).messages[0].content.text
+    expect(text).toContain("'copper'")
+    expect(text).toContain('layout 5')
   })
 })

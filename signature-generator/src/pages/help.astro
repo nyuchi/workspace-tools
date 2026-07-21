@@ -314,6 +314,16 @@ const defRow =
           </div>
 
           <p class={muted}>
+            The server also exposes read-only <strong>resources</strong> (the brand registry, the
+            seven Mzizi mineral palettes, and a studio format/layout reference under the{' '}
+            <code class={inlineCode}>nyuchi://</code> scheme) and guided <strong>prompts</strong>{' '}
+            (<code class={inlineCode}>create_social_card</code>,{' '}
+            <code class={inlineCode}>create_email_signature</code>,{' '}
+            <code class={inlineCode}>mineral_education_card</code>) for MCP clients that support
+            them.
+          </p>
+
+          <p class={muted}>
             The endpoint is protected by WorkOS Connect (OAuth 2.1 + PKCE) — MCP clients discover
             this automatically via <code class={inlineCode}>/.well-known/oauth-protected-resource</code>{' '}
             and prompt you to sign in when connecting. See{' '}
