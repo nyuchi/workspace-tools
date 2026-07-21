@@ -14,6 +14,9 @@
       }
     ]
   },
+  "urlFetchWhitelist": [
+    "https://tools.nyuchi.com/api/signature"
+  ],
   "oauthScopes": [
     "https://www.googleapis.com/auth/gmail.settings.basic",
     "https://www.googleapis.com/auth/gmail.settings.sharing",

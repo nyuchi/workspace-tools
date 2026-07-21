@@ -7,10 +7,11 @@
  * as the `env` argument.
  */
 
+import { generateKeyPairSync } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { SignJWT } from 'jose'
+import { SignJWT, base64url } from 'jose'
 import worker from '../src/index'
 import {
   CALLBACK_PATH,
@@ -22,6 +23,21 @@ import {
   SITE_CLIENT_ID,
   verifySessionCookie,
 } from '../src/site-auth'
+import {
+  decryptGoogleSession,
+  encryptGoogleSession,
+  GMAIL_SETTINGS_BASIC_SCOPE,
+  GOOGLE_CALLBACK_PATH,
+  GOOGLE_COOKIE_NAME,
+  GOOGLE_STATE_COOKIE_NAME,
+  refreshIfNeeded,
+  type GoogleSession,
+} from '../src/google-auth'
+import {
+  DIRECTORY_SCOPE,
+  MAX_PUSH_TARGETS,
+  pacing,
+} from '../src/google-admin'
 import { buildSignatureHtml } from '../../signature-generator/src/engines/signature'
 
 const BASE = 'https://tools.nyuchi.com'
@@ -42,7 +58,7 @@ const SITE_ENV = { SESSION_SECRET: TEST_SESSION_SECRET }
 const ASSETS_STUB = { fetch: async () => new Response('stub-asset') }
 
 /** Stub ASSETS binding that answers brand-icon `.b64.txt` requests with a
- * fixed fake payload, so tests can verify generate_studio_card actually
+ * fixed fake payload, so tests can verify nyuchi_generate_studio_card actually
  * embeds a real per-brand icon (via mcp/src/brand-icons.ts) instead of
  * falling back to the engine's generic placeholder mark — the exact bug
  * this guards against regressing to. */
@@ -125,7 +141,7 @@ describe('GET /mcp — discovery', () => {
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({
       name: 'nyuchi-tools',
-      version: '0.1.0',
+      version: '0.2.0',
       protocol: `mcp/${LATEST_PROTOCOL_VERSION}`,
       endpoint: '/mcp',
     })
@@ -152,7 +168,7 @@ describe('POST /mcp — JSON-RPC', () => {
       serverInfo: { name: string; version: string }
     }
     expect(result.serverInfo.name).toBe('nyuchi-tools')
-    expect(result.serverInfo.version).toBe('0.1.0')
+    expect(result.serverInfo.version).toBe('0.2.0')
     expect(result.protocolVersion).toBe('2024-11-05')
   })
 
@@ -162,10 +178,10 @@ describe('POST /mcp — JSON-RPC', () => {
     const body = (await res.json()) as JsonRpcResponse
     const tools = (body.result as { tools: { name: string }[] }).tools
     expect(tools.map((t) => t.name).sort()).toEqual([
-      'generate_email_signature',
-      'generate_studio_card',
-      'report_issue',
-      'upload_asset',
+      'nyuchi_generate_email_signature',
+      'nyuchi_generate_studio_card',
+      'nyuchi_report_issue',
+      'nyuchi_upload_asset',
     ])
   })
 
@@ -179,6 +195,15 @@ describe('POST /mcp — JSON-RPC', () => {
     // on SDK version) — either way, never a successful render.
     const result = body.result as { isError?: boolean } | undefined
     expect(Boolean(body.error) || Boolean(result?.isError)).toBe(true)
+  })
+
+  it('the pre-0.2.0 unprefixed tool names error cleanly (renamed with the nyuchi_ prefix)', async () => {
+    for (const name of ['generate_email_signature', 'generate_studio_card', 'upload_asset', 'report_issue']) {
+      const res = await post('/mcp', rpc('tools/call', { name, arguments: {} }, 4))
+      const body = (await res.json()) as JsonRpcResponse
+      const result = body.result as { isError?: boolean } | undefined
+      expect(Boolean(body.error) || Boolean(result?.isError)).toBe(true)
+    }
   })
 
   it('tools carry behavior annotations and (where stable) output schemas', async () => {
@@ -195,23 +220,23 @@ describe('POST /mcp — JSON-RPC', () => {
     ).tools
     const byName = Object.fromEntries(tools.map((t) => [t.name, t]))
     // Pure generators are read-only and closed-world.
-    expect(byName['generate_email_signature'].annotations).toMatchObject({ readOnlyHint: true, openWorldHint: false })
+    expect(byName['nyuchi_generate_email_signature'].annotations).toMatchObject({ readOnlyHint: true, openWorldHint: false })
     // Anything that can publish externally is open-world, non-destructive.
-    for (const name of ['generate_studio_card', 'upload_asset', 'report_issue']) {
+    for (const name of ['nyuchi_generate_studio_card', 'nyuchi_upload_asset', 'nyuchi_report_issue']) {
       expect(byName[name].annotations).toMatchObject({ readOnlyHint: false, destructiveHint: false, openWorldHint: true })
     }
-    expect(Object.keys(byName['upload_asset'].outputSchema?.properties ?? {}).sort()).toEqual(['contentType', 'id', 'url'])
-    expect(Object.keys(byName['report_issue'].outputSchema?.properties ?? {}).sort()).toEqual(['number', 'repo', 'url'])
+    expect(Object.keys(byName['nyuchi_upload_asset'].outputSchema?.properties ?? {}).sort()).toEqual(['contentType', 'id', 'url'])
+    expect(Object.keys(byName['nyuchi_report_issue'].outputSchema?.properties ?? {}).sort()).toEqual(['number', 'repo', 'url'])
   })
 
 
-  it('tools/call generate_email_signature returns HTML with escaped fields', async () => {
+  it('tools/call nyuchi_generate_email_signature returns HTML with escaped fields', async () => {
     const res = await post(
       '/mcp',
       rpc(
         'tools/call',
         {
-          name: 'generate_email_signature',
+          name: 'nyuchi_generate_email_signature',
           arguments: {
             brand: 'nyuchi',
             name: 'Eve <script>alert(1)</script> & Co',
@@ -236,13 +261,13 @@ describe('POST /mcp — JSON-RPC', () => {
     expect(html).toContain('color: #5D4037;">Nyuchi Africa</span>')
   })
 
-  it('tools/call generate_email_signature accepts the new bundu brand', async () => {
+  it('tools/call nyuchi_generate_email_signature accepts the new bundu brand', async () => {
     const res = await post(
       '/mcp',
       rpc(
         'tools/call',
         {
-          name: 'generate_email_signature',
+          name: 'nyuchi_generate_email_signature',
           arguments: { brand: 'bundu', name: 'Tariro Chikafu', email: 'tariro@bundu.org' },
         },
         30,
@@ -257,13 +282,13 @@ describe('POST /mcp — JSON-RPC', () => {
     expect(html).toContain('>bundu.org</a>')
   })
 
-  it('tools/call generate_email_signature accepts the new shamwari brand', async () => {
+  it('tools/call nyuchi_generate_email_signature accepts the new shamwari brand', async () => {
     const res = await post(
       '/mcp',
       rpc(
         'tools/call',
         {
-          name: 'generate_email_signature',
+          name: 'nyuchi_generate_email_signature',
           arguments: { brand: 'shamwari', name: 'Farai Gumbo', email: 'farai@shamwari.ai' },
         },
         31,
@@ -281,7 +306,7 @@ describe('POST /mcp — JSON-RPC', () => {
       '/mcp',
       rpc(
         'tools/call',
-        { name: 'generate_email_signature', arguments: { brand: 'acme', name: 'X', email: 'x@x.com' } },
+        { name: 'nyuchi_generate_email_signature', arguments: { brand: 'acme', name: 'X', email: 'x@x.com' } },
         4,
       ),
     )
@@ -297,13 +322,13 @@ describe('POST /mcp — JSON-RPC', () => {
     expect(result.content[0].text).toContain('brand')
   })
 
-  it('tools/call generate_studio_card returns a real Studio SVG plus JSON metadata', async () => {
+  it('tools/call nyuchi_generate_studio_card returns a real Studio SVG plus JSON metadata', async () => {
     const res = await post(
       '/mcp',
       rpc(
         'tools/call',
         {
-          name: 'generate_studio_card',
+          name: 'nyuchi_generate_studio_card',
           arguments: {
             title: 'Seven minerals, one ecosystem',
             dek: 'How the bundu palette carries meaning across every brand we build.',
@@ -339,13 +364,13 @@ describe('POST /mcp — JSON-RPC', () => {
     expect(typeof meta.seed).toBe('number')
   })
 
-  it('generate_studio_card keeps markup in the title escaped', async () => {
+  it('nyuchi_generate_studio_card keeps markup in the title escaped', async () => {
     const res = await post(
       '/mcp',
       rpc(
         'tools/call',
         {
-          name: 'generate_studio_card',
+          name: 'nyuchi_generate_studio_card',
           arguments: {
             title: 'Attack <script>alert(1)</script> & Co',
             category: 'cobalt',
@@ -363,13 +388,13 @@ describe('POST /mcp — JSON-RPC', () => {
     expect(svg).toContain('&lt;script&gt;')
   })
 
-  it('generate_studio_card is deterministic for identical arguments', async () => {
+  it('nyuchi_generate_studio_card is deterministic for identical arguments', async () => {
     const args = { title: 'Determinism', category: 'malachite', format: '16x9', layout: 3 }
     const first = (await (
-      await post('/mcp', rpc('tools/call', { name: 'generate_studio_card', arguments: args }, 12))
+      await post('/mcp', rpc('tools/call', { name: 'nyuchi_generate_studio_card', arguments: args }, 12))
     ).json()) as JsonRpcResponse
     const second = (await (
-      await post('/mcp', rpc('tools/call', { name: 'generate_studio_card', arguments: args }, 13))
+      await post('/mcp', rpc('tools/call', { name: 'nyuchi_generate_studio_card', arguments: args }, 13))
     ).json()) as JsonRpcResponse
     const a = (first.result as { content: { text: string }[] }).content
     const b = (second.result as { content: { text: string }[] }).content
@@ -377,13 +402,13 @@ describe('POST /mcp — JSON-RPC', () => {
     expect(b[1].text).toBe(a[1].text)
   })
 
-  it('generate_studio_card renders a bundu-branded card (lockup wordmark)', async () => {
+  it('nyuchi_generate_studio_card renders a bundu-branded card (lockup wordmark)', async () => {
     const res = await post(
       '/mcp',
       rpc(
         'tools/call',
         {
-          name: 'generate_studio_card',
+          name: 'nyuchi_generate_studio_card',
           arguments: { title: 'The wilderness holds the hive', category: 'copper', brand: 'bundu' },
         },
         32,
@@ -398,12 +423,12 @@ describe('POST /mcp — JSON-RPC', () => {
     expect(svg).not.toContain('>nyuchi.com</text>')
   })
 
-  it('generate_studio_card rejects an unknown brand', async () => {
+  it('nyuchi_generate_studio_card rejects an unknown brand', async () => {
     const res = await post(
       '/mcp',
       rpc(
         'tools/call',
-        { name: 'generate_studio_card', arguments: { title: 'X', category: 'gold', brand: 'acme' } },
+        { name: 'nyuchi_generate_studio_card', arguments: { title: 'X', category: 'gold', brand: 'acme' } },
         33,
       ),
     )
@@ -414,12 +439,12 @@ describe('POST /mcp — JSON-RPC', () => {
     expect(result.content[0].text).toContain('-32602')
   })
 
-  it('generate_studio_card rejects an unknown format', async () => {
+  it('nyuchi_generate_studio_card rejects an unknown format', async () => {
     const res = await post(
       '/mcp',
       rpc(
         'tools/call',
-        { name: 'generate_studio_card', arguments: { title: 'X', category: 'gold', format: 'a4' } },
+        { name: 'nyuchi_generate_studio_card', arguments: { title: 'X', category: 'gold', format: 'a4' } },
         14,
       ),
     )
@@ -440,13 +465,13 @@ describe('POST /mcp — JSON-RPC', () => {
   // one Worker isolate's lifetime), so once these run, every studio
   // test after them would also see real icons instead of the wordmark-only
   // fallback the tests above assert around.
-  it('generate_studio_card embeds the real brand icon when ASSETS is available', async () => {
+  it('nyuchi_generate_studio_card embeds the real brand icon when ASSETS is available', async () => {
     const res = await post(
       '/mcp',
       rpc(
         'tools/call',
         {
-          name: 'generate_studio_card',
+          name: 'nyuchi_generate_studio_card',
           arguments: { title: 'What is nhimbe?', category: 'malachite', brand: 'mukoko' },
         },
         18,
@@ -497,7 +522,7 @@ describe('POST /mcp — JSON-RPC', () => {
 /* These run after the icon tests above on purpose: they pass an ASSETS
  * binding, which (like one real isolate) populates the module-level
  * brand-icon cache for every later call in this file. */
-describe('generate_studio_card — returnFormat / upload', () => {
+describe('nyuchi_generate_studio_card — returnFormat / upload', () => {
   afterEach(() => {
     vi.restoreAllMocks()
   })
@@ -508,7 +533,7 @@ describe('generate_studio_card — returnFormat / upload', () => {
       rpc(
         'tools/call',
         {
-          name: 'generate_studio_card',
+          name: 'nyuchi_generate_studio_card',
           arguments: {
             title: 'Nhimbe',
             dek: 'Gathering, discovered.',
@@ -533,7 +558,7 @@ describe('generate_studio_card — returnFormat / upload', () => {
       rpc(
         'tools/call',
         {
-          name: 'generate_studio_card',
+          name: 'nyuchi_generate_studio_card',
           arguments: { title: 'Nhimbe', category: 'malachite', layout: 1, theme: 'accent' },
         },
         45,
@@ -552,7 +577,7 @@ describe('generate_studio_card — returnFormat / upload', () => {
       rpc(
         'tools/call',
         {
-          name: 'generate_studio_card',
+          name: 'nyuchi_generate_studio_card',
           arguments: { title: 'X', category: 'gold', dekColor: 'red"onload="x' },
         },
         41,
@@ -570,7 +595,7 @@ describe('generate_studio_card — returnFormat / upload', () => {
       rpc(
         'tools/call',
         {
-          name: 'generate_studio_card',
+          name: 'nyuchi_generate_studio_card',
           arguments: {
             title: 'Seven minerals',
             dek: 'One ecosystem.',
@@ -613,7 +638,7 @@ describe('generate_studio_card — returnFormat / upload', () => {
       rpc(
         'tools/call',
         {
-          name: 'generate_studio_card',
+          name: 'nyuchi_generate_studio_card',
           arguments: { title: 'Both', category: 'gold', layout: 1, upload: true, returnFormat: 'png' },
         },
         46,
@@ -635,7 +660,7 @@ describe('generate_studio_card — returnFormat / upload', () => {
       rpc(
         'tools/call',
         {
-          name: 'generate_studio_card',
+          name: 'nyuchi_generate_studio_card',
           arguments: { title: 'X', category: 'gold', upload: true, returnFormat: 'svg' },
         },
         47,
@@ -654,7 +679,7 @@ describe('generate_studio_card — returnFormat / upload', () => {
       rpc(
         'tools/call',
         {
-          name: 'generate_studio_card',
+          name: 'nyuchi_generate_studio_card',
           arguments: { title: 'X', category: 'gold', upload: true },
         },
         43,
@@ -685,7 +710,7 @@ describe('generate_studio_card — returnFormat / upload', () => {
       rpc(
         'tools/call',
         {
-          name: 'generate_studio_card',
+          name: 'nyuchi_generate_studio_card',
           arguments: {
             title: 'Nhimbe harvest',
             dek: "Africa's gathering, discovered.",
@@ -727,7 +752,7 @@ describe('generate_studio_card — returnFormat / upload', () => {
   })
 })
 
-describe('upload_asset', () => {
+describe('nyuchi_upload_asset', () => {
   afterEach(() => {
     vi.restoreAllMocks()
   })
@@ -746,7 +771,7 @@ describe('upload_asset', () => {
     )
     const res = await post(
       '/mcp',
-      rpc('tools/call', { name: 'upload_asset', arguments: { pngBase64: TINY_PNG_B64 } }, 50),
+      rpc('tools/call', { name: 'nyuchi_upload_asset', arguments: { pngBase64: TINY_PNG_B64 } }, 50),
       UPLOAD_ENV,
     )
     const body = (await res.json()) as JsonRpcResponse
@@ -778,7 +803,7 @@ describe('upload_asset', () => {
       '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><rect width="40" height="40" fill="#FFD740"/></svg>'
     const res = await post(
       '/mcp',
-      rpc('tools/call', { name: 'upload_asset', arguments: { svg } }, 51),
+      rpc('tools/call', { name: 'nyuchi_upload_asset', arguments: { svg } }, 51),
       UPLOAD_ENV,
     )
     const body = (await res.json()) as JsonRpcResponse
@@ -803,7 +828,7 @@ describe('upload_asset', () => {
       '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"><rect width="20" height="20" fill="#64FFDA"/></svg>'
     const res = await post(
       '/mcp',
-      rpc('tools/call', { name: 'upload_asset', arguments: { svg, pngBase64: '' } }, 55),
+      rpc('tools/call', { name: 'nyuchi_upload_asset', arguments: { svg, pngBase64: '' } }, 55),
       UPLOAD_ENV,
     )
     const body = (await res.json()) as JsonRpcResponse
@@ -819,7 +844,7 @@ describe('upload_asset', () => {
       '/mcp',
       rpc(
         'tools/call',
-        { name: 'upload_asset', arguments: { svg: '<svg/>', pngBase64: TINY_PNG_B64 } },
+        { name: 'nyuchi_upload_asset', arguments: { svg: '<svg/>', pngBase64: TINY_PNG_B64 } },
         52,
       ),
       UPLOAD_ENV,
@@ -835,7 +860,7 @@ describe('upload_asset', () => {
       '/mcp',
       rpc(
         'tools/call',
-        { name: 'upload_asset', arguments: { pngBase64: Buffer.from('not a png').toString('base64') } },
+        { name: 'nyuchi_upload_asset', arguments: { pngBase64: Buffer.from('not a png').toString('base64') } },
         53,
       ),
       UPLOAD_ENV,
@@ -849,7 +874,7 @@ describe('upload_asset', () => {
   it('fails closed with a clear message when Images is unconfigured', async () => {
     const res = await post(
       '/mcp',
-      rpc('tools/call', { name: 'upload_asset', arguments: { pngBase64: TINY_PNG_B64 } }, 54),
+      rpc('tools/call', { name: 'nyuchi_upload_asset', arguments: { pngBase64: TINY_PNG_B64 } }, 54),
       { ...OPEN_ENV, ASSETS: FONT_ASSETS_STUB },
     )
     const body = (await res.json()) as JsonRpcResponse
@@ -859,7 +884,7 @@ describe('upload_asset', () => {
   })
 })
 
-describe('report_issue', () => {
+describe('nyuchi_report_issue', () => {
   afterEach(() => {
     vi.restoreAllMocks()
   })
@@ -876,11 +901,11 @@ describe('report_issue', () => {
       rpc(
         'tools/call',
         {
-          name: 'report_issue',
+          name: 'nyuchi_report_issue',
           arguments: {
             title: 'Dek renders too small',
-            description: 'Called generate_studio_card with layout 1; the dek was unreadable at feed size.',
-            tool_name: 'generate_studio_card',
+            description: 'Called nyuchi_generate_studio_card with layout 1; the dek was unreadable at feed size.',
+            tool_name: 'nyuchi_generate_studio_card',
             severity: 'high',
             category: 'bug',
           },
@@ -903,7 +928,7 @@ describe('report_issue', () => {
     const [url, init] = fetchSpy.mock.calls[0] as [string, RequestInit]
     expect(url).toBe('https://api.github.com/repos/nyuchi/workspace-tools/issues')
     const sent = JSON.parse(init.body as string) as { title: string; body: string; labels: string[] }
-    expect(sent.title).toBe('[generate_studio_card] Dek renders too small')
+    expect(sent.title).toBe('[nyuchi_generate_studio_card] Dek renders too small')
     expect(sent.body).toContain('**Severity:** high')
     expect(sent.labels).toEqual(['mcp-feedback', 'bug', 'severity:high'])
     expect((init.headers as Record<string, string>).Authorization).toBe('Bearer gh123')
@@ -915,11 +940,11 @@ describe('report_issue', () => {
       rpc(
         'tools/call',
         {
-          name: 'report_issue',
+          name: 'nyuchi_report_issue',
           arguments: {
             title: 'Some problem',
             description: 'Long enough description of the problem.',
-            tool_name: 'upload_asset',
+            tool_name: 'nyuchi_upload_asset',
             category: 'bug',
           },
         },
@@ -941,11 +966,11 @@ describe('report_issue', () => {
       rpc(
         'tools/call',
         {
-          name: 'report_issue',
+          name: 'nyuchi_report_issue',
           arguments: {
             title: 'Some problem',
             description: 'Long enough description of the problem.',
-            tool_name: 'upload_asset',
+            tool_name: 'nyuchi_upload_asset',
             category: 'documentation',
           },
         },
@@ -1032,14 +1057,18 @@ describe('GET /.well-known/mcp/server-card.json', () => {
     expect(res.status).toBe(200)
     expect(res.headers.get('content-type')).toContain('application/json')
     expect(await res.json()).toEqual({
-      serverInfo: { name: 'nyuchi-tools', version: '0.1.0' },
+      serverInfo: { name: 'nyuchi-tools', version: '0.2.0' },
       name: 'nyuchi-tools',
       description:
         'MCP server for Nyuchi Africa tools: email signatures, Nyuchi Studio social cards ' +
         '(SVG, PNG, or hosted Cloudflare Images URL), asset uploads, and issue reporting.',
       websiteUrl: 'https://tools.nyuchi.com',
       remotes: [{ transportType: 'streamable-http', url: 'https://tools.nyuchi.dev/mcp' }],
-      capabilities: { tools: { listChanged: true } },
+      capabilities: {
+        tools: { listChanged: true },
+        resources: { listChanged: true },
+        prompts: { listChanged: true },
+      },
     })
   })
 
@@ -1601,15 +1630,1075 @@ describe('POST /api/signature', () => {
     expect(body.error).toBe('invalid_params')
   })
 
-  it('emits HTML byte-identical to the generate_email_signature MCP tool', async () => {
+  it('emits HTML byte-identical to the nyuchi_generate_email_signature MCP tool', async () => {
     const httpRes = await postSignature(PARAMS, SIG_ENV, { Authorization: `Bearer ${TEST_API_KEY}` })
     const { html } = (await httpRes.json()) as { html: string }
     const mcpRes = await post(
       '/mcp',
-      rpc('tools/call', { name: 'generate_email_signature', arguments: PARAMS }, 70),
+      rpc('tools/call', { name: 'nyuchi_generate_email_signature', arguments: PARAMS }, 70),
     )
     const mcpBody = (await mcpRes.json()) as JsonRpcResponse
     const mcpHtml = (mcpBody.result as { content: { text: string }[] }).content[0].text
     expect(html).toBe(mcpHtml)
+  })
+})
+
+// -----------------------------------------------------------------------------
+// Google OAuth plumbing + self insert (mcp/src/google-auth.ts).
+// -----------------------------------------------------------------------------
+
+/** Google OAuth fully configured (values fake; Google endpoints are mocked
+ * per test — no live calls). */
+const GOOGLE_ENV = {
+  SESSION_SECRET: TEST_SESSION_SECRET,
+  GOOGLE_CLIENT_ID: 'google-client-id',
+  GOOGLE_CLIENT_SECRET: 'google-client-secret',
+}
+
+/** Every /api/google/* and /api/self/* path sits BEHIND the site login
+ * gate, so requests need a valid `nyuchi_session` cookie to get through. */
+async function siteSessionCookie(): Promise<string> {
+  const value = await mintSessionCookie(SITE_ENV, { sub: 'user_123', email: 'bryan@nyuchi.com' })
+  return `${SESSION_COOKIE_NAME}=${value}`
+}
+
+function request(path: string, env: Env, init: RequestInit): Promise<Response> {
+  return Promise.resolve(worker.fetch(new Request(`${BASE}${path}`, init), env))
+}
+
+function futureGoogleSession(overrides: Partial<GoogleSession> = {}): GoogleSession {
+  return {
+    access_token: 'ya29.test-access-token',
+    expiry: Math.floor(Date.now() / 1000) + 3600,
+    scopes: ['openid', 'email', GMAIL_SETTINGS_BASIC_SCOPE],
+    email: 'bryan@nyuchi.com',
+    ...overrides,
+  }
+}
+
+describe('Google session cookie (google-auth.ts) — encrypt/decrypt', () => {
+  it('round-trips a session through encrypt → decrypt', async () => {
+    const session = futureGoogleSession({ refresh_token: '1//refresh' })
+    const value = await encryptGoogleSession(GOOGLE_ENV, session)
+    expect(await decryptGoogleSession(GOOGLE_ENV, value)).toEqual(session)
+  })
+
+  it('produces a different ciphertext each time (random IV) that still decrypts', async () => {
+    const session = futureGoogleSession()
+    const a = await encryptGoogleSession(GOOGLE_ENV, session)
+    const b = await encryptGoogleSession(GOOGLE_ENV, session)
+    expect(a).not.toBe(b)
+    expect(await decryptGoogleSession(GOOGLE_ENV, b)).toEqual(session)
+  })
+
+  it('encrypt throws when SESSION_SECRET is unset (fails closed, never plaintext)', async () => {
+    await expect(encryptGoogleSession({}, futureGoogleSession())).rejects.toThrow('SESSION_SECRET')
+  })
+
+  it('decrypt returns null for a tampered cookie', async () => {
+    const value = await encryptGoogleSession(GOOGLE_ENV, futureGoogleSession())
+    const tampered = `${value.slice(0, -4)}AAAA`
+    expect(await decryptGoogleSession(GOOGLE_ENV, tampered)).toBeNull()
+  })
+
+  it('decrypt returns null under a different secret', async () => {
+    const value = await encryptGoogleSession(GOOGLE_ENV, futureGoogleSession())
+    expect(await decryptGoogleSession({ SESSION_SECRET: 'another-secret' }, value)).toBeNull()
+  })
+
+  it('decrypt returns null when SESSION_SECRET is unset (fails closed, not open)', async () => {
+    const value = await encryptGoogleSession(GOOGLE_ENV, futureGoogleSession())
+    expect(await decryptGoogleSession({}, value)).toBeNull()
+  })
+
+  it('decrypt returns null for garbage / empty values', async () => {
+    expect(await decryptGoogleSession(GOOGLE_ENV, undefined)).toBeNull()
+    expect(await decryptGoogleSession(GOOGLE_ENV, '')).toBeNull()
+    expect(await decryptGoogleSession(GOOGLE_ENV, 'not-base64url-!!!')).toBeNull()
+    expect(await decryptGoogleSession(GOOGLE_ENV, 'AAAA')).toBeNull()
+  })
+})
+
+describe('GET /api/google/login', () => {
+  it('sits behind the site login gate (no site session → redirect to /login)', async () => {
+    const res = await get('/api/google/login', GOOGLE_ENV)
+    expect(res.status).toBe(302)
+    expect(res.headers.get('Location')).toContain('/login?return_to=')
+  })
+
+  it('fails clearly (JSON 503, not a broken redirect) when Google OAuth is unconfigured', async () => {
+    const res = await request('/api/google/login', SITE_ENV, {
+      headers: { Cookie: await siteSessionCookie() },
+    })
+    expect(res.status).toBe(503)
+    const body = (await res.json()) as { error: string; detail: string }
+    expect(body.error).toBe('google_not_configured')
+    expect(body.detail).toContain('GOOGLE_CLIENT_ID')
+  })
+
+  it('never 302s to Google when SESSION_SECRET is missing (fails closed)', async () => {
+    const env = { GOOGLE_CLIENT_ID: 'gid', GOOGLE_CLIENT_SECRET: 'gsec' }
+    const res = await get('/api/google/login', env)
+    // Without SESSION_SECRET there is no site session either, so the gate
+    // redirects to /login first — either way, nothing reaches Google.
+    expect(res.headers.get('Location') ?? '').not.toContain('accounts.google.com')
+  })
+
+  it('mode=self: 302 to Google authorize with the self scopes and a state cookie', async () => {
+    const res = await request('/api/google/login?mode=self', GOOGLE_ENV, {
+      headers: { Cookie: await siteSessionCookie() },
+    })
+    expect(res.status).toBe(302)
+    const url = new URL(res.headers.get('Location')!)
+    expect(url.origin + url.pathname).toBe('https://accounts.google.com/o/oauth2/v2/auth')
+    expect(url.searchParams.get('response_type')).toBe('code')
+    expect(url.searchParams.get('client_id')).toBe('google-client-id')
+    expect(url.searchParams.get('redirect_uri')).toBe(`${BASE}${GOOGLE_CALLBACK_PATH}`)
+    expect(url.searchParams.get('scope')).toBe(`openid email ${GMAIL_SETTINGS_BASIC_SCOPE}`)
+    expect(url.searchParams.get('access_type')).toBe('offline')
+    expect(url.searchParams.get('prompt')).toBe('consent')
+    expect(url.searchParams.get('include_granted_scopes')).toBe('true')
+
+    const setCookie = res.headers.get('Set-Cookie')
+    expect(setCookie).toContain(`${GOOGLE_STATE_COOKIE_NAME}=`)
+    expect(setCookie).toContain('HttpOnly')
+    expect(setCookie).toContain('Secure')
+    expect(setCookie).toContain('SameSite=Lax')
+    const state = cookieValueFrom(setCookie, GOOGLE_STATE_COOKIE_NAME)
+    expect(state).toBeTruthy()
+    expect(url.searchParams.get('state')).toBe(state)
+  })
+
+  it('mode=admin: scope additionally carries admin.directory.user.readonly', async () => {
+    const res = await request('/api/google/login?mode=admin', GOOGLE_ENV, {
+      headers: { Cookie: await siteSessionCookie() },
+    })
+    expect(res.status).toBe(302)
+    const url = new URL(res.headers.get('Location')!)
+    expect(url.searchParams.get('scope')).toBe(
+      `openid email ${GMAIL_SETTINGS_BASIC_SCOPE} https://www.googleapis.com/auth/admin.directory.user.readonly`,
+    )
+  })
+
+  it('defaults to the self scopes when mode is absent', async () => {
+    const res = await request('/api/google/login', GOOGLE_ENV, {
+      headers: { Cookie: await siteSessionCookie() },
+    })
+    const url = new URL(res.headers.get('Location')!)
+    expect(url.searchParams.get('scope')).toBe(`openid email ${GMAIL_SETTINGS_BASIC_SCOPE}`)
+  })
+})
+
+describe('GET /api/google/callback', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('rejects a state mismatch cleanly — no token exchange, no session cookie', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch')
+    const res = await request(`${GOOGLE_CALLBACK_PATH}?code=abc&state=WRONG`, GOOGLE_ENV, {
+      headers: {
+        Cookie: `${await siteSessionCookie()}; ${GOOGLE_STATE_COOKIE_NAME}=expected-state`,
+      },
+    })
+    expect(res.status).toBe(302)
+    expect(res.headers.get('Location')).toBe('/signature-generator?google=error')
+    expect(fetchSpy).not.toHaveBeenCalled()
+    // Only the state cookie is cleared; no `nyuchi_google` session cookie
+    // is ever set on a failed callback.
+    expect(res.headers.get('Set-Cookie') ?? '').not.toContain(`${GOOGLE_COOKIE_NAME}=`)
+  })
+
+  it('rejects a callback with no state cookie at all', async () => {
+    const res = await request(`${GOOGLE_CALLBACK_PATH}?code=abc&state=whatever`, GOOGLE_ENV, {
+      headers: { Cookie: await siteSessionCookie() },
+    })
+    expect(res.status).toBe(302)
+    expect(res.headers.get('Location')).toBe('/signature-generator?google=error')
+    expect(res.headers.get('Set-Cookie') ?? '').not.toContain(`${GOOGLE_COOKIE_NAME}=`)
+  })
+
+  it('rejects a callback when Google OAuth is unconfigured', async () => {
+    const res = await request(`${GOOGLE_CALLBACK_PATH}?code=abc&state=s`, SITE_ENV, {
+      headers: { Cookie: `${await siteSessionCookie()}; ${GOOGLE_STATE_COOKIE_NAME}=s` },
+    })
+    expect(res.status).toBe(302)
+    expect(res.headers.get('Location')).toBe('/signature-generator?google=error')
+  })
+
+  it('exchanges the code, fetches the userinfo email, and sets the encrypted session cookie', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+      if (url === 'https://oauth2.googleapis.com/token') {
+        const params = new URLSearchParams(String(init?.body))
+        expect(params.get('grant_type')).toBe('authorization_code')
+        expect(params.get('code')).toBe('auth-code-1')
+        expect(params.get('client_id')).toBe('google-client-id')
+        expect(params.get('client_secret')).toBe('google-client-secret')
+        expect(params.get('redirect_uri')).toBe(`${BASE}${GOOGLE_CALLBACK_PATH}`)
+        return new Response(
+          JSON.stringify({
+            access_token: 'ya29.fresh',
+            refresh_token: '1//refresh-1',
+            expires_in: 3599,
+            scope: `openid email ${GMAIL_SETTINGS_BASIC_SCOPE}`,
+            token_type: 'Bearer',
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        )
+      }
+      if (url === 'https://openidconnect.googleapis.com/v1/userinfo') {
+        const auth = (init?.headers as Record<string, string> | undefined)?.Authorization
+        expect(auth).toBe('Bearer ya29.fresh')
+        return new Response(JSON.stringify({ email: 'bryan@nyuchi.com', email_verified: true }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })
+      }
+      throw new Error(`Unexpected fetch in test: ${url}`)
+    })
+
+    const res = await request(`${GOOGLE_CALLBACK_PATH}?code=auth-code-1&state=expected-state`, GOOGLE_ENV, {
+      headers: {
+        Cookie: `${await siteSessionCookie()}; ${GOOGLE_STATE_COOKIE_NAME}=expected-state`,
+      },
+    })
+    expect(res.status).toBe(302)
+    expect(res.headers.get('Location')).toBe('/signature-generator')
+
+    const setCookie = res.headers.get('Set-Cookie')
+    expect(setCookie).toContain(`${GOOGLE_COOKIE_NAME}=`)
+    expect(setCookie).toContain('HttpOnly')
+    expect(setCookie).toContain('Secure')
+    expect(setCookie).toContain('SameSite=Lax')
+    const cookieValue = cookieValueFrom(setCookie, GOOGLE_COOKIE_NAME)
+    const session = await decryptGoogleSession(GOOGLE_ENV, cookieValue ?? undefined)
+    expect(session).toMatchObject({
+      access_token: 'ya29.fresh',
+      refresh_token: '1//refresh-1',
+      email: 'bryan@nyuchi.com',
+      scopes: ['openid', 'email', GMAIL_SETTINGS_BASIC_SCOPE],
+    })
+    expect(session!.expiry).toBeGreaterThan(Math.floor(Date.now() / 1000))
+  })
+
+  it('denies (no cookie) when the token exchange fails upstream', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ error: 'invalid_grant' }), { status: 400 }),
+    )
+    const res = await request(`${GOOGLE_CALLBACK_PATH}?code=bad&state=expected-state`, GOOGLE_ENV, {
+      headers: {
+        Cookie: `${await siteSessionCookie()}; ${GOOGLE_STATE_COOKIE_NAME}=expected-state`,
+      },
+    })
+    expect(res.status).toBe(302)
+    expect(res.headers.get('Location')).toBe('/signature-generator?google=error')
+    expect(res.headers.get('Set-Cookie') ?? '').not.toContain(`${GOOGLE_COOKIE_NAME}=`)
+  })
+})
+
+describe('GET /api/google/status', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('reports {connected:false} with no Google cookie', async () => {
+    const res = await request('/api/google/status', GOOGLE_ENV, {
+      headers: { Cookie: await siteSessionCookie() },
+    })
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ connected: false })
+  })
+
+  it('reports {connected:false} for an undecryptable cookie', async () => {
+    const res = await request('/api/google/status', GOOGLE_ENV, {
+      headers: { Cookie: `${await siteSessionCookie()}; ${GOOGLE_COOKIE_NAME}=garbage` },
+    })
+    expect(await res.json()).toEqual({ connected: false })
+  })
+
+  it('reports connected with email + scopes (never tokens) for a live session', async () => {
+    const cookie = await encryptGoogleSession(GOOGLE_ENV, futureGoogleSession())
+    const res = await request('/api/google/status', GOOGLE_ENV, {
+      headers: { Cookie: `${await siteSessionCookie()}; ${GOOGLE_COOKIE_NAME}=${cookie}` },
+    })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(body).toEqual({
+      connected: true,
+      email: 'bryan@nyuchi.com',
+      scopes: ['openid', 'email', GMAIL_SETTINGS_BASIC_SCOPE],
+    })
+    expect(JSON.stringify(body)).not.toContain('ya29.')
+  })
+
+  it('refreshes an expired access token via the refresh_token and re-sets the cookie', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+      if (url === 'https://oauth2.googleapis.com/token') {
+        const params = new URLSearchParams(String(init?.body))
+        expect(params.get('grant_type')).toBe('refresh_token')
+        expect(params.get('refresh_token')).toBe('1//refresh-2')
+        return new Response(
+          JSON.stringify({ access_token: 'ya29.renewed', expires_in: 3600, token_type: 'Bearer' }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        )
+      }
+      throw new Error(`Unexpected fetch in test: ${url}`)
+    })
+    const expired = futureGoogleSession({
+      expiry: Math.floor(Date.now() / 1000) - 10,
+      refresh_token: '1//refresh-2',
+    })
+    const cookie = await encryptGoogleSession(GOOGLE_ENV, expired)
+    const res = await request('/api/google/status', GOOGLE_ENV, {
+      headers: { Cookie: `${await siteSessionCookie()}; ${GOOGLE_COOKIE_NAME}=${cookie}` },
+    })
+    expect(res.status).toBe(200)
+    expect(await res.json()).toMatchObject({ connected: true, email: 'bryan@nyuchi.com' })
+    const setCookie = res.headers.get('Set-Cookie')
+    const renewed = await decryptGoogleSession(GOOGLE_ENV, cookieValueFrom(setCookie, GOOGLE_COOKIE_NAME) ?? undefined)
+    expect(renewed).toMatchObject({ access_token: 'ya29.renewed', refresh_token: '1//refresh-2' })
+  })
+
+  it('reports {connected:false} when the refresh fails (revoked token)', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ error: 'invalid_grant' }), { status: 400 }),
+    )
+    const expired = futureGoogleSession({
+      expiry: Math.floor(Date.now() / 1000) - 10,
+      refresh_token: '1//revoked',
+    })
+    const cookie = await encryptGoogleSession(GOOGLE_ENV, expired)
+    const res = await request('/api/google/status', GOOGLE_ENV, {
+      headers: { Cookie: `${await siteSessionCookie()}; ${GOOGLE_COOKIE_NAME}=${cookie}` },
+    })
+    expect(await res.json()).toEqual({ connected: false })
+  })
+
+  it('reports {connected:false} when expired with no refresh_token', async () => {
+    const expired = futureGoogleSession({ expiry: Math.floor(Date.now() / 1000) - 10 })
+    const cookie = await encryptGoogleSession(GOOGLE_ENV, expired)
+    const res = await request('/api/google/status', GOOGLE_ENV, {
+      headers: { Cookie: `${await siteSessionCookie()}; ${GOOGLE_COOKIE_NAME}=${cookie}` },
+    })
+    expect(await res.json()).toEqual({ connected: false })
+  })
+})
+
+describe('refreshIfNeeded (google-auth.ts)', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('passes a still-valid session through untouched (no network)', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch')
+    const session = futureGoogleSession()
+    expect(await refreshIfNeeded(GOOGLE_ENV, session)).toEqual({ session, refreshed: false })
+    expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
+  it('returns null for an expired session when Google OAuth is unconfigured (cannot refresh)', async () => {
+    const expired = futureGoogleSession({
+      expiry: Math.floor(Date.now() / 1000) - 10,
+      refresh_token: '1//refresh',
+    })
+    expect(await refreshIfNeeded({ SESSION_SECRET: TEST_SESSION_SECRET }, expired)).toBeNull()
+  })
+})
+
+describe('POST /api/google/logout', () => {
+  it('clears the Google cookie and answers {ok:true}', async () => {
+    const res = await request('/api/google/logout', GOOGLE_ENV, {
+      method: 'POST',
+      headers: { Cookie: await siteSessionCookie() },
+    })
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ ok: true })
+    const setCookie = res.headers.get('Set-Cookie')
+    expect(setCookie).toContain(`${GOOGLE_COOKIE_NAME}=;`)
+    expect(setCookie).toMatch(/Max-Age=0/)
+  })
+})
+
+describe('POST /api/self/insert', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  const PARAMS = {
+    brand: 'nyuchi' as const,
+    name: 'Bryan Fawcett',
+    email: 'bryan@nyuchi.com',
+    title: 'Founder',
+  }
+
+  function insert(env: Env, cookie: string, body: unknown = PARAMS): Promise<Response> {
+    return request('/api/self/insert', env, {
+      method: 'POST',
+      headers: { Cookie: cookie, 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+  }
+
+  it('sits behind the site login gate (no site session → redirect to /login)', async () => {
+    const res = await request('/api/self/insert', GOOGLE_ENV, { method: 'POST' })
+    expect(res.status).toBe(302)
+    expect(res.headers.get('Location')).toContain('/login?return_to=')
+  })
+
+  it('401 google_not_connected without a Google session cookie', async () => {
+    const res = await insert(GOOGLE_ENV, await siteSessionCookie())
+    expect(res.status).toBe(401)
+    const body = (await res.json()) as { error: string }
+    expect(body.error).toBe('google_not_connected')
+  })
+
+  it('401 google_not_connected when the session lacks the gmail.settings.basic scope', async () => {
+    const noScope = futureGoogleSession({ scopes: ['openid', 'email'] })
+    const cookie = await encryptGoogleSession(GOOGLE_ENV, noScope)
+    const res = await insert(GOOGLE_ENV, `${await siteSessionCookie()}; ${GOOGLE_COOKIE_NAME}=${cookie}`)
+    expect(res.status).toBe(401)
+    const body = (await res.json()) as { error: string; detail: string }
+    expect(body.error).toBe('google_not_connected')
+    expect(body.detail).toContain(GMAIL_SETTINGS_BASIC_SCOPE)
+  })
+
+  it('400 invalid_params for a body that fails the signature schema', async () => {
+    const cookie = await encryptGoogleSession(GOOGLE_ENV, futureGoogleSession())
+    const res = await insert(
+      GOOGLE_ENV,
+      `${await siteSessionCookie()}; ${GOOGLE_COOKIE_NAME}=${cookie}`,
+      { brand: 'not-a-brand', name: 'x' },
+    )
+    expect(res.status).toBe(400)
+    const body = (await res.json()) as { error: string }
+    expect(body.error).toBe('invalid_params')
+  })
+
+  it('PATCHes the engine-rendered signature to the session email send-as (happy path)', async () => {
+    let patchUrl = ''
+    let patchInit: RequestInit | undefined
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      patchUrl = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+      patchInit = init
+      return new Response(JSON.stringify({ sendAsEmail: 'bryan@nyuchi.com' }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    })
+
+    const cookie = await encryptGoogleSession(GOOGLE_ENV, futureGoogleSession())
+    const res = await insert(GOOGLE_ENV, `${await siteSessionCookie()}; ${GOOGLE_COOKIE_NAME}=${cookie}`)
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ ok: true, email: 'bryan@nyuchi.com', sendAs: 'bryan@nyuchi.com' })
+
+    expect(patchUrl).toBe(
+      'https://gmail.googleapis.com/gmail/v1/users/me/settings/sendAs/bryan%40nyuchi.com',
+    )
+    expect(patchInit?.method).toBe('PATCH')
+    expect((patchInit?.headers as Record<string, string>).Authorization).toBe('Bearer ya29.test-access-token')
+    // The body is exactly {signature: <byte-locked engine output>} — the
+    // same HTML the MCP tool and the web preview emit for these params.
+    const sent = JSON.parse(String(patchInit?.body)) as { signature: string }
+    expect(sent).toEqual({ signature: buildSignatureHtml(PARAMS) })
+  })
+
+  it('502 gmail_api_error surfacing the upstream message (never the token)', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ error: { code: 403, message: 'Insufficient Permission' } }), {
+        status: 403,
+        headers: { 'content-type': 'application/json' },
+      }),
+    )
+    const cookie = await encryptGoogleSession(GOOGLE_ENV, futureGoogleSession())
+    const res = await insert(GOOGLE_ENV, `${await siteSessionCookie()}; ${GOOGLE_COOKIE_NAME}=${cookie}`)
+    expect(res.status).toBe(502)
+    const body = (await res.json()) as { error: string; detail: string }
+    expect(body.error).toBe('gmail_api_error')
+    expect(body.detail).toContain('403')
+    expect(body.detail).toContain('Insufficient Permission')
+    expect(JSON.stringify(body)).not.toContain('ya29.')
+  })
+})
+
+// -----------------------------------------------------------------------------
+// Admin orchestration APIs (google-admin.ts).
+// -----------------------------------------------------------------------------
+
+/** Throwaway RSA service-account key, generated fresh per test run. */
+const TEST_SA_KEY = (() => {
+  const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 })
+  return {
+    client_email: 'signature-push@nyuchi-tools.iam.gserviceaccount.com',
+    private_key: privateKey.export({ type: 'pkcs8', format: 'pem' }).toString(),
+  }
+})()
+
+/** Fully configured admin-API env: site gate + workspace domain + SA key. */
+const ADMIN_GOOGLE_ENV = {
+  ...SITE_ENV,
+  GOOGLE_WORKSPACE_DOMAIN: 'nyuchi.com',
+  GOOGLE_SA_KEY: JSON.stringify(TEST_SA_KEY),
+}
+
+const GMAIL_BASIC_SCOPE = 'https://www.googleapis.com/auth/gmail.settings.basic'
+const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token'
+const GMAIL_SENDAS_URL = 'https://gmail.googleapis.com/gmail/v1/users/me/settings/sendAs'
+
+/** Forge a `nyuchi_google` cookie with the frozen google-auth.ts algorithm:
+ * AES-GCM, key = SHA-256(SESSION_SECRET + ':google-oauth'), 12-byte IV
+ * prefix, base64url. */
+async function forgeGoogleCookie(
+  session: Record<string, unknown>,
+  secret: string = TEST_SESSION_SECRET,
+): Promise<string> {
+  const digest = await crypto.subtle.digest(
+    'SHA-256',
+    new TextEncoder().encode(`${secret}:google-oauth`),
+  )
+  const key = await crypto.subtle.importKey('raw', digest, 'AES-GCM', false, ['encrypt'])
+  const iv = crypto.getRandomValues(new Uint8Array(12))
+  const ciphertext = new Uint8Array(
+    await crypto.subtle.encrypt(
+      { name: 'AES-GCM', iv },
+      key,
+      new TextEncoder().encode(JSON.stringify(session)),
+    ),
+  )
+  const packed = new Uint8Array(iv.length + ciphertext.length)
+  packed.set(iv)
+  packed.set(ciphertext, iv.length)
+  return base64url.encode(packed)
+}
+
+function googleSession(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    access_token: 'dir-token',
+    expiry: Math.floor(Date.now() / 1000) + 3600,
+    scopes: [DIRECTORY_SCOPE],
+    email: 'bryan@nyuchi.com',
+    ...overrides,
+  }
+}
+
+/** Authenticated admin-API request: valid site session cookie plus (unless
+ * `session: null`) a forged google session cookie. */
+async function adminRequest(
+  path: string,
+  opts: {
+    method?: string
+    body?: unknown
+    env?: Env
+    session?: Record<string, unknown> | null
+    googleCookie?: string
+  } = {},
+): Promise<Response> {
+  const env = opts.env ?? ADMIN_GOOGLE_ENV
+  const site = await mintSessionCookie(env, { sub: 'user_123', email: 'bryan@nyuchi.com' })
+  let cookie = `${SESSION_COOKIE_NAME}=${site}`
+  const googleCookie =
+    opts.googleCookie ??
+    (opts.session === null ? undefined : await forgeGoogleCookie(opts.session ?? googleSession()))
+  if (googleCookie) cookie += `; ${GOOGLE_COOKIE_NAME}=${googleCookie}`
+  return Promise.resolve(
+    worker.fetch(
+      new Request(`${BASE}${path}`, {
+        method: opts.method ?? 'GET',
+        headers: {
+          Cookie: cookie,
+          ...(opts.body !== undefined ? { 'content-type': 'application/json' } : {}),
+        },
+        body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+      }),
+      env,
+    ),
+  )
+}
+
+/** Directory fixtures — the field shapes email-signature/Code.js consumes
+ * (organizations[], phones[], aliases[], emails[]). */
+const DIR_USER_LINGO = {
+  primaryEmail: 'tino@lingo.nyuchi.com',
+  name: { fullName: 'Tino Moyo' },
+  suspended: false,
+  organizations: [{ title: 'Intern' }, { title: 'Language Lead', primary: true }],
+  phones: [
+    { value: '+263 71 999 0000', type: 'mobile' },
+    { value: '+263 77 123 4567', type: 'work' },
+  ],
+  aliases: ['tino@nyuchi.com'],
+  emails: [
+    { address: 'tino@lingo.nyuchi.com', primary: true },
+    { address: 'tino@nyuchi.com' },
+    { address: 't.moyo@travel-info.co.zw' },
+  ],
+}
+/** Ported Code.js formatPhoneNumber output for '+263 77 123 4567'. */
+const LINGO_PHONE_FORMATTED = '+26 37712 34567'
+
+const DIR_USER_LEARNING = {
+  primaryEmail: 'rudo@learning.nyuchi.com',
+  name: { fullName: 'Rudo Ncube' },
+  suspended: false,
+  customSchemas: { Employment: { jobTitle: 'Curriculum Designer' } },
+}
+
+const DIR_USER_SUSPENDED = {
+  primaryEmail: 'gone@nyuchi.com',
+  name: { fullName: 'Gone User' },
+  suspended: true,
+}
+
+describe('GET /api/admin/users', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('is behind the site login gate (no session cookie → redirect to /login)', async () => {
+    const res = await get('/api/admin/users', ADMIN_GOOGLE_ENV)
+    expect(res.status).toBe(302)
+    expect(res.headers.get('Location')).toContain('/login?return_to=')
+  })
+
+  it('401 google_not_connected without a google session cookie', async () => {
+    const res = await adminRequest('/api/admin/users', { session: null })
+    expect(res.status).toBe(401)
+    expect(await res.json()).toEqual({ error: 'google_not_connected' })
+  })
+
+  it('401 google_not_connected for a cookie encrypted with the wrong secret', async () => {
+    const res = await adminRequest('/api/admin/users', {
+      googleCookie: await forgeGoogleCookie(googleSession(), 'a-different-secret'),
+    })
+    expect(res.status).toBe(401)
+    expect(await res.json()).toEqual({ error: 'google_not_connected' })
+  })
+
+  it('401 missing_scope when the session lacks the directory scope', async () => {
+    const res = await adminRequest('/api/admin/users', {
+      session: googleSession({ scopes: ['openid', GMAIL_BASIC_SCOPE] }),
+    })
+    expect(res.status).toBe(401)
+    expect(await res.json()).toEqual({ error: 'missing_scope' })
+  })
+
+  it('503 (fails closed) when GOOGLE_WORKSPACE_DOMAIN is not configured', async () => {
+    const res = await adminRequest('/api/admin/users', {
+      env: { ...SITE_ENV, GOOGLE_SA_KEY: JSON.stringify(TEST_SA_KEY) },
+    })
+    expect(res.status).toBe(503)
+    expect(((await res.json()) as { error: string }).error).toBe('not_configured')
+  })
+
+  it('lists users across directory pages with brand/title/phone/alias mapping', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const url = new URL(String(input))
+      expect(url.origin + url.pathname).toBe('https://admin.googleapis.com/admin/directory/v1/users')
+      expect(new Headers(init?.headers).get('Authorization')).toBe('Bearer dir-token')
+      expect(url.searchParams.get('customer')).toBe('my_customer')
+      expect(url.searchParams.get('maxResults')).toBe('200')
+      expect(url.searchParams.get('projection')).toBe('full')
+      if (!url.searchParams.get('pageToken')) {
+        return new Response(
+          JSON.stringify({ users: [DIR_USER_LINGO, DIR_USER_SUSPENDED], nextPageToken: 'page-2' }),
+        )
+      }
+      expect(url.searchParams.get('pageToken')).toBe('page-2')
+      return new Response(JSON.stringify({ users: [DIR_USER_LEARNING] }))
+    })
+
+    const res = await adminRequest('/api/admin/users')
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { users: Record<string, unknown>[]; domain: string }
+    expect(fetchSpy).toHaveBeenCalledTimes(2)
+    expect(body.domain).toBe('nyuchi.com')
+    // Suspended users are filtered out entirely.
+    expect(body.users.map((u) => u.email)).toEqual(['tino@lingo.nyuchi.com', 'rudo@learning.nyuchi.com'])
+
+    // lingo.nyuchi.com is a Code.js division WITHOUT a legacy signature key
+    // → renders under the parent brand, like Code.js's nyuchi.com default.
+    expect(body.users[0]).toEqual({
+      email: 'tino@lingo.nyuchi.com',
+      name: 'Tino Moyo',
+      title: 'Language Lead', // primary organization wins over the first entry
+      phone: LINGO_PHONE_FORMATTED, // work phone wins; Code.js formatting port
+      // aliases field + emails list, deduped, primary excluded.
+      aliases: ['tino@nyuchi.com', 't.moyo@travel-info.co.zw'],
+      brand: 'nyuchi',
+    })
+    // learning.nyuchi.com keeps its LEGACY signature key, per Code.js.
+    expect(body.users[1]).toEqual({
+      email: 'rudo@learning.nyuchi.com',
+      name: 'Rudo Ncube',
+      title: 'Curriculum Designer', // customSchemas.Employment fallback
+      aliases: [],
+      brand: 'learning',
+    })
+  })
+
+  it('502 with the HTTP status only when the Directory API errors', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response('Authorization: Bearer secret-echo', { status: 403 }),
+    )
+    const res = await adminRequest('/api/admin/users')
+    expect(res.status).toBe(502)
+    const text = await res.text()
+    expect(text).toContain('HTTP 403')
+    // Never echo tokens or upstream bodies.
+    expect(text).not.toContain('dir-token')
+    expect(text).not.toContain('secret-echo')
+  })
+})
+
+describe('POST /api/admin/push', () => {
+  const realSleep = pacing.sleep
+  afterEach(() => {
+    vi.restoreAllMocks()
+    pacing.sleep = realSleep
+  })
+
+  function pushRequest(body: unknown, opts: Parameters<typeof adminRequest>[1] = {}) {
+    return adminRequest('/api/admin/push', { method: 'POST', body, ...opts })
+  }
+
+  it('401 missing_scope without the directory scope', async () => {
+    const res = await pushRequest({}, { session: googleSession({ scopes: [GMAIL_BASIC_SCOPE] }) })
+    expect(res.status).toBe(401)
+    expect(await res.json()).toEqual({ error: 'missing_scope' })
+  })
+
+  it('fails closed (503, no Google calls, no key echo) when the SA is unconfigured', async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockRejectedValue(new Error('no network calls expected'))
+    const res = await pushRequest({}, { env: { ...SITE_ENV, GOOGLE_WORKSPACE_DOMAIN: 'nyuchi.com' } })
+    expect(res.status).toBe(503)
+    const text = await res.text()
+    expect(text).toContain('sa_not_configured')
+    expect(text).toContain('GOOGLE_SA_KEY')
+    expect(text).not.toContain('PRIVATE KEY')
+    expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
+  it('defaults to dry-run: reports every address but never writes to Google', async () => {
+    pacing.sleep = vi.fn(async () => {})
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const url = String(input)
+      if (url.startsWith('https://admin.googleapis.com/')) {
+        return new Response(JSON.stringify({ users: [DIR_USER_LINGO, DIR_USER_LEARNING] }))
+      }
+      throw new Error(`unexpected fetch in dry-run: ${url}`)
+    })
+
+    const res = await pushRequest({})
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as {
+      results: { email: string; sendAs: string; status: string }[]
+      summary: { pushed: number; dryRun: number; failed: number }
+    }
+    expect(body.summary).toEqual({ pushed: 0, dryRun: 4, failed: 0 })
+    expect(body.results).toEqual([
+      { email: 'tino@lingo.nyuchi.com', sendAs: 'tino@lingo.nyuchi.com', status: 'dry-run' },
+      { email: 'tino@lingo.nyuchi.com', sendAs: 'tino@nyuchi.com', status: 'dry-run' },
+      { email: 'tino@lingo.nyuchi.com', sendAs: 't.moyo@travel-info.co.zw', status: 'dry-run' },
+      { email: 'rudo@learning.nyuchi.com', sendAs: 'rudo@learning.nyuchi.com', status: 'dry-run' },
+    ])
+    // No writes attempted: no PATCH, no SA token exchange.
+    expect(fetchSpy.mock.calls.some(([, init]) => init?.method === 'PATCH')).toBe(false)
+    expect(fetchSpy.mock.calls.some(([input]) => String(input).startsWith(GOOGLE_TOKEN_URL))).toBe(false)
+  })
+
+  it('dry-run honors includeAliases:false (primary addresses only)', async () => {
+    pacing.sleep = vi.fn(async () => {})
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      if (String(input).startsWith('https://admin.googleapis.com/')) {
+        return new Response(JSON.stringify({ users: [DIR_USER_LINGO] }))
+      }
+      throw new Error('unexpected fetch')
+    })
+    const res = await pushRequest({ includeAliases: false })
+    const body = (await res.json()) as { results: { sendAs: string }[] }
+    expect(body.results.map((r) => r.sendAs)).toEqual(['tino@lingo.nyuchi.com'])
+  })
+
+  it('reports unknown targets as failed user_not_found (still dry-run safe)', async () => {
+    pacing.sleep = vi.fn(async () => {})
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      if (String(input).startsWith('https://admin.googleapis.com/')) {
+        return new Response(JSON.stringify({ users: [DIR_USER_LINGO] }))
+      }
+      throw new Error('unexpected fetch')
+    })
+    const res = await pushRequest({ targets: ['ghost@nyuchi.com'] })
+    const body = (await res.json()) as {
+      results: { email: string; sendAs: string; status: string; error?: string }[]
+      summary: { failed: number }
+    }
+    expect(body.results).toEqual([
+      { email: 'ghost@nyuchi.com', sendAs: 'ghost@nyuchi.com', status: 'failed', error: 'user_not_found' },
+    ])
+    expect(body.summary.failed).toBe(1)
+  })
+
+  it(`rejects more than ${MAX_PUSH_TARGETS} targets before touching Google`, async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockRejectedValue(new Error('no network calls expected'))
+    const targets = Array.from({ length: MAX_PUSH_TARGETS + 1 }, (_, i) => `u${i}@nyuchi.com`)
+    const res = await pushRequest({ targets })
+    expect(res.status).toBe(400)
+    expect(((await res.json()) as { error: string }).error).toBe('too_many_targets')
+    expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
+  it('dryRun:false impersonates each user via the SA and PATCHes primary + aliases', async () => {
+    pacing.sleep = vi.fn(async () => {})
+    const patches: { url: string; auth: string | null; signature: string }[] = []
+    let assertionJwt: string | undefined
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const url = String(input)
+      if (url.startsWith('https://admin.googleapis.com/')) {
+        return new Response(JSON.stringify({ users: [DIR_USER_LINGO] }))
+      }
+      if (url === GOOGLE_TOKEN_URL) {
+        expect(init?.method).toBe('POST')
+        const params = new URLSearchParams(String(init?.body))
+        expect(params.get('grant_type')).toBe('urn:ietf:params:oauth:grant-type:jwt-bearer')
+        assertionJwt = params.get('assertion') ?? undefined
+        return new Response(JSON.stringify({ access_token: 'sa-token' }))
+      }
+      if (init?.method === 'PATCH') {
+        patches.push({
+          url,
+          auth: new Headers(init.headers).get('Authorization'),
+          signature: (JSON.parse(String(init.body)) as { signature: string }).signature,
+        })
+        return new Response(JSON.stringify({}))
+      }
+      if (url === GMAIL_SENDAS_URL) {
+        expect(new Headers(init?.headers).get('Authorization')).toBe('Bearer sa-token')
+        return new Response(
+          JSON.stringify({
+            sendAs: [
+              { sendAsEmail: 'tino@lingo.nyuchi.com' },
+              { sendAsEmail: 't.moyo@travel-info.co.zw' },
+            ],
+          }),
+        )
+      }
+      throw new Error(`unexpected fetch: ${url}`)
+    })
+
+    const res = await pushRequest({ dryRun: false })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as {
+      results: { email: string; sendAs: string; status: string }[]
+      summary: { pushed: number; dryRun: number; failed: number }
+    }
+    expect(body.summary).toEqual({ pushed: 2, dryRun: 0, failed: 0 })
+    expect(body.results).toEqual([
+      { email: 'tino@lingo.nyuchi.com', sendAs: 'tino@lingo.nyuchi.com', status: 'pushed' },
+      { email: 'tino@lingo.nyuchi.com', sendAs: 't.moyo@travel-info.co.zw', status: 'pushed' },
+    ])
+
+    // The SA assertion impersonates THAT user with the settings scope.
+    expect(assertionJwt).toBeTruthy()
+    const [headerB64, claimsB64] = assertionJwt!.split('.')
+    expect(JSON.parse(new TextDecoder().decode(base64url.decode(headerB64)))).toMatchObject({
+      alg: 'RS256',
+      typ: 'JWT',
+    })
+    const claims = JSON.parse(new TextDecoder().decode(base64url.decode(claimsB64))) as Record<
+      string,
+      unknown
+    >
+    expect(claims.iss).toBe(TEST_SA_KEY.client_email)
+    expect(claims.sub).toBe('tino@lingo.nyuchi.com')
+    expect(claims.scope).toBe(GMAIL_BASIC_SCOPE)
+    expect(claims.aud).toBe(GOOGLE_TOKEN_URL)
+    expect(claims.exp).toBe((claims.iat as number) + 3600)
+
+    // PATCH bodies: primary + alias, each rendered per-address (the alias's
+    // domain drives its brand — travel-info.co.zw → the legacy travel key).
+    expect(patches.map((p) => p.url)).toEqual([
+      `${GMAIL_SENDAS_URL}/${encodeURIComponent('tino@lingo.nyuchi.com')}`,
+      `${GMAIL_SENDAS_URL}/${encodeURIComponent('t.moyo@travel-info.co.zw')}`,
+    ])
+    expect(patches.every((p) => p.auth === 'Bearer sa-token')).toBe(true)
+    expect(patches[0].signature).toBe(
+      buildSignatureHtml({
+        brand: 'nyuchi',
+        name: 'Tino Moyo',
+        email: 'tino@lingo.nyuchi.com',
+        title: 'Language Lead',
+        phone: LINGO_PHONE_FORMATTED,
+      }),
+    )
+    expect(patches[1].signature).toBe(
+      buildSignatureHtml({
+        brand: 'travel',
+        name: 'Tino Moyo',
+        email: 't.moyo@travel-info.co.zw',
+        title: 'Language Lead',
+        phone: LINGO_PHONE_FORMATTED,
+      }),
+    )
+  })
+
+  it('retries once with backoff on a 429 and succeeds', async () => {
+    const sleepSpy = vi.fn(async () => {})
+    pacing.sleep = sleepSpy
+    let patchCalls = 0
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const url = String(input)
+      if (url.startsWith('https://admin.googleapis.com/')) {
+        return new Response(JSON.stringify({ users: [DIR_USER_LEARNING] }))
+      }
+      if (url === GOOGLE_TOKEN_URL) {
+        return new Response(JSON.stringify({ access_token: 'sa-token' }))
+      }
+      if (init?.method === 'PATCH') {
+        patchCalls += 1
+        if (patchCalls === 1) return new Response('rate limited', { status: 429 })
+        return new Response(JSON.stringify({}))
+      }
+      if (url === GMAIL_SENDAS_URL) {
+        return new Response(JSON.stringify({ sendAs: [{ sendAsEmail: 'rudo@learning.nyuchi.com' }] }))
+      }
+      throw new Error(`unexpected fetch: ${url}`)
+    })
+
+    const res = await pushRequest({ dryRun: false, targets: ['rudo@learning.nyuchi.com'] })
+    const body = (await res.json()) as {
+      results: { status: string }[]
+      summary: { pushed: number; dryRun: number; failed: number }
+    }
+    expect(patchCalls).toBe(2)
+    expect(body.summary).toEqual({ pushed: 1, dryRun: 0, failed: 0 })
+    expect(body.results[0].status).toBe('pushed')
+    // The retry waited out the backoff via the injectable sleep hook.
+    expect(sleepSpy).toHaveBeenCalledWith(1000)
+  })
+})
+
+describe('POST /mcp — resources & prompts (catalog)', () => {
+  it('resources/list exposes the three static catalog resources', async () => {
+    const res = await post('/mcp', rpc('resources/list', {}, 1))
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as JsonRpcResponse
+    const resources = (body.result as { resources: { uri: string; mimeType?: string }[] }).resources
+    expect(resources.map((r) => r.uri).sort()).toEqual([
+      'nyuchi://brands',
+      'nyuchi://minerals',
+      'nyuchi://studio/reference',
+    ])
+    for (const r of resources) expect(r.mimeType).toBe('application/json')
+  })
+
+  it('resources/templates/list exposes the per-brand template', async () => {
+    const res = await post('/mcp', rpc('resources/templates/list', {}, 1))
+    const body = (await res.json()) as JsonRpcResponse
+    const templates = (body.result as { resourceTemplates: { uriTemplate: string }[] }).resourceTemplates
+    expect(templates.map((t) => t.uriTemplate)).toEqual(['nyuchi://brands/{key}'])
+  })
+
+  it('resources/read nyuchi://brands returns the canonical registry', async () => {
+    const res = await post('/mcp', rpc('resources/read', { uri: 'nyuchi://brands' }, 1))
+    const body = (await res.json()) as JsonRpcResponse
+    const contents = (body.result as { contents: { uri: string; mimeType: string; text: string }[] }).contents
+    expect(contents).toHaveLength(1)
+    const data = JSON.parse(contents[0].text) as {
+      brands: Record<string, { name: string; pillar: string }>
+      divisions: Record<string, unknown[]>
+      initiatives: Record<string, { name: string }>
+    }
+    expect(Object.keys(data.brands).sort()).toEqual(['bundu', 'mukoko', 'nyuchi', 'shamwari'])
+    expect(data.brands.nyuchi.name).toBe('Nyuchi Africa')
+    expect(data.brands.nyuchi.pillar).toBe('commercial')
+    expect(data.divisions.nyuchi).toHaveLength(4)
+    expect(data.initiatives.telia.name).toContain('TELIA')
+  })
+
+  it('resources/read nyuchi://brands/{key} resolves one brand and rejects unknown keys', async () => {
+    const ok = await post('/mcp', rpc('resources/read', { uri: 'nyuchi://brands/mukoko' }, 1))
+    const okBody = (await ok.json()) as JsonRpcResponse
+    const contents = (okBody.result as { contents: { text: string }[] }).contents
+    const brand = JSON.parse(contents[0].text) as { key: string; domain: string; divisions: unknown[] }
+    expect(brand.key).toBe('mukoko')
+    expect(brand.domain).toBe('mukoko.com')
+    expect(brand.divisions).toHaveLength(1)
+
+    const bad = await post('/mcp', rpc('resources/read', { uri: 'nyuchi://brands/acme' }, 2))
+    const badBody = (await bad.json()) as JsonRpcResponse
+    expect(badBody.error).toBeDefined()
+    expect(badBody.error!.message).toContain("Unknown brand 'acme'")
+  })
+
+  it('resources/read nyuchi://minerals matches the engine palette table', async () => {
+    const { CATEGORIES } = await import('../../signature-generator/src/engines/nyuchi')
+    const res = await post('/mcp', rpc('resources/read', { uri: 'nyuchi://minerals' }, 1))
+    const body = (await res.json()) as JsonRpcResponse
+    const contents = (body.result as { contents: { text: string }[] }).contents
+    const data = JSON.parse(contents[0].text) as {
+      minerals: Record<string, { role: string; light: string; dark: string }>
+      surfaces: Record<string, { bg: string }>
+    }
+    expect(data.minerals).toEqual(CATEGORIES)
+    expect(data.minerals.gold.dark).toBe('#FFD740')
+    expect(data.surfaces.dark.bg).toBe('#0F0E0C')
+  })
+
+  it('resources/read nyuchi://studio/reference lists formats, layouts, themes', async () => {
+    const res = await post('/mcp', rpc('resources/read', { uri: 'nyuchi://studio/reference' }, 1))
+    const body = (await res.json()) as JsonRpcResponse
+    const data = JSON.parse(
+      (body.result as { contents: { text: string }[] }).contents[0].text,
+    ) as { formats: Record<string, { w: number; h: number }>; layouts: Record<string, string>; themes: Record<string, string> }
+    expect(data.formats.ig).toMatchObject({ w: 1080, h: 1080 })
+    expect(Object.keys(data.layouts)).toHaveLength(5)
+    expect(Object.keys(data.themes).sort()).toEqual(['accent', 'dark', 'light'])
+  })
+
+  it('prompts/list exposes the three guided prompts with their arguments', async () => {
+    const res = await post('/mcp', rpc('prompts/list', {}, 1))
+    const body = (await res.json()) as JsonRpcResponse
+    const prompts = (
+      body.result as { prompts: { name: string; arguments?: { name: string; required?: boolean }[] }[] }
+    ).prompts
+    expect(prompts.map((p) => p.name).sort()).toEqual([
+      'create_email_signature',
+      'create_social_card',
+      'mineral_education_card',
+    ])
+    const social = prompts.find((p) => p.name === 'create_social_card')!
+    const argByName = Object.fromEntries((social.arguments ?? []).map((a) => [a.name, a]))
+    expect(argByName.topic.required).toBe(true)
+    expect(argByName.platform.required ?? false).toBe(false)
+  })
+
+  it('prompts/get create_social_card interpolates the topic and cites the resources', async () => {
+    const res = await post(
+      '/mcp',
+      rpc('prompts/get', { name: 'create_social_card', arguments: { topic: 'Malachite quarterly growth report' } }, 1),
+    )
+    const body = (await res.json()) as JsonRpcResponse
+    const messages = (body.result as { messages: { role: string; content: { type: string; text: string } }[] }).messages
+    expect(messages).toHaveLength(1)
+    expect(messages[0].role).toBe('user')
+    expect(messages[0].content.text).toContain('Malachite quarterly growth report')
+    expect(messages[0].content.text).toContain('nyuchi_generate_studio_card')
+    expect(messages[0].content.text).toContain('nyuchi://minerals')
+  })
+
+  it('prompts/get mineral_education_card names the mineral and layout 5', async () => {
+    const res = await post(
+      '/mcp',
+      rpc('prompts/get', { name: 'mineral_education_card', arguments: { mineral: 'copper' } }, 1),
+    )
+    const body = (await res.json()) as JsonRpcResponse
+    const text = (body.result as { messages: { content: { text: string } }[] }).messages[0].content.text
+    expect(text).toContain("'copper'")
+    expect(text).toContain('layout 5')
   })
 })

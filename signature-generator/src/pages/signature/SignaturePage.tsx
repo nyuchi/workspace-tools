@@ -6,8 +6,16 @@ import {
   buildSignatureText,
   type BrandKey,
 } from '../../engines/signature'
+import AdminPanel from './AdminPanel'
 import ControlPanel from './ControlPanel'
 import Preview from './Preview'
+import {
+  errorMessage,
+  getGoogleStatus,
+  googleLoginUrl,
+  insertSelfSignature,
+  isNotConnected,
+} from './api'
 import {
   BRAND_MINERAL,
   blocksReadout,
@@ -18,6 +26,12 @@ import {
 
 type ThemeKey = 'light' | 'dark'
 type CopyTarget = 'gmail' | 'html' | 'text'
+/** Console mode — Self (build your own) or Admin (domain-wide). Kept in
+ * useState only: /signature-generator stays the single route. */
+type ConsoleMode = 'self' | 'admin'
+/** Phases of the "Insert into Gmail" flow (docs/signature-console-plan.md
+ * Phase 1 self mode). 'connect' turns the button into the Google login. */
+type InsertPhase = 'idle' | 'checking' | 'connect' | 'inserting' | 'done'
 
 const INITIAL_FORM: SignatureFormData = {
   name: '',
@@ -37,11 +51,15 @@ function readDomTheme(): ThemeKey {
 }
 
 const SignaturePage = () => {
+  const [mode, setMode] = useState<ConsoleMode>('self')
   const [brand, setBrand] = useState<BrandKey>('nyuchi')
   const [form, setForm] = useState<SignatureFormData>(INITIAL_FORM)
   const [imageErrors, setImageErrors] = useState<Record<string, boolean>>({})
   const [copied, setCopied] = useState<CopyTarget | null>(null)
   const [copyError, setCopyError] = useState<string | null>(null)
+  const [insertPhase, setInsertPhase] = useState<InsertPhase>('idle')
+  const [insertedSendAs, setInsertedSendAs] = useState<string | null>(null)
+  const [insertError, setInsertError] = useState<string | null>(null)
 
   /* The white preview card — the execCommand copy fallback selects it. */
   const signatureCardRef = useRef<HTMLDivElement | null>(null)
@@ -86,6 +104,51 @@ const SignaturePage = () => {
   const params = useMemo(() => toSignatureParams(brand, form, imageErrors), [brand, form, imageErrors])
   const html = useMemo(() => buildSignatureHtml(params), [params])
   const text = useMemo(() => buildSignatureText(params), [params])
+
+  /* ── Insert into Gmail (Phase 1 self mode) ──
+   * Check the Google session, then write the current signature to the
+   * user's own send-as via the Worker. Not connected (up front or via a
+   * mid-flight 401) turns the button into the Connect Google link; clipboard
+   * copy stays untouched as the fallback path. */
+  const handleInsert = useCallback(async () => {
+    if (insertPhase === 'checking' || insertPhase === 'inserting') return
+    setInsertError(null)
+    if (insertPhase === 'connect') {
+      window.location.assign(googleLoginUrl('self'))
+      return
+    }
+    try {
+      setInsertPhase('checking')
+      const status = await getGoogleStatus()
+      if (!status.connected) {
+        setInsertPhase('connect')
+        return
+      }
+      setInsertPhase('inserting')
+      const result = await insertSelfSignature(params)
+      setInsertedSendAs(result.sendAs)
+      setInsertPhase('done')
+      window.setTimeout(() => setInsertPhase('idle'), 5000)
+    } catch (err) {
+      if (isNotConnected(err)) {
+        setInsertPhase('connect')
+        return
+      }
+      setInsertPhase('idle')
+      setInsertError(errorMessage(err))
+    }
+  }, [insertPhase, params])
+
+  const insertLabel =
+    insertPhase === 'checking'
+      ? 'Checking…'
+      : insertPhase === 'connect'
+        ? 'Connect Google'
+        : insertPhase === 'inserting'
+          ? 'Inserting…'
+          : insertPhase === 'done'
+            ? '✓ Inserted'
+            : 'Insert into Gmail'
 
   /* ── Clipboard ── */
   const flagCopied = useCallback((target: CopyTarget) => {
@@ -203,51 +266,95 @@ const SignaturePage = () => {
     <>
       <style>{signatureCss}</style>
       <div className="signature-studio" data-brand={brand} style={accentStyle}>
-        <ControlPanel
-          brand={brand}
-          form={form}
-          imageErrors={imageErrors}
-          onBrandChange={handleBrandChange}
-          onField={setField}
-        />
+        {mode === 'self' && (
+          <ControlPanel
+            brand={brand}
+            form={form}
+            imageErrors={imageErrors}
+            onBrandChange={handleBrandChange}
+            onField={setField}
+          />
+        )}
         <div className="sg-stage">
           <div className="sg-topbar">
+            <div className="sg-modes" role="group" aria-label="Console mode">
+              <button
+                type="button"
+                className={'sg-mode' + (mode === 'self' ? ' active' : '')}
+                aria-pressed={mode === 'self'}
+                onClick={() => setMode('self')}
+              >
+                Self
+              </button>
+              <button
+                type="button"
+                className={'sg-mode' + (mode === 'admin' ? ' active' : '')}
+                aria-pressed={mode === 'admin'}
+                onClick={() => setMode('admin')}
+              >
+                Admin
+              </button>
+            </div>
             <button type="button" className="sg-topbtn" onClick={toggleTheme}>◐ Theme</button>
           </div>
-          <Preview
-            ref={signatureCardRef}
-            html={html}
-            profileImage={form.profileImage}
-            promoBanner={form.promoBanner}
-            onImageError={handleImageError}
-          />
-          {copyError && (
-            <div className="sg-error" role="alert">
-              {copyError}
-            </div>
+          {mode === 'admin' ? (
+            <AdminPanel />
+          ) : (
+            <>
+              <Preview
+                ref={signatureCardRef}
+                html={html}
+                profileImage={form.profileImage}
+                promoBanner={form.promoBanner}
+                onImageError={handleImageError}
+              />
+              {copyError && (
+                <div className="sg-error" role="alert">
+                  {copyError}
+                </div>
+              )}
+              {insertError && (
+                <div className="sg-alert" role="alert">
+                  {insertError}
+                </div>
+              )}
+              {insertPhase === 'done' && insertedSendAs && (
+                <div className="sg-alert" role="status">
+                  Signature inserted into Gmail for {insertedSendAs}.
+                </div>
+              )}
+              <div className="sg-meta">
+                <div>
+                  <b>{brandData.name}</b> · <span>&ldquo;{brandData.tagline}&rdquo;</span>
+                  <br />
+                  <span>
+                    <span className="sg-dot" style={{ background: `var(--color-${mineral})` }} />
+                    {mineral}
+                  </span>{' '}
+                  · <span>{blocks}</span>
+                </div>
+                <div className="sg-actions">
+                  <button type="button" className="sg-btn-act ghost" onClick={() => copyString(text, 'text')}>
+                    {copied === 'text' ? '✓ Copied' : 'Copy plain text'}
+                  </button>
+                  <button type="button" className="sg-btn-act ghost" onClick={() => copyString(html, 'html')}>
+                    {copied === 'html' ? '✓ Copied' : 'Copy HTML'}
+                  </button>
+                  <button type="button" className="sg-btn-act primary" onClick={copyForGmail}>
+                    {copied === 'gmail' ? '✓ Copied!' : 'Copy for Gmail'}
+                  </button>
+                  <button
+                    type="button"
+                    className="sg-btn-act primary"
+                    disabled={insertPhase === 'checking' || insertPhase === 'inserting'}
+                    onClick={handleInsert}
+                  >
+                    {insertLabel}
+                  </button>
+                </div>
+              </div>
+            </>
           )}
-          <div className="sg-meta">
-            <div>
-              <b>{brandData.name}</b> · <span>&ldquo;{brandData.tagline}&rdquo;</span>
-              <br />
-              <span>
-                <span className="sg-dot" style={{ background: `var(--color-${mineral})` }} />
-                {mineral}
-              </span>{' '}
-              · <span>{blocks}</span>
-            </div>
-            <div className="sg-actions">
-              <button type="button" className="sg-btn-act ghost" onClick={() => copyString(text, 'text')}>
-                {copied === 'text' ? '✓ Copied' : 'Copy plain text'}
-              </button>
-              <button type="button" className="sg-btn-act ghost" onClick={() => copyString(html, 'html')}>
-                {copied === 'html' ? '✓ Copied' : 'Copy HTML'}
-              </button>
-              <button type="button" className="sg-btn-act primary" onClick={copyForGmail}>
-                {copied === 'gmail' ? '✓ Copied!' : 'Copy for Gmail'}
-              </button>
-            </div>
-          </div>
         </div>
       </div>
     </>
@@ -347,7 +454,22 @@ const signatureCss = `
   flex: 1; padding: 24px 20px; display: flex; flex-direction: column; align-items: center; gap: 14px;
   overflow-y: auto; min-height: calc(100dvh - 4rem);
 }
-.signature-studio .sg-topbar { display: flex; gap: 8px; align-items: center; justify-content: flex-end; width: 100%; max-width: 1100px; }
+.signature-studio .sg-topbar { display: flex; gap: 8px; align-items: center; justify-content: space-between; width: 100%; max-width: 1100px; }
+
+/* Self/Admin mode switch — segmented pill, 48px touch targets. */
+.signature-studio .sg-modes {
+  display: inline-flex; gap: 4px; padding: 4px;
+  background: var(--sg-panel); border: 1px solid var(--sg-line); border-radius: 999px;
+}
+.signature-studio .sg-mode {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-height: 40px; min-width: 84px; padding: 0 20px; border-radius: 999px; border: 0;
+  background: transparent; color: var(--sg-fg2); cursor: pointer;
+  font-family: var(--font-mono); font-size: 12px; font-weight: 600; letter-spacing: .04em;
+  transition: color .15s, background .15s;
+}
+.signature-studio .sg-mode:hover { color: var(--sg-fg); }
+.signature-studio .sg-mode.active { background: var(--sg-accent); color: var(--sg-accent-fg, var(--primary-foreground)); }
 .signature-studio .sg-topbtn {
   background: var(--sg-panel); border: 1px solid var(--sg-line); color: var(--sg-fg2);
   border-radius: 999px; padding: 7px 14px; font-size: 12px; font-weight: 600; cursor: pointer; font-family: var(--font-mono);
@@ -373,6 +495,13 @@ const signatureCss = `
   width: 100%; max-width: 1100px; padding: 10px 14px; border-radius: 10px;
   background: var(--destructive-container); color: var(--error); box-shadow: 0 0 0 1px var(--error);
   font-size: 12px;
+}
+/* Muted alert — Worker {error, detail} messages and insert status land here
+ * verbatim (distinct from the louder .sg-error copy failure). */
+.signature-studio .sg-alert {
+  width: 100%; max-width: 1100px; padding: 10px 14px; border-radius: 10px;
+  background: var(--sg-input); border: 1px solid var(--sg-line); color: var(--sg-fg2);
+  font-size: 12px; line-height: 1.5; overflow-wrap: anywhere;
 }
 .signature-studio .sg-meta {
   width: 100%; max-width: 1100px; display: flex; justify-content: space-between; align-items: center;

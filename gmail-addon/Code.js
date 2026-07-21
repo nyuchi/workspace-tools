@@ -7,6 +7,19 @@
  * - User Tab: Individual users generate and apply their own signatures
  * - Admin Tab: Admins push signatures to all domain users
  *
+ * SIGNATURE HTML COMES FROM THE WORKER RENDER API (Phase 0b of
+ * docs/signature-console-plan.md): this script no longer carries its own
+ * signature template. `fetchSignatureHtml()` POSTs to
+ * https://tools.nyuchi.com/api/signature, which renders through the ONE
+ * canonical engine (signature-generator/src/engines/signature). Required
+ * Script Properties (Project Settings > Script Properties):
+ * - SIGNATURE_API_KEY  (required) — bearer token for the render API
+ * - SIGNATURE_API_URL  (optional) — base URL, default https://tools.nyuchi.com
+ *
+ * The BRANDS object below is now UI/display data only (dropdown labels,
+ * preview cards, brand-default socials) — it no longer feeds any HTML
+ * template. Brand identity in emitted signatures is owned by the engine.
+ *
  * Supported Brands (see signature-generator/src/engines/brands/index.ts —
  * the canonical Bundu-ecosystem brand registry; this file is a hand-synced
  * copy because Apps Script cannot import npm modules):
@@ -147,10 +160,9 @@ const BRANDS = {
 // Admin config for domain-wide deployment
 const ADMIN_CONFIG = {
   domain: 'nyuchi.com',
-  companyName: 'Nyuchi Africa',
-  tagline: 'I am because we are',
-  ubuntuFooter: '🇿🇼 Built with Ubuntu • Powered by Community',
 
+  // Promotional banner passed to the render API for admin-pushed signatures
+  // (the retired inline admin template always included it).
   banner: {
     imageUrl: 'https://drive.google.com/file/d/1QoMdrAUZB7_0Ls12vr6YNo6NfQn74-di/view?usp=sharing',
     linkUrl: 'https://www.nyuchi.com',
@@ -175,25 +187,105 @@ const ADMIN_CONFIG = {
   }
 };
 
+// CardService UI colors only — signature HTML colors live in the engine.
 const COLORS = {
-  primary: '#5f5873',
-  text: '#2a2a2a',
-  muted: '#737373',
-  flagGreen: '#729b63',
-  flagYellow: '#f6ad55',
-  flagRed: '#d4634a',
-  flagBlack: '#171717',
-  flagWhite: '#ffffff'
+  primary: '#5f5873'
 };
 
-// Social media icon URLs
-const SOCIAL_ICONS = {
-  linkedin: 'https://cdn-icons-png.flaticon.com/512/3536/3536505.png',
-  twitter: 'https://cdn-icons-png.flaticon.com/512/5969/5969020.png',
-  facebook: 'https://cdn-icons-png.flaticon.com/512/5968/5968764.png',
-  instagram: 'https://cdn-icons-png.flaticon.com/512/2111/2111463.png',
-  whatsapp: 'https://cdn-icons-png.flaticon.com/512/3670/3670051.png'
+// ============================================================================
+// SIGNATURE RENDER API (tools.nyuchi.com)
+// ============================================================================
+
+/**
+ * Map this add-on's brand keys onto the render API's brand slugs
+ * (BRAND_KEYS in signature-generator/src/engines/signature: nyuchi, bundu,
+ * mukoko, shamwari, travel, learning). Divisions/initiatives without their
+ * own signature identity in the engine render under their parent brand.
+ */
+const API_BRAND_SLUGS = {
+  nyuchi: 'nyuchi',
+  lingo: 'nyuchi',        // Nyuchi Africa division — no engine identity
+  learning: 'learning',
+  development: 'nyuchi',  // Nyuchi Africa division — no engine identity
+  foundation: 'nyuchi',   // Nyuchi Africa division — no engine identity
+  mukoko: 'mukoko',
+  mukokoNews: 'mukoko',   // Mukoko division — no engine identity
+  travel: 'travel',
+  techLeaders: 'bundu',   // Bundu Foundation initiative — no engine identity
+  bundu: 'bundu',
+  shamwari: 'shamwari'
 };
+
+/**
+ * Resolve an add-on brand key to a render-API brand slug.
+ */
+function toApiBrandSlug(brandKey) {
+  return API_BRAND_SLUGS[brandKey] || 'nyuchi';
+}
+
+/**
+ * Resolve a render-API brand slug from an email address (domain-keyed,
+ * same mapping semantics as getBrandFromEmail).
+ */
+function getBrandSlugFromEmail(email) {
+  if (!email || typeof email !== 'string') {
+    return 'nyuchi';
+  }
+  const domain = email.split('@')[1];
+  const divisionConfig = ADMIN_CONFIG.divisions[domain];
+  if (divisionConfig && divisionConfig.brandKey) {
+    return toApiBrandSlug(divisionConfig.brandKey);
+  }
+  return 'nyuchi';
+}
+
+/**
+ * Fetch signature HTML from the Worker render API.
+ *
+ * POST {base}/api/signature with a JSON body of
+ * {brand, name, email, title?, phone?, whatsapp?, profileImage?, linkedin?,
+ *  twitter?, facebook?, instagram?, promoBanner?, promoLink?}
+ * and an Authorization: Bearer header. Returns the byte-locked engine HTML.
+ *
+ * There is deliberately NO local-template fallback: a failure throws so the
+ * caller surfaces it (fail loud) instead of silently applying stale markup.
+ *
+ * Script Properties: SIGNATURE_API_KEY (required),
+ * SIGNATURE_API_URL (optional, default https://tools.nyuchi.com).
+ */
+function fetchSignatureHtml(params) {
+  const props = PropertiesService.getScriptProperties();
+  const apiKey = props.getProperty('SIGNATURE_API_KEY');
+  if (!apiKey) {
+    throw new Error('SIGNATURE_API_KEY is not set in Script Properties. Add it under Project Settings > Script Properties before generating signatures.');
+  }
+  const baseUrl = (props.getProperty('SIGNATURE_API_URL') || 'https://tools.nyuchi.com').replace(/\/+$/, '');
+
+  const response = UrlFetchApp.fetch(baseUrl + '/api/signature', {
+    method: 'post',
+    contentType: 'application/json',
+    headers: { Authorization: 'Bearer ' + apiKey },
+    payload: JSON.stringify(params),
+    muteHttpExceptions: true
+  });
+
+  const code = response.getResponseCode();
+  const body = response.getContentText() || '';
+  if (code !== 200) {
+    throw new Error('Signature API request failed (HTTP ' + code + ') for brand "' + params.brand + '": ' + body.slice(0, 300));
+  }
+
+  let parsed;
+  try {
+    parsed = JSON.parse(body);
+  } catch (err) {
+    throw new Error('Signature API returned invalid JSON (HTTP 200): ' + body.slice(0, 300));
+  }
+  if (!parsed || typeof parsed.html !== 'string' || !parsed.html) {
+    throw new Error('Signature API response is missing the "html" field: ' + body.slice(0, 300));
+  }
+  return parsed.html;
+}
 
 // ============================================================================
 // MAIN ENTRY POINTS
@@ -1266,137 +1358,29 @@ function buildSuccessCard() {
 // ============================================================================
 
 /**
- * Generate the HTML signature for user self-service
+ * Generate the HTML signature for user self-service.
+ *
+ * Thin wrapper over the Worker render API — maps the saved user settings
+ * onto the API params and returns the canonical engine HTML. The name is
+ * kept (referenced from onComposeInsert / applyToGmail); the inline template
+ * it used to contain is gone.
  */
 function generateUserSignatureHtml(settings) {
-  const brand = BRANDS[settings.brand] || BRANDS.nyuchi;
-
-  // Build social icons HTML
-  let socialIconsHtml = '';
-  const socialLinks = [];
-
-  if (settings.linkedin) {
-    socialLinks.push(`<td style="padding-right: 8px;"><a href="${escapeHtml(settings.linkedin)}" style="text-decoration: none;"><img src="${SOCIAL_ICONS.linkedin}" alt="LinkedIn" width="24" height="24" style="display: block; border-radius: 4px;"></a></td>`);
-  }
-  if (settings.twitter) {
-    socialLinks.push(`<td style="padding-right: 8px;"><a href="${escapeHtml(settings.twitter)}" style="text-decoration: none;"><img src="${SOCIAL_ICONS.twitter}" alt="X" width="24" height="24" style="display: block; border-radius: 4px;"></a></td>`);
-  }
-  if (settings.facebook) {
-    socialLinks.push(`<td style="padding-right: 8px;"><a href="${escapeHtml(settings.facebook)}" style="text-decoration: none;"><img src="${SOCIAL_ICONS.facebook}" alt="Facebook" width="24" height="24" style="display: block; border-radius: 4px;"></a></td>`);
-  }
-  if (settings.instagram) {
-    socialLinks.push(`<td style="padding-right: 8px;"><a href="${escapeHtml(settings.instagram)}" style="text-decoration: none;"><img src="${SOCIAL_ICONS.instagram}" alt="Instagram" width="24" height="24" style="display: block; border-radius: 4px;"></a></td>`);
-  }
-  if (settings.whatsapp) {
-    const waLink = `https://wa.me/${settings.whatsapp.replace(/[^0-9]/g, '')}`;
-    socialLinks.push(`<td style="padding-right: 8px;"><a href="${waLink}" style="text-decoration: none;"><img src="${SOCIAL_ICONS.whatsapp}" alt="WhatsApp" width="24" height="24" style="display: block; border-radius: 4px;"></a></td>`);
-  }
-
-  if (socialLinks.length > 0) {
-    socialIconsHtml = `
-      <table cellpadding="0" cellspacing="0" border="0" style="margin-top: 12px;">
-        <tbody>
-          <tr>${socialLinks.join('')}</tr>
-        </tbody>
-      </table>`;
-  }
-
-  // Profile image HTML
-  let profileImageHtml = '';
-  if (settings.profileImage) {
-    profileImageHtml = `
-      <td style="vertical-align: top; padding-right: 16px;">
-        <img src="${escapeHtml(settings.profileImage)}" alt="Profile" width="80" height="80" style="border-radius: 50%; display: block;">
-      </td>`;
-  }
-
-  // Phone HTML
-  let phoneHtml = '';
-  if (settings.phone) {
-    const phoneClean = settings.phone.replace(/\s/g, '');
-    phoneHtml = `
-      <tr>
-        <td style="padding-bottom: 3px;">
-          <a href="tel:${phoneClean}" style="color: ${COLORS.primary}; text-decoration: none;">${escapeHtml(settings.phone)}</a>
-        </td>
-      </tr>`;
-  }
-
-  // Parent company attribution
-  let parentHtml = '';
-  if (brand.parent) {
-    parentHtml = `
-      <tr>
-        <td style="padding-top: 8px;">
-          <span style="font-size: 11px; color: ${COLORS.muted};">A division of ${brand.parent}</span>
-        </td>
-      </tr>`;
-  }
-
-  // Promo banner HTML
-  let promoBannerHtml = '';
-  if (settings.promoBanner) {
-    const promoLink = settings.promoLink || '#';
-    promoBannerHtml = `
-      <tr>
-        <td colspan="2" style="padding-top: 16px;">
-          <a href="${escapeHtml(promoLink)}" style="text-decoration: none;">
-            <img src="${escapeHtml(settings.promoBanner)}" alt="Promotion" width="400" style="display: block; max-width: 100%; height: auto; border-radius: 8px;">
-          </a>
-        </td>
-      </tr>`;
-  }
-
-  // Generate the signature HTML
-  return `
-<table cellpadding="0" cellspacing="0" border="0" style="font-family: 'Plus Jakarta Sans', Arial, sans-serif; font-size: 14px; line-height: 1.5; color: ${COLORS.text}; max-width: 500px;">
-  <tbody>
-    <tr>
-      ${profileImageHtml}
-      <td style="vertical-align: top;">
-        <span style="font-family: 'Plus Jakarta Sans', Arial, sans-serif; font-size: 17px; font-weight: 700; color: ${COLORS.text};">
-          ${escapeHtml(settings.name)}
-        </span>
-        <br>
-        <span style="font-size: 13px; font-weight: 500; color: ${COLORS.muted};">
-          ${escapeHtml(settings.title)}
-        </span>
-        <br><br>
-        <span style="font-family: 'Noto Serif', Georgia, serif; font-size: 15px; font-weight: 700; color: ${COLORS.primary};">
-          ${escapeHtml(brand.name)}
-        </span>
-        <br>
-        <span style="font-size: 12px; font-style: italic; color: ${COLORS.muted};">
-          ${escapeHtml(brand.tagline)}
-        </span>
-        <br><br>
-        <table cellpadding="0" cellspacing="0" border="0" style="font-size: 13px; color: ${COLORS.muted};">
-          <tbody>
-            <tr>
-              <td style="padding-bottom: 3px;">
-                <a href="mailto:${escapeHtml(settings.email)}" style="color: ${COLORS.primary}; text-decoration: none;">
-                  ${escapeHtml(settings.email)}
-                </a>
-              </td>
-            </tr>
-            ${phoneHtml}
-            <tr>
-              <td>
-                <a href="${brand.websiteUrl}" style="color: ${COLORS.primary}; text-decoration: none;">
-                  ${brand.website}
-                </a>
-              </td>
-            </tr>
-            ${parentHtml}
-          </tbody>
-        </table>
-        ${socialIconsHtml}
-      </td>
-    </tr>
-    ${promoBannerHtml}
-  </tbody>
-</table>
-`.trim();
+  return fetchSignatureHtml({
+    brand: toApiBrandSlug(settings.brand),
+    name: settings.name || '',
+    email: settings.email || '',
+    title: settings.title || '',
+    phone: settings.phone || '',
+    whatsapp: settings.whatsapp || '',
+    profileImage: settings.profileImage || '',
+    linkedin: settings.linkedin || '',
+    twitter: settings.twitter || '',
+    facebook: settings.facebook || '',
+    instagram: settings.instagram || '',
+    promoBanner: settings.promoBanner || '',
+    promoLink: settings.promoLink || ''
+  });
 }
 
 // ============================================================================
@@ -1420,107 +1404,33 @@ function getBrandFromEmail(email) {
 }
 
 /**
- * Generate the HTML signature for admin deployment
+ * Generate the HTML signature for admin deployment.
+ *
+ * Thin wrapper over the Worker render API — derives the same fields the old
+ * inline admin template used (directory name/title/phone, brand from the
+ * email domain, the ADMIN_CONFIG promo banner) and returns the canonical
+ * engine HTML. The name is kept (referenced by the admin handlers and the
+ * Dashboard server functions); the inline template it used to contain is gone.
  */
 function generateAdminSignatureHtml(user, emailAddress) {
   if (!user) {
-    Logger.log('Error: User object is required');
-    return '';
+    throw new Error('User object is required to generate an admin signature');
   }
 
   const name = (user.name && user.name.fullName) ? user.name.fullName : (user.primaryEmail ? user.primaryEmail.split('@')[0] : 'User');
   const title = getJobTitle(user);
   const phone = getPhoneNumber(user);
   const email = emailAddress || (user.primaryEmail || 'email@nyuchi.com');
-  const brand = getBrandFromEmail(email);
 
-  // Zimbabwe flag gradient (5 colors: green, yellow, red, black, white - 20% each)
-  const flagGradient = `linear-gradient(to bottom, ${COLORS.flagGreen} 0%, ${COLORS.flagGreen} 20%, ${COLORS.flagYellow} 20%, ${COLORS.flagYellow} 40%, ${COLORS.flagRed} 40%, ${COLORS.flagRed} 60%, ${COLORS.flagBlack} 60%, ${COLORS.flagBlack} 80%, ${COLORS.flagWhite} 80%, ${COLORS.flagWhite} 100%)`;
-
-  return `
-<table cellpadding="0" cellspacing="0" border="0" style="font-family: 'Noto Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; font-size: 14px; line-height: 1.5; color: #000000; max-width: 600px;">
-  <tr>
-    <!-- Zimbabwe Flag Strip - 4px Vertical Left Edge -->
-    <td style="width: 4px; background: ${flagGradient}; padding: 0;"></td>
-
-    <!-- Signature Content -->
-    <td style="padding: 20px 0 20px 12px;">
-      <!-- Division Logo (Primary) -->
-      <div style="margin-bottom: 16px;">
-        <img src="${brand.logo}" alt="${escapeHtml(brand.name)}" width="120" style="display: block; height: auto;">
-      </div>
-
-      <!-- Name and Title -->
-      <table cellpadding="0" cellspacing="0" border="0">
-        <tr>
-          <td>
-            <div style="font-size: 18px; font-weight: 700; color: #000000; margin-bottom: 4px;">
-              ${escapeHtml(name)}
-            </div>
-            ${title ? `<div style="font-size: 14px; color: #000000; margin-bottom: 12px;">${escapeHtml(title)}</div>` : ''}
-          </td>
-        </tr>
-      </table>
-
-      <!-- Contact Information -->
-      <table cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 12px;">
-        <tr>
-          <td style="padding-right: 12px; color: #000000; font-weight: 600;">E:</td>
-          <td>
-            <a href="mailto:${email}" style="color: #000000; text-decoration: none;">${email}</a>
-          </td>
-        </tr>
-        ${phone ? `
-        <tr>
-          <td style="padding-right: 12px; color: #000000; font-weight: 600; padding-top: 4px;">P:</td>
-          <td style="padding-top: 4px;">
-            <a href="tel:${phone.replace(/\s/g, '')}" style="color: #000000; text-decoration: none;">${phone}</a>
-          </td>
-        </tr>` : ''}
-        <tr>
-          <td style="padding-right: 12px; color: #000000; font-weight: 600; padding-top: 4px;">W:</td>
-          <td style="padding-top: 4px;">
-            <a href="${brand.websiteUrl}" style="color: #000000; text-decoration: none;">${brand.website}</a>
-          </td>
-        </tr>
-      </table>
-
-      <!-- Parent Company (Nyuchi Africa) -->
-      ${!brand.hideAttribution && brand.parent ? `
-      <table cellpadding="0" cellspacing="0" border="0" style="margin-top: 16px; padding-top: 12px; border-top: 1px solid #e5e5e5;">
-        <tr>
-          <td>
-            <div style="font-size: 13px; color: #666666; margin-bottom: 4px;">A division of</div>
-            <div style="font-size: 16px; font-weight: 700; color: #000000; margin-bottom: 4px;">${ADMIN_CONFIG.companyName}</div>
-            <div style="font-size: 13px; font-style: italic; color: #000000;">${ADMIN_CONFIG.tagline}</div>
-          </td>
-        </tr>
-      </table>` : `
-      <table cellpadding="0" cellspacing="0" border="0" style="margin-top: 16px; padding-top: 12px; border-top: 1px solid #e5e5e5;">
-        <tr>
-          <td>
-            <div style="font-size: 16px; font-weight: 700; color: #000000; margin-bottom: 4px;">${ADMIN_CONFIG.companyName}</div>
-            <div style="font-size: 13px; font-style: italic; color: #000000;">${ADMIN_CONFIG.tagline}</div>
-          </td>
-        </tr>
-      </table>`}
-
-      <!-- Ubuntu Footer -->
-      <div style="margin-top: 16px; font-size: 11px; color: #000000;">
-        ${ADMIN_CONFIG.ubuntuFooter}
-      </div>
-
-      <!-- Promotional Banner -->
-      <div style="margin-top: 20px;">
-        <a href="${ADMIN_CONFIG.banner.linkUrl}" style="display: block; text-decoration: none;">
-          <img src="${ADMIN_CONFIG.banner.imageUrl}" alt="${ADMIN_CONFIG.banner.altText}" width="100%" style="display: block; max-width: 550px; height: auto; border-radius: 4px;">
-        </a>
-      </div>
-
-    </td>
-  </tr>
-</table>
-`.trim();
+  return fetchSignatureHtml({
+    brand: getBrandSlugFromEmail(email),
+    name: name,
+    email: email,
+    title: title || '',
+    phone: phone || '',
+    promoBanner: ADMIN_CONFIG.banner.imageUrl,
+    promoLink: ADMIN_CONFIG.banner.linkUrl
+  });
 }
 
 // ============================================================================
@@ -1679,28 +1589,14 @@ function saveUserSettings(settings) {
 }
 
 // ============================================================================
-// UTILITY FUNCTIONS
-// ============================================================================
-
-/**
- * Escape HTML special characters
- */
-function escapeHtml(text) {
-  if (!text) return '';
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
-}
-
-// ============================================================================
 // TEST FUNCTIONS
 // ============================================================================
+// Run manually from the Apps Script editor. Both tests call the live render
+// API, so SIGNATURE_API_KEY must be set in Script Properties (and
+// SIGNATURE_API_URL if not using the default https://tools.nyuchi.com).
 
 /**
- * Test signature generation with sample data
+ * Test signature generation with sample data (calls the render API)
  */
 function testSignatureGeneration() {
   const testSettings = {
@@ -1719,15 +1615,33 @@ function testSignatureGeneration() {
     promoLink: ''
   };
 
-  const html = generateUserSignatureHtml(testSettings);
-  Logger.log('Generated Signature HTML:');
-  Logger.log(html);
+  try {
+    const html = generateUserSignatureHtml(testSettings);
+    Logger.log('Generated Signature HTML (from render API):');
+    Logger.log(html);
 
-  return html;
+    const checks = {
+      'User name': html.indexOf('Bryan Fawcett') !== -1,
+      'Email address': html.indexOf('bryan@nyuchi.com') !== -1,
+      'Brand name': html.indexOf('Nyuchi Africa') !== -1,
+      'Phone number': html.indexOf('+65 9814 3374') !== -1
+    };
+    let allPassed = true;
+    Object.keys(checks).forEach(function (check) {
+      Logger.log((checks[check] ? '✓' : '✗') + ' ' + check);
+      if (!checks[check]) allPassed = false;
+    });
+    Logger.log(allPassed ? 'PASS: testSignatureGeneration' : 'FAIL: testSignatureGeneration — see checks above');
+    return html;
+  } catch (error) {
+    Logger.log('FAIL: testSignatureGeneration — ' + error.message);
+    Logger.log('Note: this test requires SIGNATURE_API_KEY in Script Properties.');
+    throw error;
+  }
 }
 
 /**
- * Test admin signature generation
+ * Test admin signature generation (calls the render API)
  */
 function testAdminSignature() {
   const mockUser = {
@@ -1737,11 +1651,31 @@ function testAdminSignature() {
     phones: [{ value: '+263 77 123 4567', type: 'work' }]
   };
 
-  const html = generateAdminSignatureHtml(mockUser, 'test@lingo.nyuchi.com');
-  Logger.log('Generated Admin Signature HTML:');
-  Logger.log(html);
+  try {
+    const html = generateAdminSignatureHtml(mockUser, 'test@lingo.nyuchi.com');
+    Logger.log('Generated Admin Signature HTML (from render API):');
+    Logger.log(html);
 
-  return html;
+    // lingo.nyuchi.com renders under the parent nyuchi brand slug.
+    const expectedPhone = getPhoneNumber(mockUser);
+    const checks = {
+      'User name': html.indexOf('Test User') !== -1,
+      'Email address': html.indexOf('test@lingo.nyuchi.com') !== -1,
+      'Brand name (parent Nyuchi Africa)': html.indexOf('Nyuchi Africa') !== -1,
+      'Phone number': html.indexOf(expectedPhone) !== -1
+    };
+    let allPassed = true;
+    Object.keys(checks).forEach(function (check) {
+      Logger.log((checks[check] ? '✓' : '✗') + ' ' + check);
+      if (!checks[check]) allPassed = false;
+    });
+    Logger.log(allPassed ? 'PASS: testAdminSignature' : 'FAIL: testAdminSignature — see checks above');
+    return html;
+  } catch (error) {
+    Logger.log('FAIL: testAdminSignature — ' + error.message);
+    Logger.log('Note: this test requires SIGNATURE_API_KEY in Script Properties.');
+    throw error;
+  }
 }
 
 // ============================================================================
