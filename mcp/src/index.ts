@@ -100,6 +100,7 @@ import {
   type SignatureApiEnv,
 } from "./signature-api.js";
 import { registerGoogleRoutes, type GoogleAuthEnv } from "./google-auth.js";
+import { registerGoogleAdminRoutes, type GoogleAdminEnv } from "./google-admin.js";
 
 /** Chunked bytes → base64 (no Buffer dependency; works in Workers + node). */
 function bytesToBase64(bytes: Uint8Array): string {
@@ -686,7 +687,7 @@ function authorizationServerMetadataHandler(wellKnownPath: "oauth-authorization-
  * site-wide login gate's signing secret, and the static-assets binding the
  * post-auth catch-all route serves the built Astro site from.
  */
-interface Env extends SiteAuthEnv, ImagesEnv, FeedbackEnv, SignatureApiEnv, GoogleAuthEnv {
+interface Env extends SiteAuthEnv, ImagesEnv, FeedbackEnv, SignatureApiEnv, GoogleAuthEnv, GoogleAdminEnv {
   ASSETS: Fetcher;
 }
 
@@ -964,6 +965,11 @@ registerSignatureApi(app);
 // signed-in site session, and the gate middleware above (registered first)
 // runs before any of them.
 registerGoogleRoutes(app);
+
+// Admin orchestration: directory listing + bulk signature push (see
+// google-admin.ts). Same posture as the routes above: behind the site
+// login gate, fail-closed until Google env is provisioned.
+registerGoogleAdminRoutes(app);
 
 // Everything else, once the login gate above has passed (or the path was
 // exempt): the built Astro site as static assets (see [assets] in

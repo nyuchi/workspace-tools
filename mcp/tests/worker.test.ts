@@ -7,10 +7,11 @@
  * as the `env` argument.
  */
 
+import { generateKeyPairSync } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { SignJWT } from 'jose'
+import { SignJWT, base64url } from 'jose'
 import worker from '../src/index'
 import {
   CALLBACK_PATH,
@@ -32,6 +33,11 @@ import {
   refreshIfNeeded,
   type GoogleSession,
 } from '../src/google-auth'
+import {
+  DIRECTORY_SCOPE,
+  MAX_PUSH_TARGETS,
+  pacing,
+} from '../src/google-admin'
 import { buildSignatureHtml } from '../../signature-generator/src/engines/signature'
 
 const BASE = 'https://tools.nyuchi.com'
@@ -2100,5 +2106,465 @@ describe('POST /api/self/insert', () => {
     expect(body.detail).toContain('403')
     expect(body.detail).toContain('Insufficient Permission')
     expect(JSON.stringify(body)).not.toContain('ya29.')
+  })
+})
+
+// -----------------------------------------------------------------------------
+// Admin orchestration APIs (google-admin.ts).
+// -----------------------------------------------------------------------------
+
+/** Throwaway RSA service-account key, generated fresh per test run. */
+const TEST_SA_KEY = (() => {
+  const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 })
+  return {
+    client_email: 'signature-push@nyuchi-tools.iam.gserviceaccount.com',
+    private_key: privateKey.export({ type: 'pkcs8', format: 'pem' }).toString(),
+  }
+})()
+
+/** Fully configured admin-API env: site gate + workspace domain + SA key. */
+const ADMIN_GOOGLE_ENV = {
+  ...SITE_ENV,
+  GOOGLE_WORKSPACE_DOMAIN: 'nyuchi.com',
+  GOOGLE_SA_KEY: JSON.stringify(TEST_SA_KEY),
+}
+
+const GMAIL_BASIC_SCOPE = 'https://www.googleapis.com/auth/gmail.settings.basic'
+const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token'
+const GMAIL_SENDAS_URL = 'https://gmail.googleapis.com/gmail/v1/users/me/settings/sendAs'
+
+/** Forge a `nyuchi_google` cookie with the frozen google-auth.ts algorithm:
+ * AES-GCM, key = SHA-256(SESSION_SECRET + ':google-oauth'), 12-byte IV
+ * prefix, base64url. */
+async function forgeGoogleCookie(
+  session: Record<string, unknown>,
+  secret: string = TEST_SESSION_SECRET,
+): Promise<string> {
+  const digest = await crypto.subtle.digest(
+    'SHA-256',
+    new TextEncoder().encode(`${secret}:google-oauth`),
+  )
+  const key = await crypto.subtle.importKey('raw', digest, 'AES-GCM', false, ['encrypt'])
+  const iv = crypto.getRandomValues(new Uint8Array(12))
+  const ciphertext = new Uint8Array(
+    await crypto.subtle.encrypt(
+      { name: 'AES-GCM', iv },
+      key,
+      new TextEncoder().encode(JSON.stringify(session)),
+    ),
+  )
+  const packed = new Uint8Array(iv.length + ciphertext.length)
+  packed.set(iv)
+  packed.set(ciphertext, iv.length)
+  return base64url.encode(packed)
+}
+
+function googleSession(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    access_token: 'dir-token',
+    expiry: Math.floor(Date.now() / 1000) + 3600,
+    scopes: [DIRECTORY_SCOPE],
+    email: 'bryan@nyuchi.com',
+    ...overrides,
+  }
+}
+
+/** Authenticated admin-API request: valid site session cookie plus (unless
+ * `session: null`) a forged google session cookie. */
+async function adminRequest(
+  path: string,
+  opts: {
+    method?: string
+    body?: unknown
+    env?: Env
+    session?: Record<string, unknown> | null
+    googleCookie?: string
+  } = {},
+): Promise<Response> {
+  const env = opts.env ?? ADMIN_GOOGLE_ENV
+  const site = await mintSessionCookie(env, { sub: 'user_123', email: 'bryan@nyuchi.com' })
+  let cookie = `${SESSION_COOKIE_NAME}=${site}`
+  const googleCookie =
+    opts.googleCookie ??
+    (opts.session === null ? undefined : await forgeGoogleCookie(opts.session ?? googleSession()))
+  if (googleCookie) cookie += `; ${GOOGLE_COOKIE_NAME}=${googleCookie}`
+  return Promise.resolve(
+    worker.fetch(
+      new Request(`${BASE}${path}`, {
+        method: opts.method ?? 'GET',
+        headers: {
+          Cookie: cookie,
+          ...(opts.body !== undefined ? { 'content-type': 'application/json' } : {}),
+        },
+        body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+      }),
+      env,
+    ),
+  )
+}
+
+/** Directory fixtures — the field shapes email-signature/Code.js consumes
+ * (organizations[], phones[], aliases[], emails[]). */
+const DIR_USER_LINGO = {
+  primaryEmail: 'tino@lingo.nyuchi.com',
+  name: { fullName: 'Tino Moyo' },
+  suspended: false,
+  organizations: [{ title: 'Intern' }, { title: 'Language Lead', primary: true }],
+  phones: [
+    { value: '+263 71 999 0000', type: 'mobile' },
+    { value: '+263 77 123 4567', type: 'work' },
+  ],
+  aliases: ['tino@nyuchi.com'],
+  emails: [
+    { address: 'tino@lingo.nyuchi.com', primary: true },
+    { address: 'tino@nyuchi.com' },
+    { address: 't.moyo@travel-info.co.zw' },
+  ],
+}
+/** Ported Code.js formatPhoneNumber output for '+263 77 123 4567'. */
+const LINGO_PHONE_FORMATTED = '+26 37712 34567'
+
+const DIR_USER_LEARNING = {
+  primaryEmail: 'rudo@learning.nyuchi.com',
+  name: { fullName: 'Rudo Ncube' },
+  suspended: false,
+  customSchemas: { Employment: { jobTitle: 'Curriculum Designer' } },
+}
+
+const DIR_USER_SUSPENDED = {
+  primaryEmail: 'gone@nyuchi.com',
+  name: { fullName: 'Gone User' },
+  suspended: true,
+}
+
+describe('GET /api/admin/users', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('is behind the site login gate (no session cookie → redirect to /login)', async () => {
+    const res = await get('/api/admin/users', ADMIN_GOOGLE_ENV)
+    expect(res.status).toBe(302)
+    expect(res.headers.get('Location')).toContain('/login?return_to=')
+  })
+
+  it('401 google_not_connected without a google session cookie', async () => {
+    const res = await adminRequest('/api/admin/users', { session: null })
+    expect(res.status).toBe(401)
+    expect(await res.json()).toEqual({ error: 'google_not_connected' })
+  })
+
+  it('401 google_not_connected for a cookie encrypted with the wrong secret', async () => {
+    const res = await adminRequest('/api/admin/users', {
+      googleCookie: await forgeGoogleCookie(googleSession(), 'a-different-secret'),
+    })
+    expect(res.status).toBe(401)
+    expect(await res.json()).toEqual({ error: 'google_not_connected' })
+  })
+
+  it('401 missing_scope when the session lacks the directory scope', async () => {
+    const res = await adminRequest('/api/admin/users', {
+      session: googleSession({ scopes: ['openid', GMAIL_BASIC_SCOPE] }),
+    })
+    expect(res.status).toBe(401)
+    expect(await res.json()).toEqual({ error: 'missing_scope' })
+  })
+
+  it('503 (fails closed) when GOOGLE_WORKSPACE_DOMAIN is not configured', async () => {
+    const res = await adminRequest('/api/admin/users', {
+      env: { ...SITE_ENV, GOOGLE_SA_KEY: JSON.stringify(TEST_SA_KEY) },
+    })
+    expect(res.status).toBe(503)
+    expect(((await res.json()) as { error: string }).error).toBe('not_configured')
+  })
+
+  it('lists users across directory pages with brand/title/phone/alias mapping', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const url = new URL(String(input))
+      expect(url.origin + url.pathname).toBe('https://admin.googleapis.com/admin/directory/v1/users')
+      expect(new Headers(init?.headers).get('Authorization')).toBe('Bearer dir-token')
+      expect(url.searchParams.get('customer')).toBe('my_customer')
+      expect(url.searchParams.get('maxResults')).toBe('200')
+      expect(url.searchParams.get('projection')).toBe('full')
+      if (!url.searchParams.get('pageToken')) {
+        return new Response(
+          JSON.stringify({ users: [DIR_USER_LINGO, DIR_USER_SUSPENDED], nextPageToken: 'page-2' }),
+        )
+      }
+      expect(url.searchParams.get('pageToken')).toBe('page-2')
+      return new Response(JSON.stringify({ users: [DIR_USER_LEARNING] }))
+    })
+
+    const res = await adminRequest('/api/admin/users')
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { users: Record<string, unknown>[]; domain: string }
+    expect(fetchSpy).toHaveBeenCalledTimes(2)
+    expect(body.domain).toBe('nyuchi.com')
+    // Suspended users are filtered out entirely.
+    expect(body.users.map((u) => u.email)).toEqual(['tino@lingo.nyuchi.com', 'rudo@learning.nyuchi.com'])
+
+    // lingo.nyuchi.com is a Code.js division WITHOUT a legacy signature key
+    // → renders under the parent brand, like Code.js's nyuchi.com default.
+    expect(body.users[0]).toEqual({
+      email: 'tino@lingo.nyuchi.com',
+      name: 'Tino Moyo',
+      title: 'Language Lead', // primary organization wins over the first entry
+      phone: LINGO_PHONE_FORMATTED, // work phone wins; Code.js formatting port
+      // aliases field + emails list, deduped, primary excluded.
+      aliases: ['tino@nyuchi.com', 't.moyo@travel-info.co.zw'],
+      brand: 'nyuchi',
+    })
+    // learning.nyuchi.com keeps its LEGACY signature key, per Code.js.
+    expect(body.users[1]).toEqual({
+      email: 'rudo@learning.nyuchi.com',
+      name: 'Rudo Ncube',
+      title: 'Curriculum Designer', // customSchemas.Employment fallback
+      aliases: [],
+      brand: 'learning',
+    })
+  })
+
+  it('502 with the HTTP status only when the Directory API errors', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response('Authorization: Bearer secret-echo', { status: 403 }),
+    )
+    const res = await adminRequest('/api/admin/users')
+    expect(res.status).toBe(502)
+    const text = await res.text()
+    expect(text).toContain('HTTP 403')
+    // Never echo tokens or upstream bodies.
+    expect(text).not.toContain('dir-token')
+    expect(text).not.toContain('secret-echo')
+  })
+})
+
+describe('POST /api/admin/push', () => {
+  const realSleep = pacing.sleep
+  afterEach(() => {
+    vi.restoreAllMocks()
+    pacing.sleep = realSleep
+  })
+
+  function pushRequest(body: unknown, opts: Parameters<typeof adminRequest>[1] = {}) {
+    return adminRequest('/api/admin/push', { method: 'POST', body, ...opts })
+  }
+
+  it('401 missing_scope without the directory scope', async () => {
+    const res = await pushRequest({}, { session: googleSession({ scopes: [GMAIL_BASIC_SCOPE] }) })
+    expect(res.status).toBe(401)
+    expect(await res.json()).toEqual({ error: 'missing_scope' })
+  })
+
+  it('fails closed (503, no Google calls, no key echo) when the SA is unconfigured', async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockRejectedValue(new Error('no network calls expected'))
+    const res = await pushRequest({}, { env: { ...SITE_ENV, GOOGLE_WORKSPACE_DOMAIN: 'nyuchi.com' } })
+    expect(res.status).toBe(503)
+    const text = await res.text()
+    expect(text).toContain('sa_not_configured')
+    expect(text).toContain('GOOGLE_SA_KEY')
+    expect(text).not.toContain('PRIVATE KEY')
+    expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
+  it('defaults to dry-run: reports every address but never writes to Google', async () => {
+    pacing.sleep = vi.fn(async () => {})
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const url = String(input)
+      if (url.startsWith('https://admin.googleapis.com/')) {
+        return new Response(JSON.stringify({ users: [DIR_USER_LINGO, DIR_USER_LEARNING] }))
+      }
+      throw new Error(`unexpected fetch in dry-run: ${url}`)
+    })
+
+    const res = await pushRequest({})
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as {
+      results: { email: string; sendAs: string; status: string }[]
+      summary: { pushed: number; dryRun: number; failed: number }
+    }
+    expect(body.summary).toEqual({ pushed: 0, dryRun: 4, failed: 0 })
+    expect(body.results).toEqual([
+      { email: 'tino@lingo.nyuchi.com', sendAs: 'tino@lingo.nyuchi.com', status: 'dry-run' },
+      { email: 'tino@lingo.nyuchi.com', sendAs: 'tino@nyuchi.com', status: 'dry-run' },
+      { email: 'tino@lingo.nyuchi.com', sendAs: 't.moyo@travel-info.co.zw', status: 'dry-run' },
+      { email: 'rudo@learning.nyuchi.com', sendAs: 'rudo@learning.nyuchi.com', status: 'dry-run' },
+    ])
+    // No writes attempted: no PATCH, no SA token exchange.
+    expect(fetchSpy.mock.calls.some(([, init]) => init?.method === 'PATCH')).toBe(false)
+    expect(fetchSpy.mock.calls.some(([input]) => String(input).startsWith(GOOGLE_TOKEN_URL))).toBe(false)
+  })
+
+  it('dry-run honors includeAliases:false (primary addresses only)', async () => {
+    pacing.sleep = vi.fn(async () => {})
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      if (String(input).startsWith('https://admin.googleapis.com/')) {
+        return new Response(JSON.stringify({ users: [DIR_USER_LINGO] }))
+      }
+      throw new Error('unexpected fetch')
+    })
+    const res = await pushRequest({ includeAliases: false })
+    const body = (await res.json()) as { results: { sendAs: string }[] }
+    expect(body.results.map((r) => r.sendAs)).toEqual(['tino@lingo.nyuchi.com'])
+  })
+
+  it('reports unknown targets as failed user_not_found (still dry-run safe)', async () => {
+    pacing.sleep = vi.fn(async () => {})
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      if (String(input).startsWith('https://admin.googleapis.com/')) {
+        return new Response(JSON.stringify({ users: [DIR_USER_LINGO] }))
+      }
+      throw new Error('unexpected fetch')
+    })
+    const res = await pushRequest({ targets: ['ghost@nyuchi.com'] })
+    const body = (await res.json()) as {
+      results: { email: string; sendAs: string; status: string; error?: string }[]
+      summary: { failed: number }
+    }
+    expect(body.results).toEqual([
+      { email: 'ghost@nyuchi.com', sendAs: 'ghost@nyuchi.com', status: 'failed', error: 'user_not_found' },
+    ])
+    expect(body.summary.failed).toBe(1)
+  })
+
+  it(`rejects more than ${MAX_PUSH_TARGETS} targets before touching Google`, async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockRejectedValue(new Error('no network calls expected'))
+    const targets = Array.from({ length: MAX_PUSH_TARGETS + 1 }, (_, i) => `u${i}@nyuchi.com`)
+    const res = await pushRequest({ targets })
+    expect(res.status).toBe(400)
+    expect(((await res.json()) as { error: string }).error).toBe('too_many_targets')
+    expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
+  it('dryRun:false impersonates each user via the SA and PATCHes primary + aliases', async () => {
+    pacing.sleep = vi.fn(async () => {})
+    const patches: { url: string; auth: string | null; signature: string }[] = []
+    let assertionJwt: string | undefined
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const url = String(input)
+      if (url.startsWith('https://admin.googleapis.com/')) {
+        return new Response(JSON.stringify({ users: [DIR_USER_LINGO] }))
+      }
+      if (url === GOOGLE_TOKEN_URL) {
+        expect(init?.method).toBe('POST')
+        const params = new URLSearchParams(String(init?.body))
+        expect(params.get('grant_type')).toBe('urn:ietf:params:oauth:grant-type:jwt-bearer')
+        assertionJwt = params.get('assertion') ?? undefined
+        return new Response(JSON.stringify({ access_token: 'sa-token' }))
+      }
+      if (init?.method === 'PATCH') {
+        patches.push({
+          url,
+          auth: new Headers(init.headers).get('Authorization'),
+          signature: (JSON.parse(String(init.body)) as { signature: string }).signature,
+        })
+        return new Response(JSON.stringify({}))
+      }
+      if (url === GMAIL_SENDAS_URL) {
+        expect(new Headers(init?.headers).get('Authorization')).toBe('Bearer sa-token')
+        return new Response(
+          JSON.stringify({
+            sendAs: [
+              { sendAsEmail: 'tino@lingo.nyuchi.com' },
+              { sendAsEmail: 't.moyo@travel-info.co.zw' },
+            ],
+          }),
+        )
+      }
+      throw new Error(`unexpected fetch: ${url}`)
+    })
+
+    const res = await pushRequest({ dryRun: false })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as {
+      results: { email: string; sendAs: string; status: string }[]
+      summary: { pushed: number; dryRun: number; failed: number }
+    }
+    expect(body.summary).toEqual({ pushed: 2, dryRun: 0, failed: 0 })
+    expect(body.results).toEqual([
+      { email: 'tino@lingo.nyuchi.com', sendAs: 'tino@lingo.nyuchi.com', status: 'pushed' },
+      { email: 'tino@lingo.nyuchi.com', sendAs: 't.moyo@travel-info.co.zw', status: 'pushed' },
+    ])
+
+    // The SA assertion impersonates THAT user with the settings scope.
+    expect(assertionJwt).toBeTruthy()
+    const [headerB64, claimsB64] = assertionJwt!.split('.')
+    expect(JSON.parse(new TextDecoder().decode(base64url.decode(headerB64)))).toMatchObject({
+      alg: 'RS256',
+      typ: 'JWT',
+    })
+    const claims = JSON.parse(new TextDecoder().decode(base64url.decode(claimsB64))) as Record<
+      string,
+      unknown
+    >
+    expect(claims.iss).toBe(TEST_SA_KEY.client_email)
+    expect(claims.sub).toBe('tino@lingo.nyuchi.com')
+    expect(claims.scope).toBe(GMAIL_BASIC_SCOPE)
+    expect(claims.aud).toBe(GOOGLE_TOKEN_URL)
+    expect(claims.exp).toBe((claims.iat as number) + 3600)
+
+    // PATCH bodies: primary + alias, each rendered per-address (the alias's
+    // domain drives its brand — travel-info.co.zw → the legacy travel key).
+    expect(patches.map((p) => p.url)).toEqual([
+      `${GMAIL_SENDAS_URL}/${encodeURIComponent('tino@lingo.nyuchi.com')}`,
+      `${GMAIL_SENDAS_URL}/${encodeURIComponent('t.moyo@travel-info.co.zw')}`,
+    ])
+    expect(patches.every((p) => p.auth === 'Bearer sa-token')).toBe(true)
+    expect(patches[0].signature).toBe(
+      buildSignatureHtml({
+        brand: 'nyuchi',
+        name: 'Tino Moyo',
+        email: 'tino@lingo.nyuchi.com',
+        title: 'Language Lead',
+        phone: LINGO_PHONE_FORMATTED,
+      }),
+    )
+    expect(patches[1].signature).toBe(
+      buildSignatureHtml({
+        brand: 'travel',
+        name: 'Tino Moyo',
+        email: 't.moyo@travel-info.co.zw',
+        title: 'Language Lead',
+        phone: LINGO_PHONE_FORMATTED,
+      }),
+    )
+  })
+
+  it('retries once with backoff on a 429 and succeeds', async () => {
+    const sleepSpy = vi.fn(async () => {})
+    pacing.sleep = sleepSpy
+    let patchCalls = 0
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const url = String(input)
+      if (url.startsWith('https://admin.googleapis.com/')) {
+        return new Response(JSON.stringify({ users: [DIR_USER_LEARNING] }))
+      }
+      if (url === GOOGLE_TOKEN_URL) {
+        return new Response(JSON.stringify({ access_token: 'sa-token' }))
+      }
+      if (init?.method === 'PATCH') {
+        patchCalls += 1
+        if (patchCalls === 1) return new Response('rate limited', { status: 429 })
+        return new Response(JSON.stringify({}))
+      }
+      if (url === GMAIL_SENDAS_URL) {
+        return new Response(JSON.stringify({ sendAs: [{ sendAsEmail: 'rudo@learning.nyuchi.com' }] }))
+      }
+      throw new Error(`unexpected fetch: ${url}`)
+    })
+
+    const res = await pushRequest({ dryRun: false, targets: ['rudo@learning.nyuchi.com'] })
+    const body = (await res.json()) as {
+      results: { status: string }[]
+      summary: { pushed: number; dryRun: number; failed: number }
+    }
+    expect(patchCalls).toBe(2)
+    expect(body.summary).toEqual({ pushed: 1, dryRun: 0, failed: 0 })
+    expect(body.results[0].status).toBe('pushed')
+    // The retry waited out the backoff via the injectable sleep hook.
+    expect(sleepSpy).toHaveBeenCalledWith(1000)
   })
 })
