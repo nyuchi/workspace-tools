@@ -1,7 +1,7 @@
 /* GENERATED FILE — do not edit by hand.
  *
  * Per-character advance widths (em-relative: advanceWidth / unitsPerEm) for
- * the fonts the nyuchi/banner SVG engines render with, extracted with fontkit.
+ * the fonts the nyuchi SVG engine renders with, extracted with fontkit.
  * Used by measureWithMetrics() (./index.ts) to measure text in environments
  * without a canvas (Cloudflare Workers, plain node).
  *

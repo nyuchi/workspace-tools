@@ -1,7 +1,7 @@
 /* Bundu-ecosystem brand registry — the canonical brand taxonomy.
  *
  * Pure module (no React, no DOM): imported by the SPA, the SVG engines
- * (engines/nyuchi, engines/banner), and the nyuchi-tools Worker MCP server.
+ * (engines/nyuchi) and the nyuchi-tools Worker MCP server.
  *
  * ── Taxonomy (from bundu.org — authoritative) ──────────────────────────────
  *
@@ -29,8 +29,8 @@
  *   HISTORICAL signature copies (byte-locked emitted HTML — including the
  *   legacy `travel` and `learning` keys). Do not re-sync their wording to
  *   this registry.
- * - engines/nyuchi and engines/banner read `lockupLabel` from here for the
- *   card/banner lockup wordmark.
+ * - engines/nyuchi reads `lockupLabel` from here for the
+ *   card lockup wordmark.
  * - gmail-addon/Code.js (BRANDS, slug-keyed) and email-signature/Code.js
  *   (CONFIG.divisions, email-domain-keyed) are hand-synced copies — Apps
  *   Script cannot import npm modules. Apply brand changes here first, then
@@ -61,7 +61,7 @@ export interface TopBrand {
   domain: string
   url: string
   tagline: string
-  /** Short wordmark text rendered by the studio/banner lockups. */
+  /** Short wordmark text rendered by the studio lockups. */
   lockupLabel: string
   pillar: PillarRole
   /**

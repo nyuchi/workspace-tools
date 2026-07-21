@@ -1,8 +1,8 @@
 /**
  * Registers the real per-brand icons (the same vendored PNGs the SPA's
- * Studio/Banner pages use) with both SVG engines' icon stores, so
- * generate_studio_card/generate_article_banner draw the actual brand mark
- * instead of falling back to the engines' generic placeholder mark.
+ * Studio page uses) with the Studio engine's icon store, so
+ * generate_studio_card draws the actual brand mark instead of falling back
+ * to the engine's generic placeholder mark.
  *
  * loadBrandIcons() normally resolves its icon paths with the browser's own
  * fetch — there's no page origin to resolve a relative path against inside
@@ -17,7 +17,6 @@
 
 import { loadBrandIcons } from "../../signature-generator/src/lib/loadBrandIcons";
 import { setBrandIcon as setStudioIcon } from "../../signature-generator/src/engines/nyuchi";
-import { setBrandIcon as setBannerIcon } from "../../signature-generator/src/engines/banner";
 
 let cached: Promise<void> | null = null;
 
@@ -28,10 +27,7 @@ export function ensureBrandIconsLoaded(assets: Fetcher | undefined): Promise<voi
       const path = typeof input === "string" ? input : input instanceof URL ? input.pathname : input.url;
       return assets.fetch(new Request(new URL(path, "https://assets.internal")));
     };
-    cached = Promise.all([
-      loadBrandIcons(setStudioIcon, assetsFetch),
-      loadBrandIcons(setBannerIcon, assetsFetch),
-    ]).then(() => undefined);
+    cached = loadBrandIcons(setStudioIcon, assetsFetch).then(() => undefined);
   }
   return cached;
 }
