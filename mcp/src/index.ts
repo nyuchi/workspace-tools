@@ -94,6 +94,11 @@ import {
   type FeedbackEnv,
   type FeedbackSeverity,
 } from "./feedback.js";
+import {
+  registerSignatureApi,
+  SIGNATURE_API_PATH,
+  type SignatureApiEnv,
+} from "./signature-api.js";
 
 /** Chunked bytes → base64 (no Buffer dependency; works in Workers + node). */
 function bytesToBase64(bytes: Uint8Array): string {
@@ -680,7 +685,7 @@ function authorizationServerMetadataHandler(wellKnownPath: "oauth-authorization-
  * site-wide login gate's signing secret, and the static-assets binding the
  * post-auth catch-all route serves the built Astro site from.
  */
-interface Env extends SiteAuthEnv, ImagesEnv, FeedbackEnv {
+interface Env extends SiteAuthEnv, ImagesEnv, FeedbackEnv, SignatureApiEnv {
   ASSETS: Fetcher;
 }
 
@@ -718,6 +723,10 @@ const EXEMPT_SITE_AUTH_PATHS = new Set<string>([
   "/login",
   CALLBACK_PATH,
   "/logout",
+  // /api/signature does its OWN auth (SIGNATURE_API_KEY bearer or session
+  // cookie — see signature-api.ts); the gate's 302-to-/login would break
+  // its non-browser callers (Apps Script UrlFetchApp).
+  SIGNATURE_API_PATH,
 ]);
 
 function isExemptFromSiteAuth(pathname: string): boolean {
@@ -943,6 +952,11 @@ app.post("/mcp", async (c) => {
 
 // Anything else under /mcp/*: 404 with a hint.
 app.all("/mcp/*", (c) => c.json({ error: "not found", hint: "POST /mcp for JSON-RPC" }, 404));
+
+// POST /api/signature — byte-locked signature HTML from the canonical
+// engine, for Apps Script and other server-to-server callers. Does its own
+// auth (bearer key or session cookie); exempted from the site gate above.
+registerSignatureApi(app);
 
 // Everything else, once the login gate above has passed (or the path was
 // exempt): the built Astro site as static assets (see [assets] in

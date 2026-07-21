@@ -22,6 +22,7 @@ import {
   SITE_CLIENT_ID,
   verifySessionCookie,
 } from '../src/site-auth'
+import { buildSignatureHtml } from '../../signature-generator/src/engines/signature'
 
 const BASE = 'https://tools.nyuchi.com'
 
@@ -1497,5 +1498,118 @@ describe('Session cookie (site-auth.ts)', () => {
 
   it('rejects an empty/undefined cookie value', async () => {
     expect(await verifySessionCookie(SITE_ENV, undefined)).toBeNull()
+  })
+})
+
+describe('POST /api/signature', () => {
+  const TEST_API_KEY = 'test-signature-api-key'
+  /** Bearer path configured; SESSION_SECRET too so both auth paths exist. */
+  const SIG_ENV = { ...SITE_ENV, SIGNATURE_API_KEY: TEST_API_KEY }
+
+  const PARAMS = {
+    brand: 'nyuchi' as const,
+    name: 'Tariro Chikafu',
+    email: 'tariro@nyuchi.com',
+    title: 'Operations Lead',
+    phone: '+263 77 000 0000',
+  }
+
+  function postSignature(body: unknown, env: Env, headers: Record<string, string> = {}) {
+    return Promise.resolve(
+      worker.fetch(
+        new Request(`${BASE}/api/signature`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', ...headers },
+          body: typeof body === 'string' ? body : JSON.stringify(body),
+        }),
+        env,
+      ),
+    )
+  }
+
+  it('bearer auth returns HTML byte-equal to buildSignatureHtml', async () => {
+    const res = await postSignature(PARAMS, SIG_ENV, { Authorization: `Bearer ${TEST_API_KEY}` })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { html: string }
+    expect(body.html).toBe(buildSignatureHtml(PARAMS))
+    expect(body.html.startsWith('<table')).toBe(true)
+  })
+
+  it('a valid site session cookie also authorizes, with identical output', async () => {
+    const cookie = await mintSessionCookie(SITE_ENV, { sub: 'user_123', email: 'bryan@nyuchi.com' })
+    const res = await postSignature(PARAMS, SIG_ENV, { Cookie: `${SESSION_COOKIE_NAME}=${cookie}` })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { html: string }
+    expect(body.html).toBe(buildSignatureHtml(PARAMS))
+  })
+
+  it('rejects a wrong bearer token with 401 JSON', async () => {
+    const res = await postSignature(PARAMS, SIG_ENV, { Authorization: 'Bearer wrong-key' })
+    expect(res.status).toBe(401)
+    const body = (await res.json()) as { error: string }
+    expect(body.error).toBe('unauthorized')
+  })
+
+  it('a wrong bearer never falls back to the cookie path (explicit credential is judged on its own)', async () => {
+    const cookie = await mintSessionCookie(SITE_ENV, { sub: 'user_123' })
+    const res = await postSignature(PARAMS, SIG_ENV, {
+      Authorization: 'Bearer wrong-key',
+      Cookie: `${SESSION_COOKIE_NAME}=${cookie}`,
+    })
+    expect(res.status).toBe(401)
+  })
+
+  it('rejects a request with neither bearer nor cookie with 401 JSON — not a login redirect', async () => {
+    // The route is exempt from the site-wide login gate: an unauthenticated
+    // POST must get the route's own 401 JSON, never the gate's 302.
+    const res = await postSignature(PARAMS, SIG_ENV)
+    expect(res.status).toBe(401)
+    expect(res.headers.get('Location')).toBeNull()
+    const body = (await res.json()) as { error: string; detail: string }
+    expect(body.error).toBe('unauthorized')
+    expect(body.detail).toContain('SIGNATURE_API_KEY')
+  })
+
+  it('fails closed with a clear detail when SIGNATURE_API_KEY is unset and a bearer is attempted', async () => {
+    const res = await postSignature(PARAMS, SITE_ENV, { Authorization: `Bearer ${TEST_API_KEY}` })
+    expect(res.status).toBe(401)
+    const body = (await res.json()) as { error: string; detail: string }
+    expect(body.error).toBe('unauthorized')
+    expect(body.detail).toContain('SIGNATURE_API_KEY')
+    expect(body.detail).toContain('unset')
+  })
+
+  it('rejects invalid params (unknown brand, missing name) with 400 and zod issues', async () => {
+    const res = await postSignature(
+      { brand: 'acme', email: 'x@x.com' },
+      SIG_ENV,
+      { Authorization: `Bearer ${TEST_API_KEY}` },
+    )
+    expect(res.status).toBe(400)
+    const body = (await res.json()) as { error: string; issues: { path: (string | number)[] }[] }
+    expect(body.error).toBe('invalid_params')
+    expect(Array.isArray(body.issues)).toBe(true)
+    const paths = body.issues.map((i) => i.path.join('.'))
+    expect(paths).toContain('brand')
+    expect(paths).toContain('name')
+  })
+
+  it('rejects a non-JSON body with 400 invalid_params', async () => {
+    const res = await postSignature('{not json', SIG_ENV, { Authorization: `Bearer ${TEST_API_KEY}` })
+    expect(res.status).toBe(400)
+    const body = (await res.json()) as { error: string }
+    expect(body.error).toBe('invalid_params')
+  })
+
+  it('emits HTML byte-identical to the generate_email_signature MCP tool', async () => {
+    const httpRes = await postSignature(PARAMS, SIG_ENV, { Authorization: `Bearer ${TEST_API_KEY}` })
+    const { html } = (await httpRes.json()) as { html: string }
+    const mcpRes = await post(
+      '/mcp',
+      rpc('tools/call', { name: 'generate_email_signature', arguments: PARAMS }, 70),
+    )
+    const mcpBody = (await mcpRes.json()) as JsonRpcResponse
+    const mcpHtml = (mcpBody.result as { content: { text: string }[] }).content[0].text
+    expect(html).toBe(mcpHtml)
   })
 })
