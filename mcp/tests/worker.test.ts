@@ -22,6 +22,7 @@ import {
   SITE_CLIENT_ID,
   verifySessionCookie,
 } from '../src/site-auth'
+import { buildSignatureHtml } from '../../signature-generator/src/engines/signature'
 
 const BASE = 'https://tools.nyuchi.com'
 
@@ -41,10 +42,10 @@ const SITE_ENV = { SESSION_SECRET: TEST_SESSION_SECRET }
 const ASSETS_STUB = { fetch: async () => new Response('stub-asset') }
 
 /** Stub ASSETS binding that answers brand-icon `.b64.txt` requests with a
- * fixed fake payload, so tests can verify generate_studio_card/
- * generate_article_banner actually embed a real per-brand icon (via
- * mcp/src/brand-icons.ts) instead of falling back to the engines' generic
- * placeholder mark — the exact bug this guards against regressing to. */
+ * fixed fake payload, so tests can verify generate_studio_card actually
+ * embeds a real per-brand icon (via mcp/src/brand-icons.ts) instead of
+ * falling back to the engine's generic placeholder mark — the exact bug
+ * this guards against regressing to. */
 const FAKE_ICON_B64 = 'ZmFrZS1pY29uLWJ5dGVz'
 const ICON_ASSETS_STUB = {
   fetch: async (req: Request) => {
@@ -155,18 +156,29 @@ describe('POST /mcp — JSON-RPC', () => {
     expect(result.protocolVersion).toBe('2024-11-05')
   })
 
-  it('tools/list exposes exactly the five tools', async () => {
+  it('tools/list exposes exactly the four tools (the banner tool is gone)', async () => {
     const res = await post('/mcp', rpc('tools/list', {}, 2))
     expect(res.status).toBe(200)
     const body = (await res.json()) as JsonRpcResponse
     const tools = (body.result as { tools: { name: string }[] }).tools
     expect(tools.map((t) => t.name).sort()).toEqual([
-      'generate_article_banner',
       'generate_email_signature',
       'generate_studio_card',
       'report_issue',
       'upload_asset',
     ])
+  })
+
+  it('calling the removed generate_article_banner tool errors cleanly', async () => {
+    const res = await post(
+      '/mcp',
+      rpc('tools/call', { name: 'generate_article_banner', arguments: { title: 'X', category: 'gold' } }, 3),
+    )
+    const body = (await res.json()) as JsonRpcResponse
+    // Unknown tool is a protocol-level error (or an isError result depending
+    // on SDK version) — either way, never a successful render.
+    const result = body.result as { isError?: boolean } | undefined
+    expect(Boolean(body.error) || Boolean(result?.isError)).toBe(true)
   })
 
   it('tools carry behavior annotations and (where stable) output schemas', async () => {
@@ -184,7 +196,6 @@ describe('POST /mcp — JSON-RPC', () => {
     const byName = Object.fromEntries(tools.map((t) => [t.name, t]))
     // Pure generators are read-only and closed-world.
     expect(byName['generate_email_signature'].annotations).toMatchObject({ readOnlyHint: true, openWorldHint: false })
-    expect(byName['generate_article_banner'].annotations).toMatchObject({ readOnlyHint: true, openWorldHint: false })
     // Anything that can publish externally is open-world, non-destructive.
     for (const name of ['generate_studio_card', 'upload_asset', 'report_issue']) {
       expect(byName[name].annotations).toMatchObject({ readOnlyHint: false, destructiveHint: false, openWorldHint: true })
@@ -193,17 +204,6 @@ describe('POST /mcp — JSON-RPC', () => {
     expect(Object.keys(byName['report_issue'].outputSchema?.properties ?? {}).sort()).toEqual(['number', 'repo', 'url'])
   })
 
-  it('generate_article_banner is marked deprecated and steers to the Studio', async () => {
-    const res = await post('/mcp', rpc('tools/list', {}, 2))
-    const body = (await res.json()) as JsonRpcResponse
-    const tools = (body.result as { tools: { name: string; description: string }[] }).tools
-    const banner = tools.find((t) => t.name === 'generate_article_banner')!
-    expect(banner.description.startsWith('DEPRECATED')).toBe(true)
-    expect(banner.description).toContain('generate_studio_card')
-    // The Studio itself is NOT deprecated.
-    const studio = tools.find((t) => t.name === 'generate_studio_card')!
-    expect(studio.description).not.toContain('DEPRECATED')
-  })
 
   it('tools/call generate_email_signature returns HTML with escaped fields', async () => {
     const res = await post(
@@ -429,145 +429,15 @@ describe('POST /mcp — JSON-RPC', () => {
     expect(result.content[0].text).toContain('-32602')
   })
 
-  it('tools/call generate_article_banner returns a real banner SVG plus JSON metadata', async () => {
-    const res = await post(
-      '/mcp',
-      rpc(
-        'tools/call',
-        {
-          name: 'generate_article_banner',
-          arguments: {
-            title: 'Speed is rented. Truth is owned.',
-            dek: 'A note on local-first software and the cost of being online.',
-            category: 'cobalt',
-            format: 'og',
-          },
-        },
-        15,
-      ),
-    )
-    expect(res.status).toBe(200)
-    const body = (await res.json()) as JsonRpcResponse
-    expect(body.error).toBeUndefined()
-    const content = (body.result as { content: { type: string; text: string }[] }).content
-    expect(content).toHaveLength(2)
 
-    const svg = content[0].text
-    expect(svg.startsWith('<svg')).toBe(true)
-    expect(svg.endsWith('</svg>')).toBe(true)
-    expect(svg).toContain('viewBox="0 0 1200 630"')
-    expect(svg).toContain('width="1200"')
-    expect(svg).toContain('height="630"')
-    expect((svg.match(/<circle /g) ?? []).length).toBeGreaterThan(5)
-    expect((svg.match(/<line /g) ?? []).length).toBeGreaterThan(3)
-    expect(svg.length).toBeGreaterThan(5000)
-    expect(svg).not.toContain('placeholder')
-    // The title may wrap across several <text> lines; check a fragment.
-    expect(svg).toContain('Speed is rented.')
 
-    const meta = JSON.parse(content[1].text) as { format: { w: number; h: number }; seed: number }
-    expect(meta.format).toEqual({ w: 1200, h: 630 })
-    expect(typeof meta.seed).toBe('number')
-  })
 
-  it('generate_article_banner defaults to square (ig) and keeps markup escaped', async () => {
-    const res = await post(
-      '/mcp',
-      rpc(
-        'tools/call',
-        {
-          name: 'generate_article_banner',
-          arguments: { title: 'Attack <script>alert(1)</script>', category: 'terracotta' },
-        },
-        16,
-      ),
-    )
-    const body = (await res.json()) as JsonRpcResponse
-    expect(body.error).toBeUndefined()
-    const content = (body.result as { content: { text: string }[] }).content
-    const svg = content[0].text
-    expect(svg).toContain('viewBox="0 0 1080 1080"')
-    expect(svg).not.toContain('<script>')
-    expect(svg).toContain('&lt;script&gt;')
-    const meta = JSON.parse(content[1].text) as { format: { w: number; h: number } }
-    expect(meta.format).toEqual({ w: 1080, h: 1080 })
-  })
 
-  it('generate_article_banner honors an explicit 16x9 format', async () => {
-    const res = await post(
-      '/mcp',
-      rpc(
-        'tools/call',
-        { name: 'generate_article_banner', arguments: { title: 'X', category: 'terracotta', format: '16x9' } },
-        29,
-      ),
-    )
-    const body = (await res.json()) as JsonRpcResponse
-    expect(body.error).toBeUndefined()
-    const content = (body.result as { content: { text: string }[] }).content
-    expect(content[0].text).toContain('viewBox="0 0 1600 900"')
-    const meta = JSON.parse(content[1].text) as { format: { w: number; h: number } }
-    expect(meta.format).toEqual({ w: 1600, h: 900 })
-  })
 
-  it('generate_article_banner renders a shamwari-branded banner (lockup wordmark)', async () => {
-    const res = await post(
-      '/mcp',
-      rpc(
-        'tools/call',
-        {
-          name: 'generate_article_banner',
-          arguments: { title: 'AI that actually works for Africa', category: 'sodalite', brand: 'shamwari' },
-        },
-        34,
-      ),
-    )
-    const body = (await res.json()) as JsonRpcResponse
-    expect(body.error).toBeUndefined()
-    const svg = (body.result as { content: { text: string }[] }).content[0].text
-    expect(svg).toContain('>shamwari.ai</text>')
-    expect(svg).not.toContain('>nyuchi.com</text>')
-  })
-
-  it('generate_article_banner rejects an unknown brand', async () => {
-    const res = await post(
-      '/mcp',
-      rpc(
-        'tools/call',
-        {
-          name: 'generate_article_banner',
-          arguments: { title: 'X', category: 'gold', brand: 'travel' },
-        },
-        35,
-      ),
-    )
-    const body = (await res.json()) as JsonRpcResponse
-    const result = body.result as { isError: boolean; content: { text: string }[] }
-    expect(result.isError).toBe(true)
-    expect(result.content[0].text).toContain('-32602')
-  })
-
-  it('generate_article_banner rejects layout 5 (banner engine has layouts 1-4)', async () => {
-    const res = await post(
-      '/mcp',
-      rpc(
-        'tools/call',
-        {
-          name: 'generate_article_banner',
-          arguments: { title: 'X', category: 'gold', layout: 5 },
-        },
-        17,
-      ),
-    )
-    const body = (await res.json()) as JsonRpcResponse
-    const result = body.result as { isError: boolean; content: { text: string }[] }
-    expect(result.isError).toBe(true)
-    expect(result.content[0].text).toContain('-32602')
-  })
 
   // These two run last in the describe block: loading brand icons populates
   // a module-level cache shared by every call in this test file (mirroring
-  // one Worker isolate's lifetime), so once these run, every studio/banner
+  // one Worker isolate's lifetime), so once these run, every studio
   // test after them would also see real icons instead of the wordmark-only
   // fallback the tests above assert around.
   it('generate_studio_card embeds the real brand icon when ASSETS is available', async () => {
@@ -591,26 +461,6 @@ describe('POST /mcp — JSON-RPC', () => {
     expect(svg).toContain('>mukoko.com</text>')
   })
 
-  it('generate_article_banner embeds the real brand icon when ASSETS is available', async () => {
-    const res = await post(
-      '/mcp',
-      rpc(
-        'tools/call',
-        {
-          name: 'generate_article_banner',
-          arguments: { title: 'X', category: 'malachite', brand: 'mukoko' },
-        },
-        19,
-      ),
-      { ...OPEN_ENV, ASSETS: ICON_ASSETS_STUB },
-    )
-    expect(res.status).toBe(200)
-    const body = (await res.json()) as JsonRpcResponse
-    expect(body.error).toBeUndefined()
-    const svg = (body.result as { content: { text: string }[] }).content[0].text
-    expect(svg).toContain(`<image href="data:image/png;base64,${FAKE_ICON_B64}"`)
-    expect(svg).toContain('>mukoko.com</text>')
-  })
 
   it('malformed JSON gets a -32700 parse error with HTTP 400', async () => {
     const res = await post('/mcp', '{not json')
@@ -1186,8 +1036,7 @@ describe('GET /.well-known/mcp/server-card.json', () => {
       name: 'nyuchi-tools',
       description:
         'MCP server for Nyuchi Africa tools: email signatures, Nyuchi Studio social cards ' +
-        '(SVG, PNG, or hosted Cloudflare Images URL), asset uploads, and issue reporting. ' +
-        'The legacy article-banner tool is deprecated in favor of the Studio.',
+        '(SVG, PNG, or hosted Cloudflare Images URL), asset uploads, and issue reporting.',
       websiteUrl: 'https://tools.nyuchi.com',
       remotes: [{ transportType: 'streamable-http', url: 'https://tools.nyuchi.dev/mcp' }],
       capabilities: { tools: { listChanged: true } },
@@ -1649,5 +1498,118 @@ describe('Session cookie (site-auth.ts)', () => {
 
   it('rejects an empty/undefined cookie value', async () => {
     expect(await verifySessionCookie(SITE_ENV, undefined)).toBeNull()
+  })
+})
+
+describe('POST /api/signature', () => {
+  const TEST_API_KEY = 'test-signature-api-key'
+  /** Bearer path configured; SESSION_SECRET too so both auth paths exist. */
+  const SIG_ENV = { ...SITE_ENV, SIGNATURE_API_KEY: TEST_API_KEY }
+
+  const PARAMS = {
+    brand: 'nyuchi' as const,
+    name: 'Tariro Chikafu',
+    email: 'tariro@nyuchi.com',
+    title: 'Operations Lead',
+    phone: '+263 77 000 0000',
+  }
+
+  function postSignature(body: unknown, env: Env, headers: Record<string, string> = {}) {
+    return Promise.resolve(
+      worker.fetch(
+        new Request(`${BASE}/api/signature`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', ...headers },
+          body: typeof body === 'string' ? body : JSON.stringify(body),
+        }),
+        env,
+      ),
+    )
+  }
+
+  it('bearer auth returns HTML byte-equal to buildSignatureHtml', async () => {
+    const res = await postSignature(PARAMS, SIG_ENV, { Authorization: `Bearer ${TEST_API_KEY}` })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { html: string }
+    expect(body.html).toBe(buildSignatureHtml(PARAMS))
+    expect(body.html.startsWith('<table')).toBe(true)
+  })
+
+  it('a valid site session cookie also authorizes, with identical output', async () => {
+    const cookie = await mintSessionCookie(SITE_ENV, { sub: 'user_123', email: 'bryan@nyuchi.com' })
+    const res = await postSignature(PARAMS, SIG_ENV, { Cookie: `${SESSION_COOKIE_NAME}=${cookie}` })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { html: string }
+    expect(body.html).toBe(buildSignatureHtml(PARAMS))
+  })
+
+  it('rejects a wrong bearer token with 401 JSON', async () => {
+    const res = await postSignature(PARAMS, SIG_ENV, { Authorization: 'Bearer wrong-key' })
+    expect(res.status).toBe(401)
+    const body = (await res.json()) as { error: string }
+    expect(body.error).toBe('unauthorized')
+  })
+
+  it('a wrong bearer never falls back to the cookie path (explicit credential is judged on its own)', async () => {
+    const cookie = await mintSessionCookie(SITE_ENV, { sub: 'user_123' })
+    const res = await postSignature(PARAMS, SIG_ENV, {
+      Authorization: 'Bearer wrong-key',
+      Cookie: `${SESSION_COOKIE_NAME}=${cookie}`,
+    })
+    expect(res.status).toBe(401)
+  })
+
+  it('rejects a request with neither bearer nor cookie with 401 JSON — not a login redirect', async () => {
+    // The route is exempt from the site-wide login gate: an unauthenticated
+    // POST must get the route's own 401 JSON, never the gate's 302.
+    const res = await postSignature(PARAMS, SIG_ENV)
+    expect(res.status).toBe(401)
+    expect(res.headers.get('Location')).toBeNull()
+    const body = (await res.json()) as { error: string; detail: string }
+    expect(body.error).toBe('unauthorized')
+    expect(body.detail).toContain('SIGNATURE_API_KEY')
+  })
+
+  it('fails closed with a clear detail when SIGNATURE_API_KEY is unset and a bearer is attempted', async () => {
+    const res = await postSignature(PARAMS, SITE_ENV, { Authorization: `Bearer ${TEST_API_KEY}` })
+    expect(res.status).toBe(401)
+    const body = (await res.json()) as { error: string; detail: string }
+    expect(body.error).toBe('unauthorized')
+    expect(body.detail).toContain('SIGNATURE_API_KEY')
+    expect(body.detail).toContain('unset')
+  })
+
+  it('rejects invalid params (unknown brand, missing name) with 400 and zod issues', async () => {
+    const res = await postSignature(
+      { brand: 'acme', email: 'x@x.com' },
+      SIG_ENV,
+      { Authorization: `Bearer ${TEST_API_KEY}` },
+    )
+    expect(res.status).toBe(400)
+    const body = (await res.json()) as { error: string; issues: { path: (string | number)[] }[] }
+    expect(body.error).toBe('invalid_params')
+    expect(Array.isArray(body.issues)).toBe(true)
+    const paths = body.issues.map((i) => i.path.join('.'))
+    expect(paths).toContain('brand')
+    expect(paths).toContain('name')
+  })
+
+  it('rejects a non-JSON body with 400 invalid_params', async () => {
+    const res = await postSignature('{not json', SIG_ENV, { Authorization: `Bearer ${TEST_API_KEY}` })
+    expect(res.status).toBe(400)
+    const body = (await res.json()) as { error: string }
+    expect(body.error).toBe('invalid_params')
+  })
+
+  it('emits HTML byte-identical to the generate_email_signature MCP tool', async () => {
+    const httpRes = await postSignature(PARAMS, SIG_ENV, { Authorization: `Bearer ${TEST_API_KEY}` })
+    const { html } = (await httpRes.json()) as { html: string }
+    const mcpRes = await post(
+      '/mcp',
+      rpc('tools/call', { name: 'generate_email_signature', arguments: PARAMS }, 70),
+    )
+    const mcpBody = (await mcpRes.json()) as JsonRpcResponse
+    const mcpHtml = (mcpBody.result as { content: { text: string }[] }).content[0].text
+    expect(html).toBe(mcpHtml)
   })
 })

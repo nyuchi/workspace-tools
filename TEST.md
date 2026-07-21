@@ -23,7 +23,7 @@ npm run test:worker        # worker suite (root vitest.worker.config.ts)
 
 ## Suite 1 — engines (`signature-generator/tests/`)
 
-- Unit tests for the three pure engines (`signature`, `nyuchi`, `banner`) plus the signature-page helpers (`tests/signature-page.test.ts` imports `src/pages/signature/helpers.ts` — keep that file at that path with those exports).
+- Unit tests for the two pure engines (`signature`, `nyuchi`) plus the signature-page helpers (`tests/signature-page.test.ts` imports `src/pages/signature/helpers.ts` — keep that file at that path with those exports).
 - **Canvas stub**: `tests/setup.canvas.ts` installs a deterministic `document`/canvas stub measuring text as **chars × 0.53 × font-size**. Size-awareness is load-bearing: hook-mode title scaling grows text until it fills the measure, which a fixed per-char width cannot exercise. Keep the stub if you add engine tests.
 - Engine tests are **structural, not byte-locked** — assert on sizes, fills, element presence, determinism; never on full SVG strings.
 - Studio typography contracts under test: dek ≈ 0.88× title in the surface foreground; ig layout-1 reference sizes (title 70/dek 62); hook mode grows one-line titles only; layout-4 scrim fully opaque; hex labels only on mineral-education cards; chip text color flips by true relative luminance (cobalt→ink, sodalite→white).
@@ -34,7 +34,7 @@ npm run test:worker        # worker suite (root vitest.worker.config.ts)
 - **Wasm**: `vitest.worker.config.ts` mirrors wrangler's CompiledWasm module rule (a `.wasm` import resolves to a compiled `WebAssembly.Module`) and inlines `@resvg/resvg-wasm` so node tests exercise the real rasterizer.
 - **ASSETS stubs**: `FONT_ASSETS_STUB` serves the vendored raster TTFs from `signature-generator/public/fonts/raster/` plus fake brand icons; tests that pass an ASSETS binding run **after** the icon tests because brand icons cache per module load (mirroring one isolate's lifetime).
 - **External calls are mocked**: Cloudflare Images and GitHub issue creation are `vi.spyOn(globalThis, 'fetch')` mocks — no network, no real uploads. WorkOS JWT verification is exercised with real locally-generated RS256 keys.
-- MCP behavior under test: five tools listed with annotations/output schemas, banner deprecation text, returnFormat svg/png/url paths (PNG asserted down to signature bytes), upload guardrails, report_issue payloads, fail-closed errors when secrets are absent, OAuth discovery in both auth modes, the login gate.
+- MCP behavior under test: four tools listed with annotations/output schemas, removed-banner-tool rejection, returnFormat svg/png/url paths (PNG asserted down to signature bytes), upload guardrails, report_issue payloads, fail-closed errors when secrets are absent, OAuth discovery in both auth modes, the login gate.
 
 ## Visual verification (manual, after engine changes)
 

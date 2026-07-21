@@ -1,4 +1,4 @@
-/* Canvas-free text measurement for the nyuchi/banner SVG engines.
+/* Canvas-free text measurement for the nyuchi SVG engine.
  *
  * The engines normally measure text with a canvas 2d context
  * (`ctx.measureText`), which does not exist in Cloudflare Workers. This

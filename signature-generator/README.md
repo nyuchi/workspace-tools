@@ -14,13 +14,13 @@ palettes, Noto Sans / Noto Serif / JetBrains Mono, pill buttons).
   Astro, composed from @bundu/ui components (`Hero`, `Section`,
   `SectionHeader`, `Container`, `MineralStrip`, `Breadcrumb`, `Icon`,
   `Button`).
-- **Tool pages** (`/signature-generator`, `/studio`, `/banner`) mount the
+- **Tool pages** (`/signature-generator`, `/studio`) mount the
   pre-existing React page components as `client:only="react"` islands:
   `src/pages/signature/SignaturePage`, `src/pages/studio/StudioPage`,
-  `src/pages/banner/BannerPage`. Those `.tsx`/`.ts` modules live inside
+  Those `.tsx`/`.ts` modules live inside
   `src/pages/` but are **not** routes — Astro only routes `.astro` files
   (the build warns about the two `.ts` helpers and skips them).
-- **Engines** (`src/engines/{signature,nyuchi,banner,brands,metrics}`) are
+- **Engines** (`src/engines/{signature,nyuchi,brands,metrics}`) are
   pure modules also imported by the Cloudflare Worker in `../mcp/src` —
   do not add browser or Astro dependencies to them.
 - **Styling**: `src/styles/global.css` imports Tailwind 4, the canonical

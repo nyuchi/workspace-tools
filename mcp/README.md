@@ -6,15 +6,15 @@ Worker, same code, two Workers Custom Domains; see the `MCP_RESOURCE`
 comment in `../wrangler.toml` for why `/mcp` lives on a separate hostname):
 
 - `/mcp` — Model Context Protocol server (streamable-HTTP JSON-RPC) exposing
-  `generate_email_signature`, `generate_studio_card`, `upload_asset`,
-  `report_issue`, and the deprecated `generate_article_banner` (kept only for
-  existing callers; the Studio replaces it). `generate_studio_card` can
+  `generate_email_signature`, `generate_studio_card`, `upload_asset`, and
+  `report_issue` (the legacy `generate_article_banner` was removed — the
+  Studio replaces it). `generate_studio_card` can
   rasterize server-side (resvg-wasm + the TTFs under
   `signature-generator/public/fonts/raster/`, fetched via the ASSETS binding)
   and upload to Cloudflare Images (`returnFormat: url | png | svg`); uploads
   need the `CF_IMAGES_ACCOUNT_ID` var + `CF_IMAGES_TOKEN` secret, and
   `report_issue` needs the `GITHUB_FEEDBACK_TOKEN` secret (repo picked by the
-  `FEEDBACK_REPO` var). All four fail closed with a clear message when
+  `FEEDBACK_REPO` var). Both fail closed with a clear message when
   unconfigured. Has its own bearer-token gate (see below); never
   double-gated by the site-wide login gate. Reachable on both domains, but
   `tools.nyuchi.dev/mcp` is the one advertised by discovery metadata.
@@ -36,7 +36,7 @@ comment in `../wrangler.toml` for why `/mcp` lives on a separate hostname):
 - `/login`, `/callback`, `/logout` — the **site-wide login gate** (see
   below). `/callback` is the fixed value of `CALLBACK_PATH` in `site-auth.ts`.
 - everything else (Home, Help, Setup, the gmail-addon docs, Studio, Signature
-  Generator, Banner, and any other page in the built SPA) — the built
+  Generator, and any other page in the built SPA) — the built
   `signature-generator/` site, served as Worker static assets **only after
   the login gate passes** (every route is a real HTML file; unknown paths
   get `dist/404.html`).
@@ -125,16 +125,15 @@ Never use a throwaway value like that in production — set the real one with
 - `generate_email_signature` imports the shared pure engine at
   `signature-generator/src/engines/signature` (the same module the SPA uses),
   so both surfaces emit byte-identical signature HTML.
-- `generate_studio_card` and `generate_article_banner` import the real SVG
-  engines (`signature-generator/src/engines/nyuchi` and `.../banner`) — the
-  same modules the `/studio` and `/banner` pages render with. Workers have no
+- `generate_studio_card` imports the real SVG engine
+  (`signature-generator/src/engines/nyuchi`) — the
+  same module the `/studio` page renders with. Workers have no
   canvas, so text measurement falls back to a committed font-metrics table
   (`signature-generator/src/engines/metrics/`, regenerated with
   `node scripts/extract-font-metrics.mjs` from `signature-generator/`).
-  Each tool returns the SVG plus a second JSON content item:
-  `{format: {w, h}, seed}`.
-- PNG output is deferred: either `resvg-wasm` in the Worker or client-side
-  canvas rasterization of the returned SVG.
+  `returnFormat` picks the response shape: SVG source + JSON metadata
+  (`{format: {w, h}, seed}`), an inline PNG rasterized in the Worker via
+  `resvg-wasm` (`mcp/src/raster.ts`), or a hosted Cloudflare Images URL.
 - `protectedResourceMetadata()` (`auth.ts`) advertises `scopes_supported: []`
   — honest, not aspirational: this server only checks bearer-token issuer +
   audience today, no scope-based authorization.
@@ -144,7 +143,7 @@ Never use a throwaway value like that in production — set the real one with
   verifying the access token from its own PKCE token exchange) call it —
   neither reimplements the jose/JWKS logic.
 - The three `client:only="react"` tool islands
-  (`signature-generator/src/pages/{signature,studio,banner}/*Page.tsx`) each
+  (`signature-generator/src/pages/{signature,studio}/*Page.tsx`) each
   feature-detect `document.modelContext` (WebMCP) and, when present, register
   1–2 tools that call the exact same functions the UI's own buttons call
   (`downloadSvg`/`downloadPng`, `copyString`). Ambient types for
