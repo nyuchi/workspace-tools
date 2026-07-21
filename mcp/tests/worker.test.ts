@@ -7,6 +7,8 @@
  * as the `env` argument.
  */
 
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { SignJWT } from 'jose'
 import worker from '../src/index'
@@ -52,6 +54,32 @@ const ICON_ASSETS_STUB = {
   },
 }
 
+/** Like ICON_ASSETS_STUB, but additionally serves the vendored raster TTFs
+ * straight from signature-generator/public — what the real ASSETS binding
+ * does in production — so tests can exercise the actual resvg pipeline. */
+const FONT_ASSETS_STUB = {
+  fetch: async (req: Request) => {
+    const url = new URL(req.url)
+    if (url.pathname.endsWith('.b64.txt')) return new Response(FAKE_ICON_B64)
+    if (url.pathname.startsWith('/fonts/raster/')) {
+      const file = join(__dirname, '../../signature-generator/public', url.pathname)
+      return new Response(new Uint8Array(readFileSync(file)))
+    }
+    return new Response('not found', { status: 404 })
+  },
+}
+
+/** Env with Cloudflare Images + GitHub feedback configured (values fake;
+ * the corresponding fetches are mocked per test). */
+const UPLOAD_ENV = {
+  ASSETS: FONT_ASSETS_STUB,
+  CF_IMAGES_ACCOUNT_ID: 'acct123',
+  CF_IMAGES_TOKEN: 'tok123',
+  GITHUB_FEEDBACK_TOKEN: 'gh123',
+}
+
+const PNG_MAGIC = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]
+
 type Env = Record<string, unknown>
 
 function get(path: string, env: Env = OPEN_ENV, headers?: HeadersInit): Promise<Response> {
@@ -90,13 +118,14 @@ function rpc(method: string, params: Record<string, unknown> = {}, id: number = 
 }
 
 describe('GET /mcp — discovery', () => {
-  it('returns the server identity JSON', async () => {
+  it('returns the server identity JSON advertising the latest SDK protocol version', async () => {
+    const { LATEST_PROTOCOL_VERSION } = await import('@modelcontextprotocol/sdk/types.js')
     const res = await get('/mcp')
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({
       name: 'nyuchi-tools',
       version: '0.1.0',
-      protocol: 'mcp/2024-11-05',
+      protocol: `mcp/${LATEST_PROTOCOL_VERSION}`,
       endpoint: '/mcp',
     })
   })
@@ -126,7 +155,7 @@ describe('POST /mcp — JSON-RPC', () => {
     expect(result.protocolVersion).toBe('2024-11-05')
   })
 
-  it('tools/list exposes exactly the three tools', async () => {
+  it('tools/list exposes exactly the five tools', async () => {
     const res = await post('/mcp', rpc('tools/list', {}, 2))
     expect(res.status).toBe(200)
     const body = (await res.json()) as JsonRpcResponse
@@ -135,7 +164,45 @@ describe('POST /mcp — JSON-RPC', () => {
       'generate_article_banner',
       'generate_email_signature',
       'generate_studio_card',
+      'report_issue',
+      'upload_asset',
     ])
+  })
+
+  it('tools carry behavior annotations and (where stable) output schemas', async () => {
+    const res = await post('/mcp', rpc('tools/list', {}, 2))
+    const body = (await res.json()) as JsonRpcResponse
+    const tools = (
+      body.result as {
+        tools: {
+          name: string
+          annotations?: Record<string, boolean>
+          outputSchema?: { properties?: Record<string, unknown> }
+        }[]
+      }
+    ).tools
+    const byName = Object.fromEntries(tools.map((t) => [t.name, t]))
+    // Pure generators are read-only and closed-world.
+    expect(byName['generate_email_signature'].annotations).toMatchObject({ readOnlyHint: true, openWorldHint: false })
+    expect(byName['generate_article_banner'].annotations).toMatchObject({ readOnlyHint: true, openWorldHint: false })
+    // Anything that can publish externally is open-world, non-destructive.
+    for (const name of ['generate_studio_card', 'upload_asset', 'report_issue']) {
+      expect(byName[name].annotations).toMatchObject({ readOnlyHint: false, destructiveHint: false, openWorldHint: true })
+    }
+    expect(Object.keys(byName['upload_asset'].outputSchema?.properties ?? {}).sort()).toEqual(['contentType', 'id', 'url'])
+    expect(Object.keys(byName['report_issue'].outputSchema?.properties ?? {}).sort()).toEqual(['number', 'repo', 'url'])
+  })
+
+  it('generate_article_banner is marked deprecated and steers to the Studio', async () => {
+    const res = await post('/mcp', rpc('tools/list', {}, 2))
+    const body = (await res.json()) as JsonRpcResponse
+    const tools = (body.result as { tools: { name: string; description: string }[] }).tools
+    const banner = tools.find((t) => t.name === 'generate_article_banner')!
+    expect(banner.description.startsWith('DEPRECATED')).toBe(true)
+    expect(banner.description).toContain('generate_studio_card')
+    // The Studio itself is NOT deprecated.
+    const studio = tools.find((t) => t.name === 'generate_studio_card')!
+    expect(studio.description).not.toContain('DEPRECATED')
   })
 
   it('tools/call generate_email_signature returns HTML with escaped fields', async () => {
@@ -577,6 +644,472 @@ describe('POST /mcp — JSON-RPC', () => {
   })
 })
 
+/* These run after the icon tests above on purpose: they pass an ASSETS
+ * binding, which (like one real isolate) populates the module-level
+ * brand-icon cache for every later call in this file. */
+describe('generate_studio_card — returnFormat / upload', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('accepts dekFontSize/dekColor overrides in svg mode', async () => {
+    const res = await post(
+      '/mcp',
+      rpc(
+        'tools/call',
+        {
+          name: 'generate_studio_card',
+          arguments: {
+            title: 'Nhimbe',
+            dek: 'Gathering, discovered.',
+            category: 'malachite',
+            layout: 1,
+            dekFontSize: 44,
+            dekColor: '#FFD740',
+          },
+        },
+        40,
+      ),
+    )
+    const body = (await res.json()) as JsonRpcResponse
+    expect(body.error).toBeUndefined()
+    const svg = (body.result as { content: { text: string }[] }).content[0].text
+    expect(svg).toContain('font-size="44" fill="#FFD740"')
+  })
+
+  it("theme 'accent' renders the full-bleed mineral surface with ink text", async () => {
+    const res = await post(
+      '/mcp',
+      rpc(
+        'tools/call',
+        {
+          name: 'generate_studio_card',
+          arguments: { title: 'Nhimbe', category: 'malachite', layout: 1, theme: 'accent' },
+        },
+        45,
+      ),
+    )
+    const body = (await res.json()) as JsonRpcResponse
+    expect(body.error).toBeUndefined()
+    const svg = (body.result as { content: { text: string }[] }).content[0].text
+    expect(svg).toContain('<rect width="1080" height="1080" fill="#64FFDA"/>')
+    expect(svg).toContain('fill="#0F0E0C">Nhimbe</text>')
+  })
+
+  it('rejects a non-hex dekColor at the schema layer', async () => {
+    const res = await post(
+      '/mcp',
+      rpc(
+        'tools/call',
+        {
+          name: 'generate_studio_card',
+          arguments: { title: 'X', category: 'gold', dekColor: 'red"onload="x' },
+        },
+        41,
+      ),
+    )
+    const body = (await res.json()) as JsonRpcResponse
+    const result = body.result as { isError: boolean; content: { text: string }[] }
+    expect(result.isError).toBe(true)
+    expect(result.content[0].text).toContain('-32602')
+  })
+
+  it("returnFormat 'png' rasterizes server-side and returns a real PNG image", async () => {
+    const res = await post(
+      '/mcp',
+      rpc(
+        'tools/call',
+        {
+          name: 'generate_studio_card',
+          arguments: {
+            title: 'Seven minerals',
+            dek: 'One ecosystem.',
+            category: 'gold',
+            layout: 1,
+            returnFormat: 'png',
+          },
+        },
+        42,
+      ),
+      { ...OPEN_ENV, ASSETS: FONT_ASSETS_STUB },
+    )
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as JsonRpcResponse
+    expect(body.error).toBeUndefined()
+    const content = (body.result as { content: { type: string; data?: string; mimeType?: string; text?: string }[] })
+      .content
+    expect(content[0].type).toBe('image')
+    expect(content[0].mimeType).toBe('image/png')
+    const bytes = Buffer.from(content[0].data!, 'base64')
+    expect([...bytes.subarray(0, 8)]).toEqual(PNG_MAGIC)
+    // A real 1080×1080 render with text + graph is far bigger than a stub.
+    expect(bytes.length).toBeGreaterThan(10000)
+    const meta = JSON.parse(content[1].text!) as { format: { w: number; h: number } }
+    expect(meta.format).toEqual({ w: 1080, h: 1080 })
+  })
+
+  it("upload:true + returnFormat 'png' uploads AND returns the pixels, with the url in metadata", async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          success: true,
+          result: { id: 'both-1', variants: ['https://imagedelivery.net/h/both-1/public'] },
+        }),
+        { status: 200 },
+      ),
+    )
+    const res = await post(
+      '/mcp',
+      rpc(
+        'tools/call',
+        {
+          name: 'generate_studio_card',
+          arguments: { title: 'Both', category: 'gold', layout: 1, upload: true, returnFormat: 'png' },
+        },
+        46,
+      ),
+      UPLOAD_ENV,
+    )
+    const body = (await res.json()) as JsonRpcResponse
+    expect(body.error).toBeUndefined()
+    const content = (body.result as { content: { type: string; mimeType?: string; text?: string }[] }).content
+    expect(content[0].type).toBe('image')
+    const meta = JSON.parse(content[1].text!) as { url?: string; id?: string }
+    expect(meta.url).toBe('https://imagedelivery.net/h/both-1/public')
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+  })
+
+  it("upload:true + returnFormat 'svg' is rejected — nothing would be uploaded", async () => {
+    const res = await post(
+      '/mcp',
+      rpc(
+        'tools/call',
+        {
+          name: 'generate_studio_card',
+          arguments: { title: 'X', category: 'gold', upload: true, returnFormat: 'svg' },
+        },
+        47,
+      ),
+      UPLOAD_ENV,
+    )
+    const body = (await res.json()) as JsonRpcResponse
+    const result = body.result as { isError: boolean; content: { text: string }[] }
+    expect(result.isError).toBe(true)
+    expect(result.content[0].text).toContain("cannot be combined")
+  })
+
+  it("returnFormat 'url' fails closed with a clear message when Images is unconfigured", async () => {
+    const res = await post(
+      '/mcp',
+      rpc(
+        'tools/call',
+        {
+          name: 'generate_studio_card',
+          arguments: { title: 'X', category: 'gold', upload: true },
+        },
+        43,
+      ),
+      { ...OPEN_ENV, ASSETS: FONT_ASSETS_STUB },
+    )
+    const body = (await res.json()) as JsonRpcResponse
+    const result = body.result as { isError: boolean; content: { text: string }[] }
+    expect(result.isError).toBe(true)
+    expect(result.content[0].text).toContain('CF_IMAGES_ACCOUNT_ID')
+  })
+
+  it('upload=true rasterizes, uploads to Cloudflare Images, and returns only the URL + metadata', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          success: true,
+          result: {
+            id: 'nhimbe/2026-07/harvest.png',
+            variants: ['https://imagedelivery.net/acct-hash/nhimbe/2026-07/harvest.png/public'],
+          },
+        }),
+        { status: 200 },
+      ),
+    )
+    const res = await post(
+      '/mcp',
+      rpc(
+        'tools/call',
+        {
+          name: 'generate_studio_card',
+          arguments: {
+            title: 'Nhimbe harvest',
+            dek: "Africa's gathering, discovered.",
+            category: 'malachite',
+            layout: 1,
+            upload: true,
+            uploadKey: '/nhimbe/2026-07/harvest.png',
+          },
+        },
+        44,
+      ),
+      UPLOAD_ENV,
+    )
+    const body = (await res.json()) as JsonRpcResponse
+    expect(body.error).toBeUndefined()
+    const content = (body.result as { content: { type: string; text: string }[] }).content
+    expect(content).toHaveLength(1)
+    const payload = JSON.parse(content[0].text) as {
+      url: string
+      id: string
+      width: number
+      height: number
+    }
+    expect(payload.url).toBe('https://imagedelivery.net/acct-hash/nhimbe/2026-07/harvest.png/public')
+    expect(payload.width).toBe(1080)
+    expect(payload.height).toBe(1080)
+    // No SVG body anywhere in the response — that's the whole point.
+    expect(content[0].text).not.toContain('<svg')
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+    const [url, init] = fetchSpy.mock.calls[0] as [string, RequestInit]
+    expect(url).toBe('https://api.cloudflare.com/client/v4/accounts/acct123/images/v1')
+    const form = init.body as FormData
+    // Leading slash stripped by key sanitization.
+    expect(form.get('id')).toBe('nhimbe/2026-07/harvest.png')
+    const file = form.get('file') as Blob
+    expect(file.type).toBe('image/png')
+    expect([...new Uint8Array((await file.arrayBuffer()).slice(0, 8))]).toEqual(PNG_MAGIC)
+  })
+})
+
+describe('upload_asset', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  const TINY_PNG_B64 = Buffer.from([...PNG_MAGIC, 1, 2, 3, 4]).toString('base64')
+
+  it('uploads pre-rasterized PNG bytes and returns the public URL', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          success: true,
+          result: { id: 'gen-id-1', variants: ['https://imagedelivery.net/h/gen-id-1/public'] },
+        }),
+        { status: 200 },
+      ),
+    )
+    const res = await post(
+      '/mcp',
+      rpc('tools/call', { name: 'upload_asset', arguments: { pngBase64: TINY_PNG_B64 } }, 50),
+      UPLOAD_ENV,
+    )
+    const body = (await res.json()) as JsonRpcResponse
+    expect(body.error).toBeUndefined()
+    const result = body.result as { content: { text: string }[]; structuredContent?: Record<string, unknown> }
+    const payload = JSON.parse(result.content[0].text) as { url: string; contentType: string }
+    expect(payload.url).toBe('https://imagedelivery.net/h/gen-id-1/public')
+    expect(payload.contentType).toBe('image/png')
+    // Structured output mirrors the text payload (validated by outputSchema).
+    expect(result.structuredContent).toEqual({
+      url: 'https://imagedelivery.net/h/gen-id-1/public',
+      id: 'gen-id-1',
+      contentType: 'image/png',
+    })
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+  })
+
+  it('rasterizes SVG input to PNG before uploading', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          success: true,
+          result: { id: 'gen-id-2', variants: ['https://imagedelivery.net/h/gen-id-2/public'] },
+        }),
+        { status: 200 },
+      ),
+    )
+    const svg =
+      '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><rect width="40" height="40" fill="#FFD740"/></svg>'
+    const res = await post(
+      '/mcp',
+      rpc('tools/call', { name: 'upload_asset', arguments: { svg } }, 51),
+      UPLOAD_ENV,
+    )
+    const body = (await res.json()) as JsonRpcResponse
+    expect(body.error).toBeUndefined()
+    const [, init] = fetchSpy.mock.calls[0] as [string, RequestInit]
+    const file = (init.body as FormData).get('file') as Blob
+    expect(file.type).toBe('image/png')
+    expect([...new Uint8Array((await file.arrayBuffer()).slice(0, 8))]).toEqual(PNG_MAGIC)
+  })
+
+  it('an empty-string pngBase64 alongside svg dispatches to the svg path (not a decode error)', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          success: true,
+          result: { id: 'empty-png-1', variants: ['https://imagedelivery.net/h/empty-png-1/public'] },
+        }),
+        { status: 200 },
+      ),
+    )
+    const svg =
+      '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"><rect width="20" height="20" fill="#64FFDA"/></svg>'
+    const res = await post(
+      '/mcp',
+      rpc('tools/call', { name: 'upload_asset', arguments: { svg, pngBase64: '' } }, 55),
+      UPLOAD_ENV,
+    )
+    const body = (await res.json()) as JsonRpcResponse
+    expect(body.error).toBeUndefined()
+    const result = body.result as { isError?: boolean; content: { text: string }[] }
+    expect(result.isError).toBeFalsy()
+    const file = (fetchSpy.mock.calls[0][1] as RequestInit).body as FormData
+    expect((file.get('file') as Blob).type).toBe('image/png')
+  })
+
+  it('rejects a payload with both svg and pngBase64', async () => {
+    const res = await post(
+      '/mcp',
+      rpc(
+        'tools/call',
+        { name: 'upload_asset', arguments: { svg: '<svg/>', pngBase64: TINY_PNG_B64 } },
+        52,
+      ),
+      UPLOAD_ENV,
+    )
+    const body = (await res.json()) as JsonRpcResponse
+    const result = body.result as { isError: boolean; content: { text: string }[] }
+    expect(result.isError).toBe(true)
+    expect(result.content[0].text).toContain('exactly one')
+  })
+
+  it('rejects base64 that is not a PNG', async () => {
+    const res = await post(
+      '/mcp',
+      rpc(
+        'tools/call',
+        { name: 'upload_asset', arguments: { pngBase64: Buffer.from('not a png').toString('base64') } },
+        53,
+      ),
+      UPLOAD_ENV,
+    )
+    const body = (await res.json()) as JsonRpcResponse
+    const result = body.result as { isError: boolean; content: { text: string }[] }
+    expect(result.isError).toBe(true)
+    expect(result.content[0].text).toContain('bad signature')
+  })
+
+  it('fails closed with a clear message when Images is unconfigured', async () => {
+    const res = await post(
+      '/mcp',
+      rpc('tools/call', { name: 'upload_asset', arguments: { pngBase64: TINY_PNG_B64 } }, 54),
+      { ...OPEN_ENV, ASSETS: FONT_ASSETS_STUB },
+    )
+    const body = (await res.json()) as JsonRpcResponse
+    const result = body.result as { isError: boolean; content: { text: string }[] }
+    expect(result.isError).toBe(true)
+    expect(result.content[0].text).toContain('not configured')
+  })
+})
+
+describe('report_issue', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('files a GitHub issue on the configured repo and returns its URL', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({ html_url: 'https://github.com/nyuchi/workspace-tools/issues/99', number: 99 }),
+        { status: 201 },
+      ),
+    )
+    const res = await post(
+      '/mcp',
+      rpc(
+        'tools/call',
+        {
+          name: 'report_issue',
+          arguments: {
+            title: 'Dek renders too small',
+            description: 'Called generate_studio_card with layout 1; the dek was unreadable at feed size.',
+            tool_name: 'generate_studio_card',
+            severity: 'high',
+            category: 'bug',
+          },
+        },
+        60,
+      ),
+      UPLOAD_ENV,
+    )
+    const body = (await res.json()) as JsonRpcResponse
+    expect(body.error).toBeUndefined()
+    const result = body.result as { content: { text: string }[]; structuredContent?: Record<string, unknown> }
+    const payload = JSON.parse(result.content[0].text) as { url: string; number: number; repo: string }
+    expect(payload).toEqual({
+      url: 'https://github.com/nyuchi/workspace-tools/issues/99',
+      number: 99,
+      repo: 'nyuchi/workspace-tools',
+    })
+    expect(result.structuredContent).toEqual(payload)
+
+    const [url, init] = fetchSpy.mock.calls[0] as [string, RequestInit]
+    expect(url).toBe('https://api.github.com/repos/nyuchi/workspace-tools/issues')
+    const sent = JSON.parse(init.body as string) as { title: string; body: string; labels: string[] }
+    expect(sent.title).toBe('[generate_studio_card] Dek renders too small')
+    expect(sent.body).toContain('**Severity:** high')
+    expect(sent.labels).toEqual(['mcp-feedback', 'bug', 'severity:high'])
+    expect((init.headers as Record<string, string>).Authorization).toBe('Bearer gh123')
+  })
+
+  it('fails closed with a clear message when no feedback token is configured', async () => {
+    const res = await post(
+      '/mcp',
+      rpc(
+        'tools/call',
+        {
+          name: 'report_issue',
+          arguments: {
+            title: 'Some problem',
+            description: 'Long enough description of the problem.',
+            tool_name: 'upload_asset',
+            category: 'bug',
+          },
+        },
+        61,
+      ),
+    )
+    const body = (await res.json()) as JsonRpcResponse
+    const result = body.result as { isError: boolean; content: { text: string }[] }
+    expect(result.isError).toBe(true)
+    expect(result.content[0].text).toContain('not configured')
+  })
+
+  it('surfaces the GitHub error message on a failed create', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ message: 'Bad credentials' }), { status: 401 }),
+    )
+    const res = await post(
+      '/mcp',
+      rpc(
+        'tools/call',
+        {
+          name: 'report_issue',
+          arguments: {
+            title: 'Some problem',
+            description: 'Long enough description of the problem.',
+            tool_name: 'upload_asset',
+            category: 'documentation',
+          },
+        },
+        62,
+      ),
+      UPLOAD_ENV,
+    )
+    const body = (await res.json()) as JsonRpcResponse
+    const result = body.result as { isError: boolean; content: { text: string }[] }
+    expect(result.isError).toBe(true)
+    expect(result.content[0].text).toContain('Bad credentials')
+  })
+})
+
 describe('OAuth discovery — auth OFF (no AUTHKIT_DOMAIN)', () => {
   it('protected-resource metadata is a JSON 404 (open server)', async () => {
     const res = await get('/.well-known/oauth-protected-resource')
@@ -652,7 +1185,9 @@ describe('GET /.well-known/mcp/server-card.json', () => {
       serverInfo: { name: 'nyuchi-tools', version: '0.1.0' },
       name: 'nyuchi-tools',
       description:
-        'MCP server for Nyuchi Africa tools: email signatures, Nyuchi Studio social cards, and article banners.',
+        'MCP server for Nyuchi Africa tools: email signatures, Nyuchi Studio social cards ' +
+        '(SVG, PNG, or hosted Cloudflare Images URL), asset uploads, and issue reporting. ' +
+        'The legacy article-banner tool is deprecated in favor of the Studio.',
       websiteUrl: 'https://tools.nyuchi.com',
       remotes: [{ transportType: 'streamable-http', url: 'https://tools.nyuchi.dev/mcp' }],
       capabilities: { tools: { listChanged: true } },

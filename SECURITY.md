@@ -52,6 +52,25 @@ Admin features require domain-wide delegation. This grants the script the abilit
 3. **Monitor Activity**: Check Apps Script execution logs regularly
 4. **Update Regularly**: Keep the add-on updated with latest security patches
 
+## The `nyuchi-tools` Worker & MCP server
+
+The web/MCP surface (`tools.nyuchi.com` / `tools.nyuchi.dev`, source in `mcp/src/`) has its own security model, separate from the Apps Script projects above:
+
+### Authentication
+
+- **Site pages** sit behind a site-wide login gate: Authorization Code + PKCE against WorkOS AuthKit (`identity.nyuchi.com`), session held in an HMAC-signed cookie. The gate **fails closed** — a missing `SESSION_SECRET` means "no valid session", never "run open".
+- **`/mcp`** requires WorkOS-issued bearer JWTs (OAuth 2.1, dynamic client registration) whenever `AUTHKIT_DOMAIN` is set. Audience is pinned to the registered resource (`MCP_RESOURCE`).
+
+### Secrets
+
+Provisioned only via `wrangler secret put`, never committed: `SESSION_SECRET` (login gate), `CF_IMAGES_TOKEN`/`CF_IMAGE_TOKEN` (Cloudflare Images upload), `GITHUB_FEEDBACK_TOKEN` (issue filing). Every dependent feature fails closed with a clear error when its secret is absent.
+
+### Input handling
+
+- All signature/card text is escaped before entering HTML/SVG (`escapeHtml`/`esc`); color params are validated against a hex allowlist before being interpolated into SVG attributes.
+- Upload guardrails: image content types only, PNG signature check on caller-supplied bytes, 10 MB cap, upload keys sanitized (`[A-Za-z0-9/_.-]`, no `..`, no leading `/`).
+- `report_issue` targets a **server-side configured** repo only — callers cannot direct issues elsewhere.
+
 ## Reporting a Vulnerability
 
 If you discover a security vulnerability, please report it responsibly:

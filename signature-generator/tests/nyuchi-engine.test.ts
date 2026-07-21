@@ -92,12 +92,28 @@ describe('buildSVG — all 7 categories render with their palette', () => {
     })
   }
 
-  it('the mineral layout (5) prints both swatch hexes', () => {
+  it('the mineral layout (5) prints both swatch hexes on true mineral cards', () => {
     for (const key of CATEGORY_KEYS) {
-      const { svg } = buildSVG(baseParams({ category: key, layout: 5 }))
+      // Title IS the mineral name → this is a "meet this mineral" card.
+      const { svg } = buildSVG(baseParams({ category: key, layout: 5, title: CATEGORIES[key].name }))
       expect(svg).toContain(`DARK ${CATEGORIES[key].dark}`)
       expect(svg).toContain(`LIGHT ${CATEGORIES[key].light}`)
     }
+  })
+
+  it('layout 5 hides the hex labels on generic cards, with showHexes as override', () => {
+    // Generic title → spec labels hidden.
+    const generic = buildSVG(baseParams({ layout: 5, category: 'gold', title: 'The Hive Economy' })).svg
+    expect(generic).not.toContain('DARK #')
+    expect(generic).not.toContain('LIGHT #')
+    // No title at all → mineral card → shown.
+    const untitled = buildSVG(baseParams({ layout: 5, category: 'gold', title: '' })).svg
+    expect(untitled).toContain('DARK #FFD740')
+    // Explicit override wins in both directions.
+    const forced = buildSVG(baseParams({ layout: 5, category: 'gold', title: 'The Hive Economy', showHexes: true })).svg
+    expect(forced).toContain('DARK #FFD740')
+    const suppressed = buildSVG(baseParams({ layout: 5, category: 'gold', title: 'Gold', showHexes: false })).svg
+    expect(suppressed).not.toContain('DARK #')
   })
 })
 
@@ -149,6 +165,168 @@ describe('buildSVG — lockup brands', () => {
     for (const [brand, label] of LOCKUPS) {
       const { svg } = buildSVG(baseParams({ brand, lockup: true, layout: 5 }))
       expect(svg).toContain(`>${label}</text>`)
+    }
+  })
+})
+
+describe('buildSVG — dek typography (2026-07 Studio fixes)', () => {
+  /** Pull every dek <text> node (italic Noto Serif) with its size + fill. */
+  const dekNodes = (svg: string): { size: number; fill: string }[] =>
+    [...svg.matchAll(/font-style="italic" font-size="(\d+)" fill="([^"]+)"/g)].map((m) => ({
+      size: Number(m[1]),
+      fill: m[2],
+    }))
+  const titleSize = (svg: string): number =>
+    Number(svg.match(/font-weight="700" font-size="(\d+)"/)![1])
+
+  it('dek defaults to the surface foreground, not the muted grey (layouts 1-4)', () => {
+    for (const layout of [1, 2, 3, 4]) {
+      const dark = buildSVG(baseParams({ layout, theme: 'dark', format: 'ig' })).svg
+      for (const d of dekNodes(dark)) expect(d.fill).toBe('#FAF9F5')
+      const light = buildSVG(baseParams({ layout, theme: 'light', format: 'ig' })).svg
+      for (const d of dekNodes(light)) expect(d.fill).toBe('#141413')
+    }
+  })
+
+  // Long enough to wrap (or measure-cap the hook) in every layout's column,
+  // short enough that title + dek always clear the safe bottom.
+  const WRAPPING_TITLE = 'Connected communities compound'
+
+  it('dek renders near the title size (title ≈ 1.05-1.25× dek) for a wrapping title', () => {
+    for (const format of FORMAT_KEYS) {
+      for (const layout of [1, 2, 3, 4]) {
+        // Short words only: a long word like "discovered." legitimately
+        // shrinks the dek in the story-anchor's narrow column (unbreakable
+        // words now shrink instead of overflowing), which is not what this
+        // ratio check is about.
+        const { svg } = buildSVG(
+          baseParams({ layout, format, title: WRAPPING_TITLE, dek: 'Now for all of us.' }),
+        )
+        const dek = dekNodes(svg)
+        expect(dek.length).toBeGreaterThan(0)
+        const ratio = titleSize(svg) / dek[0].size
+        expect(ratio).toBeGreaterThanOrEqual(1.0)
+        expect(ratio).toBeLessThanOrEqual(1.25)
+      }
+    }
+  })
+
+  it('hook mode: a one-word ig title grows toward poster size, dek stays put', () => {
+    const { svg } = buildSVG(
+      baseParams({ layout: 1, format: 'ig', title: 'Nhimbe', dek: 'Gathering, discovered.' }),
+    )
+    const t = titleSize(svg)
+    expect(t).toBeGreaterThanOrEqual(150)
+    expect(t).toBeLessThanOrEqual(189) // capped at 0.175h on the 1080 canvas
+    // The dek is sized from the non-hooked title (70px → 62px), not the poster size.
+    expect(dekNodes(svg)[0].size).toBe(62)
+  })
+
+  it('hook mode leaves wrapping titles at the validated default (ig layout 1 start 70)', () => {
+    const { svg } = buildSVG(
+      baseParams({ layout: 1, format: 'ig', title: WRAPPING_TITLE, dek: 'Gathering, discovered.' }),
+    )
+    expect(titleSize(svg)).toBeLessThanOrEqual(70)
+  })
+
+  it('honors dekFontSize and dekColor overrides', () => {
+    const { svg } = buildSVG(
+      baseParams({ layout: 1, format: 'ig', dek: 'Short dek.', dekFontSize: 44, dekColor: '#FFD740' }),
+    )
+    const dek = dekNodes(svg)
+    expect(dek[0].size).toBe(44)
+    expect(dek[0].fill).toBe('#FFD740')
+  })
+
+  it('ignores an invalid dekColor (attribute-injection guard)', () => {
+    const { svg } = buildSVG(
+      baseParams({ layout: 1, theme: 'dark', dek: 'Short dek.', dekColor: '"><script>x</script>' }),
+    )
+    expect(svg).not.toContain('<script>')
+    expect(dekNodes(svg)[0].fill).toBe('#FAF9F5')
+  })
+
+  it('rejects 5- and 7-digit hex dekColors (invalid CSS renders as black)', () => {
+    for (const bad of ['#12345', '#1234567']) {
+      const { svg } = buildSVG(baseParams({ layout: 1, theme: 'dark', dek: 'Short dek.', dekColor: bad }))
+      expect(dekNodes(svg)[0].fill).toBe('#FAF9F5')
+    }
+    // 4- and 8-digit (alpha) forms are valid CSS and pass through.
+    const ok = buildSVG(baseParams({ layout: 1, theme: 'dark', dek: 'Short dek.', dekColor: '#FFD740CC' }))
+    expect(dekNodes(ok.svg)[0].fill).toBe('#FFD740CC')
+  })
+
+  it('halo layouts render the complete dek (budgeted, never clipped mid-sentence)', () => {
+    for (const format of FORMAT_KEYS) {
+      const { svg } = buildSVG(
+        baseParams({
+          layout: 4,
+          format,
+          title: 'Connected communities compound',
+          dek: 'How connected communities compound value across the continent.',
+        }),
+      )
+      // The dek's final word must appear — the old code dropped trailing
+      // lines under an opaque scrim sized as if they had rendered.
+      expect(svg).toContain('continent.')
+    }
+  })
+
+  it('fitText shrinks a single unbreakable word instead of overflowing the frame', () => {
+    const long = 'Uncompromisinglyinteroperable'
+    const { svg } = buildSVG(baseParams({ layout: 1, format: 'ig', title: long, dek: '' }))
+    const size = titleSize(svg)
+    // At the 70px start this word measures wider than the column; it must shrink.
+    expect(size).toBeLessThan(70)
+  })
+
+  it('accent + layout 5 outlines the swatch so it keeps its silhouette', () => {
+    const accent = buildSVG(baseParams({ layout: 5, theme: 'accent', category: 'malachite', title: 'Malachite' })).svg
+    expect(accent).toContain('stroke="rgba(15,14,12,.4)"')
+    const dark = buildSVG(baseParams({ layout: 5, theme: 'dark', category: 'malachite', title: 'Malachite' })).svg
+    expect(dark).not.toContain('stroke="rgba(15,14,12,.4)"')
+  })
+
+  it('accent theme: full-bleed mineral background with ink text', () => {
+    for (const layout of [1, 2, 4]) {
+      const { svg } = buildSVG(baseParams({ layout, format: 'ig', theme: 'accent', category: 'malachite' }))
+      expect(svg).toContain(`<rect width="1080" height="1080" fill="#64FFDA"/>`)
+      // Title + dek in ink on the mineral surface.
+      expect(svg).toContain('fill="#0F0E0C">The Hive Economy</text>')
+      for (const d of dekNodes(svg)) expect(d.fill).toBe('#0F0E0C')
+      // No dark-theme glow on the accent surface.
+      expect(svg).not.toContain('radialGradient')
+    }
+  })
+
+  it('dark theme layouts 1/2/4 draw the mineral glow; light theme and layout 3 do not', () => {
+    for (const layout of [1, 2, 4]) {
+      expect(buildSVG(baseParams({ layout, format: 'ig', theme: 'dark' })).svg).toContain('radialGradient')
+      expect(buildSVG(baseParams({ layout, format: 'ig', theme: 'light' })).svg).not.toContain('radialGradient')
+    }
+    expect(buildSVG(baseParams({ layout: 3, format: 'ig', theme: 'dark' })).svg).not.toContain('radialGradient')
+  })
+
+  it('the eyebrow renders as a filled chip with contrast-checked text', () => {
+    // Dark theme, cobalt: vivid #00B0FF chip must carry INK text (white
+    // would be 2.4:1) — the exact case the relative-luminance check fixes.
+    const dark = buildSVG(baseParams({ layout: 1, format: 'ig', theme: 'dark', category: 'cobalt' })).svg
+    expect(dark).toContain('rx="') // pill chip present
+    expect(dark).toMatch(/<rect [^>]*fill="#00B0FF"\/><text [^>]*fill="#0F0E0C">COBALT · KNOWLEDGE<\/text>/)
+    // Dark theme, sodalite #3D5AFE is a dark blue — chip text flips to white.
+    const sodalite = buildSVG(baseParams({ layout: 1, format: 'ig', theme: 'dark', category: 'sodalite', eyebrow: 'DEEP BLUE' })).svg
+    expect(sodalite).toMatch(/<rect [^>]*fill="#3D5AFE"\/><text [^>]*fill="#FFFFFF">DEEP BLUE<\/text>/)
+    // Accent theme: ink chip with mineral text.
+    const accent = buildSVG(baseParams({ layout: 1, format: 'ig', theme: 'accent', category: 'gold', eyebrow: 'CAMPAIGN' })).svg
+    expect(accent).toMatch(/<rect [^>]*fill="#0F0E0C"\/><text [^>]*fill="#FFD740">CAMPAIGN<\/text>/)
+  })
+
+  it('layout 4 (halo) draws a fully opaque text scrim — no graph bleed-through', () => {
+    for (const format of FORMAT_KEYS) {
+      const { svg } = buildSVG(baseParams({ layout: 4, format }))
+      const scrim = svg.match(/<rect [^>]*fill="#[^"]+"[^>]*\/>/g)!.find((r) => !r.includes('width="16') && !r.includes('opacity'))
+      expect(scrim).toBeTruthy()
+      expect(svg).not.toContain('opacity=".82"')
     }
   })
 })
