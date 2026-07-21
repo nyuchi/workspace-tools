@@ -21,4 +21,4 @@ Assertions catch numbers; only renders catch collisions, contrast problems, and 
 4. Delete the temporary test file before committing.
 5. If a defect is visible, fix the engine (never post-process output) and re-render before shipping.
 
-The Studio is the only image generator that evolves — `engines/banner` is deprecated/frozen; do not extend this QA to it.
+The Studio is the only image generator — the legacy Banner tool was removed entirely (its `/banner` route now redirects to `/studio`).

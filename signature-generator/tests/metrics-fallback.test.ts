@@ -14,7 +14,6 @@
 import { beforeAll, describe, expect, it } from 'vitest'
 
 type NyuchiEngine = typeof import('../src/engines/nyuchi')
-type BannerEngine = typeof import('../src/engines/banner')
 
 interface FontContextStub {
   font: string
@@ -59,30 +58,14 @@ const NYUCHI_WRAP_PARAMS = {
   lattice: true,
 } as const
 
-const BANNER_WRAP_PARAMS = {
-  format: '16x9',
-  layout: 1,
-  theme: 'light',
-  category: 'cobalt',
-  title: LONG_TITLE,
-  dek: DEK,
-  seedKey: 'wrap-test',
-  lockup: true,
-  lattice: true,
-} as const
-
 let nyuchi: NyuchiEngine
-let banner: BannerEngine
 let canvasNyuchiSvg = ''
-let canvasBannerSvg = ''
 
 beforeAll(async () => {
   installSizeAwareCanvasStub()
   nyuchi = await import('../src/engines/nyuchi')
-  banner = await import('../src/engines/banner')
   /* Render once through the canvas path (document present)… */
   canvasNyuchiSvg = nyuchi.buildSVG(NYUCHI_WRAP_PARAMS).svg
-  canvasBannerSvg = banner.buildSVG(BANNER_WRAP_PARAMS).svg
   /* …then drop the DOM so every render below uses the metrics fallback. */
   deleteDocument()
 })
@@ -97,15 +80,6 @@ describe('metrics fallback vs canvas path — wrap similarity', () => {
     /* Similar, not identical — the flat-width stub and real per-character
        advances should not agree byte-for-byte. */
     expect(metricsSvg).not.toBe(canvasNyuchiSvg)
-  })
-
-  it('banner: long-title line counts are within ±1 of the canvas path', () => {
-    const metricsSvg = banner.buildSVG(BANNER_WRAP_PARAMS).svg
-    const canvasLines = titleLineCount(canvasBannerSvg)
-    const metricsLines = titleLineCount(metricsSvg)
-    expect(canvasLines).toBeGreaterThan(1)
-    expect(Math.abs(metricsLines - canvasLines)).toBeLessThanOrEqual(1)
-    expect(metricsSvg).not.toBe(canvasBannerSvg)
   })
 })
 
@@ -132,23 +106,6 @@ describe('buildSVG without a document (Workers environment)', () => {
     })
   }
 
-  const bannerCases = [
-    { ...BANNER_WRAP_PARAMS, layout: 1, format: '16x9', theme: 'dark' },
-    { ...BANNER_WRAP_PARAMS, layout: 4, format: 'ig', category: 'terracotta' },
-  ] as const
-
-  for (const params of bannerCases) {
-    it(`banner layout ${params.layout} / ${params.format} renders valid, deterministic SVG`, () => {
-      const a = banner.buildSVG(params)
-      const b = banner.buildSVG(params)
-      expect(a.svg.startsWith('<svg')).toBe(true)
-      expect(a.svg.endsWith('</svg>')).toBe(true)
-      expect(a.svg).toContain(`viewBox="0 0 ${a.format.w} ${a.format.h}"`)
-      expect((a.svg.match(/<circle /g) ?? []).length).toBeGreaterThan(5)
-      expect(b.svg).toBe(a.svg)
-      expect(b.seed).toBe(a.seed)
-    })
-  }
 
   it('escapes markup in the title on the metrics path too', () => {
     const { svg } = nyuchi.buildSVG({ ...NYUCHI_WRAP_PARAMS, title: 'Attack <script>alert(1)</script>' })

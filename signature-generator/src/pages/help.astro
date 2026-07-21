@@ -1,8 +1,8 @@
 ---
 /**
  * Help — how to use every tool on tools.nyuchi.com. Ported from the old
- * React Help.tsx; section ids (#signature, #studio, #banner, #workspace,
- * #mcp) are load-bearing — the home page and the tool pages deep-link them.
+ * React Help.tsx; section ids (#signature, #studio, #workspace, #mcp) are
+ * load-bearing — the home page and the tool pages deep-link them.
  */
 import Base from '../layouts/Base.astro'
 import Container from '@bundu/ui/Container.astro'
@@ -19,7 +19,6 @@ const crumbs = deriveBreadcrumbs(
 const TOC = [
   { href: '#signature', label: 'Email Signature' },
   { href: '#studio', label: 'Nyuchi Studio' },
-  { href: '#banner', label: 'Article Banner' },
   { href: '#workspace', label: 'Google Workspace' },
   { href: '#mcp', label: 'MCP Server' },
 ]
@@ -52,7 +51,7 @@ const defRow =
 
 <Base
   title="Help — Nyuchi workspace tools"
-  description="How to use every tool on tools.nyuchi.com — signatures, social cards, banners, the Google Workspace add-ons, and the MCP server for AI agents."
+  description="How to use every tool on tools.nyuchi.com — signatures, Nyuchi Studio social cards, the Google Workspace add-ons, and the MCP server for AI agents."
 >
   <Container size="prose" as="div" class="py-12">
     <Breadcrumb items={crumbs} origin={Astro.site?.toString()} class="mb-8" />
@@ -61,8 +60,8 @@ const defRow =
       <p class={caption}>Documentation</p>
       <h1 class="font-serif text-h3 font-bold text-foreground mt-1 mb-2">Help</h1>
       <p class="text-body text-muted-foreground">
-        How to use every tool on tools.nyuchi.com — signatures, social cards, banners, the Google
-        Workspace add-ons, and the MCP server for AI agents.
+        How to use every tool on tools.nyuchi.com — signatures, Nyuchi Studio social cards, the
+        Google Workspace add-ons, and the MCP server for AI agents.
       </p>
     </div>
 
@@ -225,46 +224,9 @@ const defRow =
         </div>
       </section>
 
-      {/* ── 03 · Article Banner Generator ── */}
-      <section id="banner" class={sectionCard}>
-        <p class={caption}>03 · Article Banner Generator</p>
-        <h2 class={heading}>Seeded banner art for articles and link shares</h2>
-        <div class="mt-4">
-          <p class={body}>
-            The <a href="/banner" class={link}>Banner generator</a> is Nyuchi Studio's sibling for
-            article headers: give it a title and an optional dek, pick a palette and a format, and
-            it composes seeded banner art around your words.
-          </p>
-
-          <h3 class={subHead}>Aspect ratios</h3>
-          <ul class={`${list} list-disc`}>
-            <li><strong>16:9 header</strong> — 1600 × 900, blog and article headers.</li>
-            <li><strong>OG / share</strong> — 1200 × 630, link-preview cards.</li>
-            <li><strong>LinkedIn</strong> — 1200 × 627, LinkedIn link posts.</li>
-            <li><strong>Instagram</strong> — 1080 × 1080, square social posts.</li>
-          </ul>
-
-          <h3 class={subHead}>Categories and layouts</h3>
-          <p class={muted}>
-            Categories are the same seven minerals as the Studio — use them to color-code content
-            (e.g. cobalt for learning pieces, malachite for growth updates). Four layouts are
-            available: <strong>type-forward</strong>, <strong>anchor</strong>,{' '}
-            <strong>split block</strong>, and <strong>centered halo</strong>; square formats use
-            dedicated 1:1 variants of each.
-          </p>
-
-          <h3 class={subHead}>Export</h3>
-          <p class={muted}>
-            Same as the Studio: shuffle for a new seeded variation, then download{' '}
-            <strong>SVG</strong> (vector) or <strong>PNG</strong> (2× raster). Light and dark
-            surfaces are supported, with &ldquo;auto&rdquo; following the site theme.
-          </p>
-        </div>
-      </section>
-
-      {/* ── 04 · Google Workspace ── */}
+      {/* ── 03 · Google Workspace ── */}
       <section id="workspace" class={sectionCard}>
-        <p class={caption}>04 · Google Workspace</p>
+        <p class={caption}>03 · Google Workspace</p>
         <h2 class={heading}>Gmail Add-on and admin batch script</h2>
         <div class="mt-4">
           <p class={body}>
@@ -287,9 +249,9 @@ const defRow =
         </div>
       </section>
 
-      {/* ── 05 · MCP Server ── */}
+      {/* ── 04 · MCP Server ── */}
       <section id="mcp" class={sectionCard}>
-        <p class={caption}>05 · MCP Server</p>
+        <p class={caption}>04 · MCP Server</p>
         <h2 class={heading}>Use these tools from AI agents</h2>
         <div class="mt-4">
           <p class={body}>
@@ -330,15 +292,23 @@ const defRow =
             <div class={defRow}>
               <div class="font-semibold text-foreground"><code class={inlineCode}>generate_studio_card</code></div>
               <div class="text-muted-foreground">
-                Live. Returns SVG from the same Studio engine as the /studio page, plus JSON
-                metadata (size and seed). PNG output is a follow-up.
+                Live. Same Studio engine as the /studio page. Returns SVG source, an inline PNG
+                (rasterized server-side), or a hosted public image URL — ready for scheduling
+                straight to social.
               </div>
             </div>
             <div class={defRow}>
-              <div class="font-semibold text-foreground"><code class={inlineCode}>generate_article_banner</code></div>
+              <div class="font-semibold text-foreground"><code class={inlineCode}>upload_asset</code></div>
               <div class="text-muted-foreground">
-                Live. Returns SVG from the same banner engine as the /banner page, plus JSON
-                metadata (size and seed). PNG output is a follow-up.
+                Live. Uploads an SVG (rasterized server-side) or PNG and returns a stable public
+                URL.
+              </div>
+            </div>
+            <div class={defRow}>
+              <div class="font-semibold text-foreground"><code class={inlineCode}>report_issue</code></div>
+              <div class="text-muted-foreground">
+                Live. Files a GitHub issue on the Nyuchi Tools repo — bugs, missing capabilities,
+                confusing output.
               </div>
             </div>
           </div>

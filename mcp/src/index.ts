@@ -78,10 +78,6 @@ import {
   HEX_COLOR_RE,
   type Params as StudioParams,
 } from "../../signature-generator/src/engines/nyuchi";
-import {
-  buildSVG as buildArticleBanner,
-  type Params as BannerParams,
-} from "../../signature-generator/src/engines/banner";
 import { ensureBrandIconsLoaded } from "./brand-icons.js";
 import { rasterizeSvg, warmRaster } from "./raster.js";
 import {
@@ -640,106 +636,6 @@ function buildServer(env: Env): McpServer {
     },
   );
 
-  // --- generate_article_banner --------------------------------------------
-  // The real banner engine — the same pure module the SPA's /banner page
-  // renders with. Note the banner engine has no 'story' format and only
-  // layouts 1–4.
-  server.registerTool(
-    "generate_article_banner",
-    {
-      title: "Generate article banner (deprecated)",
-      description:
-        "DEPRECATED — use generate_studio_card instead: the Studio fully replaces this legacy " +
-        "banner generator (it covers every banner use case, adds the mineral layout, the 'story' " +
-        "format, PNG/upload output, and receives all visual fixes; this tool gets none of them). " +
-        "Kept only for existing callers pending removal. " +
-        "Generate an article banner as an SVG string (same engine as the /banner page). " +
-        "`format` (canvas shape) and `layout` (composition) are independent axes — every combination " +
-        "is valid, so pick each on its own merits rather than treating them as one choice. Default is " +
-        "format 'ig' (square) + layout 1 (type-forward); reach for '16x9' when the banner needs a wide " +
-        "article-header shape, or 'og'/'li' for a link-preview unfurl. This tool returns SVG only — " +
-        "PNG and upload output exist on generate_studio_card, not here. " +
-        "The second content item is JSON metadata: {format:{w,h}, seed}. Note: unlike " +
-        "generate_studio_card, this engine has no 'story' format and only layouts 1-4 (no mineral swatch).",
-      annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
-      inputSchema: {
-        title: z.string().describe("Banner title."),
-        dek: z.string().optional().describe("Supporting line under the title."),
-        category: z.enum(MINERALS).describe("Mineral palette."),
-        format: z
-          .enum(["16x9", "og", "li", "ig"])
-          .optional()
-          .default("ig")
-          .describe(
-            "Canvas aspect ratio / target platform — independent of layout. " +
-              "'ig' Square 1080x1080 (default; Instagram feed or any square social slot). " +
-              "'16x9' 1600x900 (wide article hero/header image). " +
-              "'og' 1200x630 (Open Graph link-preview unfurl for Slack/X/iMessage). " +
-              "'li' 1200x627 (LinkedIn share image, near-identical to og).",
-          ),
-        layout: z
-          .number()
-          .int()
-          .min(1)
-          .max(4)
-          .optional()
-          .default(1)
-          .describe(
-            "Composition — independent of format, applies at any aspect ratio. " +
-              "1 type-forward (default): the headline dominates the frame, node graph subtle in the " +
-              "background — best for a punchy title with little else. " +
-              "2 anchor: text in a left column, a large node-graph mark anchored on the right half. " +
-              "3 split: a solid mineral-colour panel (with the node graph) split against the headline on " +
-              "a dark panel — the boldest, most color-blocked option. " +
-              "4 halo: everything centered, with the node graph arcing around the text like a halo.",
-          ),
-        theme: z.enum(["light", "dark"]).optional().default("dark").describe("Surface theme."),
-        brand: z
-          .enum(TOP_BRAND_KEYS)
-          .optional()
-          .default("nyuchi")
-          .describe(`Lockup brand. ${BRAND_TAXONOMY}`),
-        seedKey: z
-          .string()
-          .optional()
-          .describe("Seed for the generative graph; defaults to title·category·layout like the SPA."),
-      },
-    },
-    async (args: {
-      title: string;
-      dek?: string;
-      category: BannerParams["category"];
-      format?: BannerParams["format"];
-      layout?: number;
-      theme?: BannerParams["theme"];
-      brand?: BannerParams["brand"];
-      seedKey?: string;
-    }) => {
-      await ensureBrandIconsLoaded(env.ASSETS);
-      const layout = args.layout ?? 1;
-      const params: BannerParams = {
-        format: args.format ?? "ig",
-        layout,
-        theme: args.theme ?? "dark",
-        category: args.category,
-        title: args.title,
-        dek: args.dek,
-        // SPA defaults (BannerPage INITIAL state).
-        lattice: true,
-        lockup: true,
-        brand: args.brand ?? "nyuchi",
-        // Same derivation as the SPA (seedSalt 0).
-        seedKey: args.seedKey ?? `${args.title}·${args.category}·${layout}·0`,
-      };
-      const { svg, format, seed } = buildArticleBanner(params);
-      return {
-        content: [
-          { type: "text", text: svg },
-          { type: "text", text: JSON.stringify({ format: { w: format.w, h: format.h }, seed }) },
-        ],
-      };
-    },
-  );
 
   return server;
 }

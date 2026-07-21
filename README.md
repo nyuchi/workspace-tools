@@ -19,7 +19,6 @@ can use the same tools.
 |------|-----|--------------|
 | Email Signature Generator | [/signature-generator](https://tools.nyuchi.com/signature-generator) | Fill in a form, pick a brand, copy a styled HTML signature into Gmail. |
 | Nyuchi Studio | [/studio](https://tools.nyuchi.com/studio) | Generative social cards in the Bundu mineral design language — 7 palettes, 5 formats, 5 layouts, seeded SVG/PNG export. |
-| Article Banner Generator | [/banner](https://tools.nyuchi.com/banner) | Seeded banner art for articles and link shares — 16:9, OG, LinkedIn, and square formats. |
 | Gmail Add-on docs | [/gmail-addon](https://tools.nyuchi.com/gmail-addon) | Overview of the Gmail sidebar add-on and its admin web dashboard. |
 | Setup guide | [/setup](https://tools.nyuchi.com/setup) | Step-by-step clasp / Apps Script / domain-wide-delegation setup. |
 | Help | [/help](https://tools.nyuchi.com/help) | Per-tool usage guides, including how to connect the MCP server. |
@@ -32,7 +31,7 @@ keep their own copy of the brand list, because Apps Script cannot import npm mod
 
 | Directory | Stack | Purpose | Deploys to |
 |-----------|-------|---------|------------|
-| `signature-generator/` | Astro + React 19 islands + TypeScript + [@bundu/ui](https://www.npmjs.com/package/@bundu/ui) | The web app: signature builder, Nyuchi Studio, banner generator, docs pages | Bundled into the `nyuchi-tools` Worker as static assets |
+| `signature-generator/` | Astro + React 19 islands + TypeScript + [@bundu/ui](https://www.npmjs.com/package/@bundu/ui) | The web app: signature builder, Nyuchi Studio, docs pages | Bundled into the `nyuchi-tools` Worker as static assets |
 | `mcp/src/` | Cloudflare Workers + Hono + `@modelcontextprotocol/sdk` | The `nyuchi-tools` Worker: serves the built static site **and** the MCP HTTP server | `tools.nyuchi.com` (site) + `tools.nyuchi.dev` (MCP) — same Worker, two Custom Domains (config: root `wrangler.toml`) |
 | `gmail-addon/` | Google Apps Script (V8) | Gmail Add-on (User + Admin tabs) and the admin web dashboard | Apps Script via clasp — see [gmail-addon/README.md](gmail-addon/README.md) |
 | `email-signature/` | Google Apps Script (V8) | Admin batch script: push signatures to all domain users and their aliases | Apps Script via clasp — see [email-signature/README.md](email-signature/README.md) |
@@ -136,7 +135,6 @@ claude mcp add --transport http nyuchi-tools https://tools.nyuchi.dev/mcp
 | `generate_studio_card` | Live — same Studio engine as the `/studio` page. `returnFormat` picks the response: SVG source (default), inline PNG (rasterized server-side), or a public Cloudflare Images URL (`upload: true`) for scheduling straight to social |
 | `upload_asset` | Live — SVG (rasterized server-side) or base64 PNG in, stable public Cloudflare Images URL out |
 | `report_issue` | Live — files a GitHub issue on this repo (tool name, severity, category) so problems become tracked issues in the moment |
-| `generate_article_banner` | **Deprecated** — use `generate_studio_card` instead; kept only for existing callers pending removal |
 
 The endpoint requires a bearer token issued by WorkOS Connect (OAuth 2.1 +
 PKCE, dynamic client registration) — clients are prompted to sign in when
