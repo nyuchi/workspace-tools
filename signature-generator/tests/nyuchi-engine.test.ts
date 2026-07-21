@@ -153,6 +153,75 @@ describe('buildSVG — lockup brands', () => {
   })
 })
 
+describe('buildSVG — dek typography (2026-07 Studio fixes)', () => {
+  /** Pull every dek <text> node (italic Noto Serif) with its size + fill. */
+  const dekNodes = (svg: string): { size: number; fill: string }[] =>
+    [...svg.matchAll(/font-style="italic" font-size="(\d+)" fill="([^"]+)"/g)].map((m) => ({
+      size: Number(m[1]),
+      fill: m[2],
+    }))
+  const titleSize = (svg: string): number =>
+    Number(svg.match(/font-weight="700" font-size="(\d+)"/)![1])
+
+  it('dek defaults to the surface foreground, not the muted grey (layouts 1-4)', () => {
+    for (const layout of [1, 2, 3, 4]) {
+      const dark = buildSVG(baseParams({ layout, theme: 'dark', format: 'ig' })).svg
+      for (const d of dekNodes(dark)) expect(d.fill).toBe('#FAF9F5')
+      const light = buildSVG(baseParams({ layout, theme: 'light', format: 'ig' })).svg
+      for (const d of dekNodes(light)) expect(d.fill).toBe('#141413')
+    }
+  })
+
+  it('dek renders near the title size (title ≈ 1.05-1.15× dek) for a short dek', () => {
+    for (const format of FORMAT_KEYS) {
+      for (const layout of [1, 2, 3, 4]) {
+        const { svg } = buildSVG(
+          baseParams({ layout, format, title: 'Nhimbe', dek: 'Gathering, discovered.' }),
+        )
+        const dek = dekNodes(svg)
+        expect(dek.length).toBeGreaterThan(0)
+        const ratio = titleSize(svg) / dek[0].size
+        expect(ratio).toBeGreaterThanOrEqual(1.0)
+        expect(ratio).toBeLessThanOrEqual(1.25)
+      }
+    }
+  })
+
+  it('ig layout 1 lands on the validated reference sizes (title 70, dek ~60)', () => {
+    const { svg } = buildSVG(
+      baseParams({ layout: 1, format: 'ig', title: 'Nhimbe', dek: 'Gathering, discovered.' }),
+    )
+    expect(titleSize(svg)).toBe(70)
+    expect(dekNodes(svg)[0].size).toBe(62)
+  })
+
+  it('honors dekFontSize and dekColor overrides', () => {
+    const { svg } = buildSVG(
+      baseParams({ layout: 1, format: 'ig', dek: 'Short dek.', dekFontSize: 44, dekColor: '#FFD740' }),
+    )
+    const dek = dekNodes(svg)
+    expect(dek[0].size).toBe(44)
+    expect(dek[0].fill).toBe('#FFD740')
+  })
+
+  it('ignores an invalid dekColor (attribute-injection guard)', () => {
+    const { svg } = buildSVG(
+      baseParams({ layout: 1, theme: 'dark', dek: 'Short dek.', dekColor: '"><script>x</script>' }),
+    )
+    expect(svg).not.toContain('<script>')
+    expect(dekNodes(svg)[0].fill).toBe('#FAF9F5')
+  })
+
+  it('layout 4 (halo) draws a fully opaque text scrim — no graph bleed-through', () => {
+    for (const format of FORMAT_KEYS) {
+      const { svg } = buildSVG(baseParams({ layout: 4, format }))
+      const scrim = svg.match(/<rect [^>]*fill="#[^"]+"[^>]*\/>/g)!.find((r) => !r.includes('width="16') && !r.includes('opacity'))
+      expect(scrim).toBeTruthy()
+      expect(svg).not.toContain('opacity=".82"')
+    }
+  })
+})
+
 describe('buildSVG — determinism', () => {
   it('two calls with identical params are byte-identical for every layout', () => {
     for (const layout of LAYOUTS) {

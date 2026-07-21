@@ -1,6 +1,13 @@
 /* Nyuchi social-card engine — TypeScript port of nyuchi-engine.js.
    Pure functional: same seeded RNG, graph algorithm, and layouts as the
-   original vanilla IIFE. Do not "improve" — keep pixel output identical. */
+   original vanilla IIFE.
+
+   Typography intentionally diverges from the original port (2026-07 Studio
+   fixes): titles in layouts 1-4 are ~35% smaller, the dek renders at ~0.88×
+   the fitted title size in the title's foreground color (not a muted
+   caption), and layout 4's text scrim is fully opaque so the halo graph
+   never bleeds through the headline. Keep everything else (RNG, graph,
+   geometry) byte-stable. */
 
 import { measureWithMetrics } from '../metrics'
 import { TOP_BRANDS, type TopBrandKey } from '../brands'
@@ -96,6 +103,12 @@ export interface Params {
   lockup?: boolean
   brand?: Brand
   seedKey?: string
+  /** Preferred dek font-size in px; still shrinks to fit if the text wraps
+      past the layout's line budget. Default: ~0.88× the fitted title size. */
+  dekFontSize?: number
+  /** Dek fill as a hex color (#rgb…#rrggbbaa); invalid values are ignored.
+      Default: the surface foreground (same off-white/ink as the title). */
+  dekColor?: string
 }
 
 export interface BuildResult {
@@ -421,6 +434,10 @@ interface Ctx {
   cat: { key: Category; name: string; role: string; color: string; dark: string; light: string }
   title: string
   dek: string
+  /** Resolved dek fill (dekColor override or the surface foreground). */
+  dekFill: string
+  /** Optional dek font-size override in px. */
+  dekSize?: number
   seed: number
   eyebrow: string
   opts: {
@@ -436,9 +453,16 @@ interface Ctx {
   }
 }
 
+/** Fit the dek at ~0.88× the fitted title size (or the caller's override),
+    shrinking further only when the text wraps past the line budget. */
+function fitDek(ctx: Ctx, titleSize: number, maxW: number, maxLines: number): FitResult {
+  const start = ctx.dekSize ?? Math.round(titleSize * 0.88)
+  return fitText(ctx.dek || '', maxW, maxLines, '400 __SZ__ "Noto Serif",Georgia,serif', start, Math.max(10, Math.round(start * 0.55)))
+}
+
 /* ═══════════════════ LAYOUT 01 · type-forward ═══════════════════ */
 function layoutType(ctx: Ctx): string {
-  const { w, h, surface, cat, title, dek, seed, opts, eyebrow } = ctx
+  const { w, h, surface, cat, title, seed, opts, eyebrow } = ctx
   const pad = Math.round(Math.min(w, h) * 0.075)
   const iw = w - pad * 2
   let svg = `<rect width="${w}" height="${h}" fill="${surface.bg}"/>`
@@ -456,14 +480,13 @@ function layoutType(ctx: Ctx): string {
 
   const tsY = pad + kfs + 14 + Math.round(h * 0.06)
   const sb = safeBottom(h, pad, opts.lockup)
-  const tfit = fitText(title || '', iw * 0.65, 3, '700 __SZ__ "Noto Serif",Georgia,serif', Math.round(h * 0.15), Math.round(h * 0.065))
+  const tfit = fitText(title || '', iw * 0.65, 3, '700 __SZ__ "Noto Serif",Georgia,serif', Math.round(h * 0.098), Math.round(h * 0.055))
   const tlh = tfit.size * 1.06
   const { svg: svg2, endY } = drawTitle(svg, tfit.lines, pad, tfit.size, tsY, tlh, surface.fg)
   svg = svg2
 
-  const dfs = Math.round(h * 0.026)
-  const dfit = fitText(dek || '', iw * 0.58, 3, '400 __SZ__ "Noto Serif",Georgia,serif', dfs, Math.round(dfs * 0.8))
-  svg = drawDek(svg, dfit.lines, pad, dfit.size, endY + Math.round(h * 0.015), dfit.size * 1.3, surface.mut, sb)
+  const dfit = fitDek(ctx, tfit.size, iw * 0.65, 3)
+  svg = drawDek(svg, dfit.lines, pad, dfit.size, endY + Math.round(h * 0.015), dfit.size * 1.3, ctx.dekFill, sb)
 
   if (opts.lockup) {
     const ms = Math.round(h * 0.055)
@@ -474,7 +497,7 @@ function layoutType(ctx: Ctx): string {
 
 /* ═══════════════════ LAYOUT 02 · anchor ═══════════════════ */
 function layoutAnchor(ctx: Ctx): string {
-  const { w, h, surface, cat, title, dek, seed, opts, eyebrow } = ctx
+  const { w, h, surface, cat, title, seed, opts, eyebrow } = ctx
   const pad = Math.round(Math.min(w, h) * 0.07)
   const lx = w * 0.46, rw = w - lx, colW = lx - pad * 2
   let svg = `<rect width="${w}" height="${h}" fill="${surface.bg}"/>`
@@ -491,13 +514,12 @@ function layoutAnchor(ctx: Ctx): string {
   svg += `<circle cx="${pad - 8}" cy="${pad + kfs}" r="3" fill="${cat.color}"/>`
 
   const sb = safeBottom(h, pad, opts.lockup)
-  const tfit = fitText(title || '', colW, 4, '700 __SZ__ "Noto Serif",Georgia,serif', Math.round(h * 0.12), Math.round(h * 0.055))
+  const tfit = fitText(title || '', colW, 4, '700 __SZ__ "Noto Serif",Georgia,serif', Math.round(h * 0.078), Math.round(h * 0.048))
   const { svg: svg2, endY } = drawTitle(svg, tfit.lines, pad, tfit.size, tsY, tfit.size * 1.05, surface.fg)
   svg = svg2
 
-  const dfs = Math.round(h * 0.023)
-  const dfit = fitText(dek || '', colW, 4, '400 __SZ__ "Noto Serif",Georgia,serif', dfs, Math.round(dfs * 0.8))
-  svg = drawDek(svg, dfit.lines, pad, dfit.size, endY + Math.round(h * 0.015), dfit.size * 1.3, surface.mut, sb)
+  const dfit = fitDek(ctx, tfit.size, colW, 4)
+  svg = drawDek(svg, dfit.lines, pad, dfit.size, endY + Math.round(h * 0.015), dfit.size * 1.3, ctx.dekFill, sb)
 
   if (opts.lockup) { const ms = Math.round(h * 0.05); svg += drawLockup(pad, h - pad - ms, ms, surface, { brand: opts.brand, theme: opts.theme }) }
   return svg
@@ -505,7 +527,7 @@ function layoutAnchor(ctx: Ctx): string {
 
 /* ═══════════════════ LAYOUT 03 · split block ═══════════════════ */
 function layoutSplit(ctx: Ctx): string {
-  const { w, h, surface, cat, title, dek, seed, opts } = ctx
+  const { w, h, surface, cat, title, seed, opts } = ctx
   const pad = Math.round(Math.min(w, h) * 0.07), bw = w * 0.34
   let svg = `<rect width="${w}" height="${h}" fill="${surface.bg}"/>`
   if (opts.lattice) svg += drawEngBackground(w, h, surface.fg)
@@ -529,19 +551,18 @@ function layoutSplit(ctx: Ctx): string {
 
   const sb = safeBottom(h, pad, false)
   const tsY = pad + kfs + Math.round(h * 0.075)
-  const tfit = fitText(title || '', colW, 4, '700 __SZ__ "Noto Serif",Georgia,serif', Math.round(h * 0.12), Math.round(h * 0.055))
+  const tfit = fitText(title || '', colW, 4, '700 __SZ__ "Noto Serif",Georgia,serif', Math.round(h * 0.078), Math.round(h * 0.048))
   const { svg: svg2, endY } = drawTitle(svg, tfit.lines, tx, tfit.size, tsY, tfit.size * 1.05, surface.fg)
   svg = svg2
 
-  const dfs = Math.round(h * 0.023)
-  const dfit = fitText(dek || '', colW, 4, '400 __SZ__ "Noto Serif",Georgia,serif', dfs, Math.round(dfs * 0.8))
-  svg = drawDek(svg, dfit.lines, tx, dfit.size, endY + Math.round(h * 0.015), dfit.size * 1.3, surface.mut, sb)
+  const dfit = fitDek(ctx, tfit.size, colW, 4)
+  svg = drawDek(svg, dfit.lines, tx, dfit.size, endY + Math.round(h * 0.015), dfit.size * 1.3, ctx.dekFill, sb)
   return svg
 }
 
 /* ═══════════════════ LAYOUT 04 · halo ═══════════════════ */
 function layoutHalo(ctx: Ctx): string {
-  const { w, h, surface, cat, title, dek, seed, opts, eyebrow } = ctx
+  const { w, h, surface, cat, title, seed, opts, eyebrow } = ctx
   const pad = Math.round(Math.min(w, h) * 0.07)
   let svg = `<rect width="${w}" height="${h}" fill="${surface.bg}"/>`
   if (opts.lattice) svg += drawEngBackground(w, h, surface.fg)
@@ -554,16 +575,16 @@ function layoutHalo(ctx: Ctx): string {
   svg += `<text x="${w / 2}" y="${pad + kfs}" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="${kfs}" letter-spacing="${(kfs * 0.2).toFixed(1)}" fill="${cat.color}" font-weight="600">${esc(eyebrow.toUpperCase())}</text>`
 
   const tfw = w * 0.76
-  const tfit = fitText(title || '', tfw, 3, '700 __SZ__ "Noto Serif",Georgia,serif', Math.round(h * 0.13), Math.round(h * 0.065))
+  const tfit = fitText(title || '', tfw, 3, '700 __SZ__ "Noto Serif",Georgia,serif', Math.round(h * 0.085), Math.round(h * 0.05))
   const tlh = tfit.size * 1.06
   const tblk = tfit.lines.length * tlh
-  const dfs = Math.round(h * 0.026)
-  const dfit = fitText(dek || '', w * 0.65, 3, '400 __SZ__ "Noto Serif",Georgia,serif', dfs, Math.round(dfs * 0.8))
+  const dfit = fitDek(ctx, tfit.size, w * 0.65, 3)
   const total = tblk + Math.round(h * 0.04) + dfit.lines.length * dfit.size * 1.3
   const ty = (h - total) / 2
 
-  const backH = tblk + Math.round(h * 0.06) + dfit.lines.length * dfit.size * 1.35
-  svg += `<rect x="${(w - tfw) / 2 - 24}" y="${ty - tfit.size * 0.2}" width="${tfw + 48}" height="${backH}" fill="${surface.bg}" opacity=".82"/>`
+  /* Fully opaque scrim: the halo graph must never bleed through the text. */
+  const backH = tblk + Math.round(h * 0.06) + dfit.lines.length * dfit.size * 1.35 + dfit.size
+  svg += `<rect x="${(w - tfw) / 2 - 24}" y="${ty - tfit.size * 0.2}" width="${tfw + 48}" height="${backH}" fill="${surface.bg}"/>`
 
   let tcy = ty + tfit.size * 0.88
   for (const line of tfit.lines) {
@@ -573,10 +594,11 @@ function layoutHalo(ctx: Ctx): string {
   svg += `<line x1="${w / 2 - 26}" y1="${tcy}" x2="${w / 2 + 26}" y2="${tcy}" stroke="${cat.color}" stroke-width="2" stroke-linecap="round"/>`
 
   const sb = safeBottom(h, pad, opts.lockup)
-  let dy = tcy + Math.round(h * 0.035)
+  /* First baseline clears the divider by the dek's own ascent (like drawDek). */
+  let dy = tcy + Math.round(h * 0.035) + dfit.size * 0.88
   for (const line of dfit.lines) {
     if (dy + dfit.size > sb) break
-    svg += `<text x="${w / 2}" y="${dy.toFixed(1)}" text-anchor="middle" font-family="Noto Serif,Georgia,serif" font-style="italic" font-size="${dfit.size}" fill="${surface.mut}">${esc(line)}</text>`
+    svg += `<text x="${w / 2}" y="${dy.toFixed(1)}" text-anchor="middle" font-family="Noto Serif,Georgia,serif" font-style="italic" font-size="${dfit.size}" fill="${ctx.dekFill}">${esc(line)}</text>`
     dy += dfit.size * 1.3
   }
 
@@ -586,7 +608,7 @@ function layoutHalo(ctx: Ctx): string {
 
 /* ═══════════════════ SQUARE LAYOUTS (1:1 dedicated) ═══════════════════ */
 function sqType(ctx: Ctx): string {
-  const { w, h, surface, cat, title, dek, seed, opts, eyebrow } = ctx
+  const { w, h, surface, cat, title, seed, opts, eyebrow } = ctx
   const pad = Math.round(w * 0.08), iw = w - pad * 2
   let svg = `<rect width="${w}" height="${h}" fill="${surface.bg}"/>`
   if (opts.lattice) svg += drawEngBackground(w, h, surface.fg)
@@ -598,13 +620,14 @@ function sqType(ctx: Ctx): string {
 
   const tsY = pad + kfs + 16 + Math.round(h * 0.07)
   const sb = safeBottom(h, pad, opts.lockup)
-  const tfit = fitText(title || '', iw, 4, '700 __SZ__ "Noto Serif",Georgia,serif', Math.round(h * 0.1), Math.round(h * 0.05))
+  // ig/layout-1 reference values from the 2026-07 fixes: title 70px, dek
+  // 60px on the 1080 canvas (0.065h / ~0.88× title).
+  const tfit = fitText(title || '', iw, 4, '700 __SZ__ "Noto Serif",Georgia,serif', Math.round(h * 0.065), Math.round(h * 0.045))
   const { svg: svg2, endY } = drawTitle(svg, tfit.lines, pad, tfit.size, tsY, tfit.size * 1.06, surface.fg)
   svg = svg2
 
-  const dfs = Math.round(h * 0.026)
-  const dfit = fitText(dek || '', iw * 0.88, 3, '400 __SZ__ "Noto Serif",Georgia,serif', dfs, Math.round(dfs * 0.8))
-  svg = drawDek(svg, dfit.lines, pad, dfit.size, endY + Math.round(h * 0.016), dfit.size * 1.3, surface.mut, sb)
+  const dfit = fitDek(ctx, tfit.size, iw * 0.88, 3)
+  svg = drawDek(svg, dfit.lines, pad, dfit.size, endY + Math.round(h * 0.016), dfit.size * 1.3, ctx.dekFill, sb)
 
   const lockH = opts.lockup ? Math.round(h * 0.1) : 0
   const gTop = Math.max(endY + Math.round(h * 0.04), h * 0.55)
@@ -619,7 +642,7 @@ function sqType(ctx: Ctx): string {
 }
 
 function sqAnchor(ctx: Ctx): string {
-  const { w, h, surface, cat, title, dek, seed, opts, eyebrow } = ctx
+  const { w, h, surface, cat, title, seed, opts, eyebrow } = ctx
   const pad = Math.round(w * 0.08), iw = w - pad * 2
   let svg = `<rect width="${w}" height="${h}" fill="${surface.bg}"/>`
   if (opts.lattice) svg += drawEngBackground(w, h, surface.fg)
@@ -636,20 +659,19 @@ function sqAnchor(ctx: Ctx): string {
 
   const sb = safeBottom(h, pad, opts.lockup)
   const tsY = ruleY + kfs + 18
-  const tfit = fitText(title || '', iw, 3, '700 __SZ__ "Noto Serif",Georgia,serif', Math.round(h * 0.08), Math.round(h * 0.048))
+  const tfit = fitText(title || '', iw, 3, '700 __SZ__ "Noto Serif",Georgia,serif', Math.round(h * 0.057), Math.round(h * 0.042))
   const { svg: svg2, endY } = drawTitle(svg, tfit.lines, pad, tfit.size, tsY, tfit.size * 1.05, surface.fg)
   svg = svg2
 
-  const dfs = Math.round(h * 0.024)
-  const dfit = fitText(dek || '', iw, 3, '400 __SZ__ "Noto Serif",Georgia,serif', dfs, Math.round(dfs * 0.8))
-  svg = drawDek(svg, dfit.lines, pad, dfit.size, endY + Math.round(h * 0.012), dfit.size * 1.3, surface.mut, sb)
+  const dfit = fitDek(ctx, tfit.size, iw, 3)
+  svg = drawDek(svg, dfit.lines, pad, dfit.size, endY + Math.round(h * 0.012), dfit.size * 1.3, ctx.dekFill, sb)
 
   if (opts.lockup) { const ms = Math.round(h * 0.055); svg += drawLockup(pad, h - pad - ms, ms, surface, { brand: opts.brand, theme: opts.theme }) }
   return svg
 }
 
 function sqSplit(ctx: Ctx): string {
-  const { w, h, surface, cat, title, dek, seed, opts } = ctx
+  const { w, h, surface, cat, title, seed, opts } = ctx
   const pad = Math.round(w * 0.07), bH = h * 0.4
   let svg = `<rect width="${w}" height="${h}" fill="${surface.bg}"/>`
   if (opts.lattice) svg += drawEngBackground(w, h, surface.fg)
@@ -664,20 +686,21 @@ function sqSplit(ctx: Ctx): string {
 
   const iw = w - pad * 2, sb = safeBottom(h, pad, opts.lockup)
   const tsY = bH + Math.round(h * 0.065)
-  const tfit = fitText(title || '', iw, 4, '700 __SZ__ "Noto Serif",Georgia,serif', Math.round(h * 0.08), Math.round(h * 0.048))
+  // ig/layout-3 reference values from the 2026-07 fixes: title 62px, dek
+  // 60px on the 1080 canvas.
+  const tfit = fitText(title || '', iw, 4, '700 __SZ__ "Noto Serif",Georgia,serif', Math.round(h * 0.057), Math.round(h * 0.042))
   const { svg: svg2, endY } = drawTitle(svg, tfit.lines, pad, tfit.size, tsY, tfit.size * 1.05, surface.fg)
   svg = svg2
 
-  const dfs = Math.round(h * 0.024)
-  const dfit = fitText(dek || '', iw, 3, '400 __SZ__ "Noto Serif",Georgia,serif', dfs, Math.round(dfs * 0.8))
-  svg = drawDek(svg, dfit.lines, pad, dfit.size, endY + Math.round(h * 0.015), dfit.size * 1.3, surface.mut, sb)
+  const dfit = fitDek(ctx, tfit.size, iw, 3)
+  svg = drawDek(svg, dfit.lines, pad, dfit.size, endY + Math.round(h * 0.015), dfit.size * 1.3, ctx.dekFill, sb)
 
   if (opts.lockup) { const ms = Math.round(h * 0.05); svg += drawLockup(pad, h - pad - ms, ms, surface, { brand: opts.brand, theme: opts.theme }) }
   return svg
 }
 
 function sqHalo(ctx: Ctx): string {
-  const { w, h, surface, cat, title, dek, seed, opts, eyebrow } = ctx
+  const { w, h, surface, cat, title, seed, opts, eyebrow } = ctx
   const pad = Math.round(w * 0.08)
   let svg = `<rect width="${w}" height="${h}" fill="${surface.bg}"/>`
   if (opts.lattice) svg += drawEngBackground(w, h, surface.fg)
@@ -690,15 +713,15 @@ function sqHalo(ctx: Ctx): string {
   svg += `<text x="${w / 2}" y="${pad + kfs}" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="${kfs}" fill="${cat.color}" font-weight="600">${esc(eyebrow.toUpperCase())}</text>`
 
   const tfw = w * 0.76
-  const tfit = fitText(title || '', tfw, 3, '700 __SZ__ "Noto Serif",Georgia,serif', Math.round(h * 0.095), Math.round(h * 0.05))
+  const tfit = fitText(title || '', tfw, 3, '700 __SZ__ "Noto Serif",Georgia,serif', Math.round(h * 0.062), Math.round(h * 0.044))
   const tlh = tfit.size * 1.06, tblk = tfit.lines.length * tlh
-  const dfs = Math.round(h * 0.026)
-  const dfit = fitText(dek || '', w * 0.7, 3, '400 __SZ__ "Noto Serif",Georgia,serif', dfs, Math.round(dfs * 0.8))
+  const dfit = fitDek(ctx, tfit.size, w * 0.7, 3)
   const total = tblk + Math.round(h * 0.045) + dfit.lines.length * dfit.size * 1.3
   const ty = (h - total) / 2
 
-  const backH = total + tfit.size * 0.4
-  svg += `<rect x="${(w - tfw) / 2 - 20}" y="${ty - tfit.size * 0.15}" width="${tfw + 40}" height="${backH}" fill="${surface.bg}" opacity=".82"/>`
+  /* Fully opaque scrim: the halo graph must never bleed through the text. */
+  const backH = total + tfit.size * 0.4 + dfit.size
+  svg += `<rect x="${(w - tfw) / 2 - 20}" y="${ty - tfit.size * 0.15}" width="${tfw + 40}" height="${backH}" fill="${surface.bg}"/>`
 
   let tcy = ty + tfit.size * 0.88
   for (const line of tfit.lines) {
@@ -708,10 +731,11 @@ function sqHalo(ctx: Ctx): string {
   svg += `<line x1="${w / 2 - 26}" y1="${tcy}" x2="${w / 2 + 26}" y2="${tcy}" stroke="${cat.color}" stroke-width="2" stroke-linecap="round"/>`
 
   const sb = safeBottom(h, pad, opts.lockup)
-  let dy = tcy + Math.round(h * 0.034)
+  /* First baseline clears the divider by the dek's own ascent (like drawDek). */
+  let dy = tcy + Math.round(h * 0.034) + dfit.size * 0.88
   for (const line of dfit.lines) {
     if (dy + dfit.size > sb) break
-    svg += `<text x="${w / 2}" y="${dy.toFixed(1)}" text-anchor="middle" font-family="Noto Serif,Georgia,serif" font-style="italic" font-size="${dfit.size}" fill="${surface.mut}">${esc(line)}</text>`
+    svg += `<text x="${w / 2}" y="${dy.toFixed(1)}" text-anchor="middle" font-family="Noto Serif,Georgia,serif" font-style="italic" font-size="${dfit.size}" fill="${ctx.dekFill}">${esc(line)}</text>`
     dy += dfit.size * 1.3
   }
 
@@ -797,11 +821,14 @@ function layoutMineral(ctx: Ctx): string {
   cy += pill.h + Math.round(h * 0.028)
 
   const sb = safeBottom(h, pad, opts.lockup || !!opts.footnote)
-  const dfs = Math.round(h * (tall ? 0.024 : 0.027))
-  const dfit = fitText(dek || '', iw, 5, '400 __SZ__ "Noto Serif",Georgia,serif', dfs, Math.round(dfs * 0.8))
+  // Layout 5 keeps its own caption-scale dek (it's an educational spec
+  // sheet, not a title-first card) but honors the size override and the
+  // foreground dek fill.
+  const dfs = ctx.dekSize ?? Math.round(h * (tall ? 0.024 : 0.027))
+  const dfit = fitText(dek || '', iw, 5, '400 __SZ__ "Noto Serif",Georgia,serif', dfs, Math.max(10, Math.round(dfs * 0.8)))
   for (const line of dfit.lines) {
     if (cy + dfit.size > sb) break
-    svg += `<text x="${pad}" y="${(cy + dfit.size * 0.85).toFixed(1)}" font-family="Noto Serif,Georgia,serif" font-style="italic" font-size="${dfit.size}" fill="${surface.mut}">${esc(line)}</text>`
+    svg += `<text x="${pad}" y="${(cy + dfit.size * 0.85).toFixed(1)}" font-family="Noto Serif,Georgia,serif" font-style="italic" font-size="${dfit.size}" fill="${ctx.dekFill}">${esc(line)}</text>`
     cy += dfit.size * 1.32
   }
 
@@ -836,10 +863,17 @@ export function buildSVG(p: Params): BuildResult {
   }
   const eyebrow = (p.eyebrow && p.eyebrow.trim()) || (catDef.name + ' · ' + catDef.role)
   const seed = hash((p.seedKey || '') + p.category + p.layout)
+  const dekFill =
+    p.dekColor && /^#[0-9a-fA-F]{3,8}$/.test(p.dekColor) ? p.dekColor : surface.fg
+  const dekSize =
+    typeof p.dekFontSize === 'number' && Number.isFinite(p.dekFontSize) && p.dekFontSize >= 10
+      ? Math.round(p.dekFontSize)
+      : undefined
   const ctx: Ctx = {
     w: fmt.w, h: fmt.h, surface, cat,
     title: p.title || '',
     dek: p.dek || '',
+    dekFill, dekSize,
     seed, eyebrow,
     opts: {
       lattice: !!p.lattice,
