@@ -118,13 +118,14 @@ function rpc(method: string, params: Record<string, unknown> = {}, id: number = 
 }
 
 describe('GET /mcp — discovery', () => {
-  it('returns the server identity JSON', async () => {
+  it('returns the server identity JSON advertising the latest SDK protocol version', async () => {
+    const { LATEST_PROTOCOL_VERSION } = await import('@modelcontextprotocol/sdk/types.js')
     const res = await get('/mcp')
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({
       name: 'nyuchi-tools',
       version: '0.1.0',
-      protocol: 'mcp/2024-11-05',
+      protocol: `mcp/${LATEST_PROTOCOL_VERSION}`,
       endpoint: '/mcp',
     })
   })
@@ -166,6 +167,30 @@ describe('POST /mcp — JSON-RPC', () => {
       'report_issue',
       'upload_asset',
     ])
+  })
+
+  it('tools carry behavior annotations and (where stable) output schemas', async () => {
+    const res = await post('/mcp', rpc('tools/list', {}, 2))
+    const body = (await res.json()) as JsonRpcResponse
+    const tools = (
+      body.result as {
+        tools: {
+          name: string
+          annotations?: Record<string, boolean>
+          outputSchema?: { properties?: Record<string, unknown> }
+        }[]
+      }
+    ).tools
+    const byName = Object.fromEntries(tools.map((t) => [t.name, t]))
+    // Pure generators are read-only and closed-world.
+    expect(byName['generate_email_signature'].annotations).toMatchObject({ readOnlyHint: true, openWorldHint: false })
+    expect(byName['generate_article_banner'].annotations).toMatchObject({ readOnlyHint: true, openWorldHint: false })
+    // Anything that can publish externally is open-world, non-destructive.
+    for (const name of ['generate_studio_card', 'upload_asset', 'report_issue']) {
+      expect(byName[name].annotations).toMatchObject({ readOnlyHint: false, destructiveHint: false, openWorldHint: true })
+    }
+    expect(Object.keys(byName['upload_asset'].outputSchema?.properties ?? {}).sort()).toEqual(['contentType', 'id', 'url'])
+    expect(Object.keys(byName['report_issue'].outputSchema?.properties ?? {}).sort()).toEqual(['number', 'repo', 'url'])
   })
 
   it('generate_article_banner is marked deprecated and steers to the Studio', async () => {
@@ -826,12 +851,16 @@ describe('upload_asset', () => {
     )
     const body = (await res.json()) as JsonRpcResponse
     expect(body.error).toBeUndefined()
-    const payload = JSON.parse((body.result as { content: { text: string }[] }).content[0].text) as {
-      url: string
-      contentType: string
-    }
+    const result = body.result as { content: { text: string }[]; structuredContent?: Record<string, unknown> }
+    const payload = JSON.parse(result.content[0].text) as { url: string; contentType: string }
     expect(payload.url).toBe('https://imagedelivery.net/h/gen-id-1/public')
     expect(payload.contentType).toBe('image/png')
+    // Structured output mirrors the text payload (validated by outputSchema).
+    expect(result.structuredContent).toEqual({
+      url: 'https://imagedelivery.net/h/gen-id-1/public',
+      id: 'gen-id-1',
+      contentType: 'image/png',
+    })
     expect(fetchSpy).toHaveBeenCalledTimes(1)
   })
 
@@ -937,16 +966,14 @@ describe('report_issue', () => {
     )
     const body = (await res.json()) as JsonRpcResponse
     expect(body.error).toBeUndefined()
-    const payload = JSON.parse((body.result as { content: { text: string }[] }).content[0].text) as {
-      url: string
-      number: number
-      repo: string
-    }
+    const result = body.result as { content: { text: string }[]; structuredContent?: Record<string, unknown> }
+    const payload = JSON.parse(result.content[0].text) as { url: string; number: number; repo: string }
     expect(payload).toEqual({
       url: 'https://github.com/nyuchitech/workspace-tools/issues/99',
       number: 99,
       repo: 'nyuchitech/workspace-tools',
     })
+    expect(result.structuredContent).toEqual(payload)
 
     const [url, init] = fetchSpy.mock.calls[0] as [string, RequestInit]
     expect(url).toBe('https://api.github.com/repos/nyuchitech/workspace-tools/issues')
@@ -1083,7 +1110,9 @@ describe('GET /.well-known/mcp/server-card.json', () => {
       serverInfo: { name: 'nyuchi-tools', version: '0.1.0' },
       name: 'nyuchi-tools',
       description:
-        'MCP server for Nyuchi Africa tools: email signatures, Nyuchi Studio social cards, and article banners.',
+        'MCP server for Nyuchi Africa tools: email signatures, Nyuchi Studio social cards ' +
+        '(SVG, PNG, or hosted Cloudflare Images URL), asset uploads, and issue reporting. ' +
+        'The legacy article-banner tool is deprecated in favor of the Studio.',
       websiteUrl: 'https://tools.nyuchi.com',
       remotes: [{ transportType: 'streamable-http', url: 'https://tools.nyuchi.dev/mcp' }],
       capabilities: { tools: { listChanged: true } },

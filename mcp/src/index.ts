@@ -19,10 +19,12 @@
  *     static assets via `c.env.ASSETS.fetch(...)`, but only once the
  *     site-wide login gate above has let the request through.
  *
- * Transport: streamable-HTTP (per MCP 2024-11-05). We implement a minimal
- * per-request transport because the SDK's built-in `StreamableHTTPServerTransport`
- * (v1.29.x) targets Node.js req/res, not the fetch API used by Workers.
- * For our stateless single-JSON-RPC-request-per-POST use case this is enough;
+ * Transport: streamable-HTTP, stateless JSON (one JSON-RPC request per
+ * POST). We implement a minimal per-request transport because the SDK's
+ * built-in `StreamableHTTPServerTransport` (v1.29.x) targets Node.js
+ * req/res, not the fetch API used by Workers. Protocol version negotiation
+ * is the SDK's — it accepts every entry in SUPPORTED_PROTOCOL_VERSIONS; the
+ * LATEST_PROTOCOL_VERSION import below is only for discovery display.
  * SSE / server-initiated streaming is not required by the current tool set.
  */
 
@@ -30,7 +32,7 @@ import { Hono } from "hono";
 import type { Context } from "hono";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
-import type { JSONRPCMessage } from "@modelcontextprotocol/sdk/types.js";
+import { LATEST_PROTOCOL_VERSION, type JSONRPCMessage } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import {
@@ -131,7 +133,8 @@ const MINERALS = [
 
 const SERVER_NAME = "nyuchi-tools";
 const SERVER_VERSION = "0.1.0";
-const MCP_PROTOCOL_VERSION = "2024-11-05";
+/** Display-only (GET /mcp ping): actual negotiation is per-request in the SDK. */
+const MCP_PROTOCOL_VERSION = LATEST_PROTOCOL_VERSION;
 
 // -----------------------------------------------------------------------------
 // Minimal per-request streamable-HTTP transport.
@@ -197,6 +200,7 @@ function buildServer(env: Env): McpServer {
     {
       title: "Generate email signature",
       description: "Generate a branded Nyuchi email signature as HTML.",
+      annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
       inputSchema: {
         brand: z
           .enum(BRAND_KEYS)
@@ -244,6 +248,10 @@ function buildServer(env: Env): McpServer {
         "{url, id, width, height, seed} — the right choice when scheduling to social (Buffer, " +
         "Instagram, X all need a public image URL). Short single-line titles automatically scale up " +
         "to poster size (hook mode); wrapping titles keep the standard sizing.",
+      // Not read-only: upload=true publishes the rendered card to Cloudflare
+      // Images. Creation-only, never destructive; duplicate keys error rather
+      // than overwrite (hence not idempotent).
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
       inputSchema: {
         title: z.string().describe("Card title."),
         dek: z.string().optional().describe("Supporting line under the title."),
@@ -424,13 +432,10 @@ function buildServer(env: Env): McpServer {
         id: sanitizeKey(args.uploadKey),
         contentType: "image/png",
       });
+      const payload = { url, id, width: format.w, height: format.h, seed };
       return {
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify({ url, id, width: format.w, height: format.h, seed }),
-          },
-        ],
+        content: [{ type: "text", text: JSON.stringify(payload) }],
+        structuredContent: payload,
       };
     },
   );
@@ -450,6 +455,12 @@ function buildServer(env: Env): McpServer {
         "server-side, no client SVG→PNG pipeline needed) or `pngBase64` (pre-rasterized bytes). " +
         "For generate_studio_card output, prefer calling that tool with upload=true instead — one " +
         "call, no SVG round-trip.",
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+      outputSchema: {
+        url: z.string().describe("Public delivery URL of the uploaded asset."),
+        id: z.string().describe("Cloudflare Images id (the sanitized key, or a generated id)."),
+        contentType: z.enum(["image/png", "image/svg+xml"]).describe("Stored content type."),
+      },
       inputSchema: {
         svg: z
           .string()
@@ -522,8 +533,10 @@ function buildServer(env: Env): McpServer {
         id: sanitizeKey(args.key),
         contentType,
       });
+      const payload = { url, id, contentType };
       return {
-        content: [{ type: "text", text: JSON.stringify({ url, id, contentType }) }],
+        content: [{ type: "text", text: JSON.stringify(payload) }],
+        structuredContent: payload,
       };
     },
   );
@@ -540,6 +553,12 @@ function buildServer(env: Env): McpServer {
         "server's tools — a bug, a missing capability, confusing output, or a documentation gap. " +
         "The target repo is configured server-side. Include what was tried, what happened, and " +
         "what was expected; always name the specific tool concerned.",
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+      outputSchema: {
+        url: z.string().describe("URL of the created GitHub issue."),
+        number: z.number().describe("Issue number."),
+        repo: z.string().describe("owner/repo the issue was filed on."),
+      },
       inputSchema: {
         title: z.string().min(4).max(200).describe("Short summary of the issue."),
         description: z
@@ -578,10 +597,10 @@ function buildServer(env: Env): McpServer {
         severity: args.severity ?? "medium",
         category: args.category,
       });
+      const payload = { url, number, repo: feedbackRepo(env) };
       return {
-        content: [
-          { type: "text", text: JSON.stringify({ url, number, repo: feedbackRepo(env) }) },
-        ],
+        content: [{ type: "text", text: JSON.stringify(payload) }],
+        structuredContent: payload,
       };
     },
   );
@@ -607,6 +626,7 @@ function buildServer(env: Env): McpServer {
         "PNG and upload output exist on generate_studio_card, not here. " +
         "The second content item is JSON metadata: {format:{w,h}, seed}. Note: unlike " +
         "generate_studio_card, this engine has no 'story' format and only layouts 1-4 (no mineral swatch).",
+      annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
       inputSchema: {
         title: z.string().describe("Banner title."),
         dek: z.string().optional().describe("Supporting line under the title."),
