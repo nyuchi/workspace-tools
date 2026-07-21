@@ -19,10 +19,12 @@
  *     static assets via `c.env.ASSETS.fetch(...)`, but only once the
  *     site-wide login gate above has let the request through.
  *
- * Transport: streamable-HTTP (per MCP 2024-11-05). We implement a minimal
- * per-request transport because the SDK's built-in `StreamableHTTPServerTransport`
- * (v1.29.x) targets Node.js req/res, not the fetch API used by Workers.
- * For our stateless single-JSON-RPC-request-per-POST use case this is enough;
+ * Transport: streamable-HTTP, stateless JSON (one JSON-RPC request per
+ * POST). We implement a minimal per-request transport because the SDK's
+ * built-in `StreamableHTTPServerTransport` (v1.29.x) targets Node.js
+ * req/res, not the fetch API used by Workers. Protocol version negotiation
+ * is the SDK's — it accepts every entry in SUPPORTED_PROTOCOL_VERSIONS; the
+ * LATEST_PROTOCOL_VERSION import below is only for discovery display.
  * SSE / server-initiated streaming is not required by the current tool set.
  */
 
@@ -30,7 +32,7 @@ import { Hono } from "hono";
 import type { Context } from "hono";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
-import type { JSONRPCMessage } from "@modelcontextprotocol/sdk/types.js";
+import { LATEST_PROTOCOL_VERSION, type JSONRPCMessage } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import {
@@ -73,6 +75,7 @@ import {
 import { TOP_BRAND_KEYS } from "../../signature-generator/src/engines/brands";
 import {
   buildSVG as buildStudioCard,
+  HEX_COLOR_RE,
   type Params as StudioParams,
 } from "../../signature-generator/src/engines/nyuchi";
 import {
@@ -80,6 +83,38 @@ import {
   type Params as BannerParams,
 } from "../../signature-generator/src/engines/banner";
 import { ensureBrandIconsLoaded } from "./brand-icons.js";
+import { rasterizeSvg, warmRaster } from "./raster.js";
+import {
+  imagesConfigured,
+  MAX_UPLOAD_BYTES,
+  sanitizeKey,
+  uploadImage,
+  type ImagesEnv,
+} from "./images.js";
+import {
+  createFeedbackIssue,
+  feedbackRepo,
+  type FeedbackCategory,
+  type FeedbackEnv,
+  type FeedbackSeverity,
+} from "./feedback.js";
+
+/** Chunked bytes → base64 (no Buffer dependency; works in Workers + node). */
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = "";
+  const CHUNK = 0x8000;
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+  }
+  return btoa(binary);
+}
+
+function base64ToBytes(b64: string): Uint8Array {
+  const binary = atob(b64.replace(/\s+/g, ""));
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
 
 /** One-line brand taxonomy, appended to every `brand` param description. */
 const BRAND_TAXONOMY =
@@ -99,7 +134,8 @@ const MINERALS = [
 
 const SERVER_NAME = "nyuchi-tools";
 const SERVER_VERSION = "0.1.0";
-const MCP_PROTOCOL_VERSION = "2024-11-05";
+/** Display-only (GET /mcp ping): actual negotiation is per-request in the SDK. */
+const MCP_PROTOCOL_VERSION = LATEST_PROTOCOL_VERSION;
 
 // -----------------------------------------------------------------------------
 // Minimal per-request streamable-HTTP transport.
@@ -165,6 +201,7 @@ function buildServer(env: Env): McpServer {
     {
       title: "Generate email signature",
       description: "Generate a branded Nyuchi email signature as HTML.",
+      annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
       inputSchema: {
         brand: z
           .enum(BRAND_KEYS)
@@ -201,12 +238,21 @@ function buildServer(env: Env): McpServer {
     {
       title: "Generate Nyuchi Studio social card",
       description:
-        "Generate a Nyuchi Studio social card as an SVG string (same engine as the /studio page). " +
+        "Generate a Nyuchi Studio social card (same engine as the /studio page). " +
         "`format` (canvas shape) and `layout` (composition) are independent axes — every combination " +
         "is valid, so pick each on its own merits rather than treating them as one choice. Default is " +
         "format 'ig' (square) + layout 5 (mineral, a 'meet this mineral' educational card); use layouts " +
-        "1-4 for a title-first social card instead. PNG rasterization is a follow-up. The second content " +
-        "item is JSON metadata: {format:{w,h}, seed}.",
+        "1-4 for a title-first social card instead. `returnFormat` controls the response shape: 'svg' " +
+        "(default without upload) returns the full SVG source plus JSON metadata — right for " +
+        "design/editing/debugging; 'png' returns the rasterized image inline, no upload; 'url' " +
+        "(default when `upload` is true) rasterizes, uploads to Cloudflare Images, and returns just " +
+        "{url, id, width, height, seed} — the right choice when scheduling to social (Buffer, " +
+        "Instagram, X all need a public image URL). Short single-line titles automatically scale up " +
+        "to poster size (hook mode); wrapping titles keep the standard sizing.",
+      // Not read-only: upload=true publishes the rendered card to Cloudflare
+      // Images. Creation-only, never destructive; duplicate keys error rather
+      // than overwrite (hence not idempotent).
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
       inputSchema: {
         title: z.string().describe("Card title."),
         dek: z.string().optional().describe("Supporting line under the title."),
@@ -241,10 +287,30 @@ function buildServer(env: Env): McpServer {
               "a dark panel — the boldest, most color-blocked option. " +
               "4 halo: everything centered, with the node graph arcing around the text like a halo.",
           ),
-        theme: z.enum(["light", "dark"]).optional().default("dark").describe("Surface theme."),
-        eyebrow: z.string().optional().describe("Kicker line; defaults to '<Mineral> · <role>'."),
+        theme: z
+          .enum(["light", "dark", "accent"])
+          .optional()
+          .default("dark")
+          .describe(
+            "Surface theme. 'dark' (default) adds a mineral glow behind the node graph; 'accent' is " +
+              "a full-bleed mineral background with ink text — the boldest, most feed-stopping option.",
+          ),
+        eyebrow: z
+          .string()
+          .optional()
+          .describe(
+            "Kicker line, rendered as a filled pill chip; defaults to '<Mineral> · <role>'.",
+          ),
         index: z.string().optional().describe("Big index numeral on the mineral swatch (layout 5)."),
         footnote: z.string().optional().describe("Small mono footnote (layout 5)."),
+        showHexes: z
+          .boolean()
+          .optional()
+          .describe(
+            "Layout 5 only: show the mineral's DARK/LIGHT hex labels on the swatch. Default: only " +
+              "when the card is about the mineral itself (no title, or the title is the mineral " +
+              "name) — generic cards hide the spec labels automatically.",
+          ),
         role: z.string().optional().describe("Role label; defaults to the mineral's role."),
         brand: z
           .enum(TOP_BRAND_KEYS)
@@ -255,6 +321,50 @@ function buildServer(env: Env): McpServer {
           .string()
           .optional()
           .describe("Seed for the generative graph; defaults to title+category+layout like the SPA."),
+        dekFontSize: z
+          .number()
+          .int()
+          .min(10)
+          .max(400)
+          .optional()
+          .describe(
+            "Preferred dek font-size in px (still shrinks to fit long text). " +
+              "Default: ~0.88× the fitted title size.",
+          ),
+        dekColor: z
+          .string()
+          .regex(HEX_COLOR_RE)
+          .optional()
+          .describe(
+            "Dek fill as a hex color. Default: the surface foreground (#FAF9F5 on dark, #141413 on " +
+              "light) — keep it there for contrast; use the mineral accents only for eyebrow/graph.",
+          ),
+        upload: z
+          .boolean()
+          .optional()
+          .describe(
+            "Rasterize server-side and upload to Cloudflare Images; flips the default returnFormat " +
+              "to 'url'. Combine with returnFormat 'png' to upload AND receive the pixels inline " +
+              "(the metadata then carries the url); combining with 'svg' is an error. Requires the " +
+              "server to be configured with Cloudflare Images credentials.",
+          ),
+        returnFormat: z
+          .enum(["url", "png", "svg"])
+          .optional()
+          .describe(
+            "Response shape: 'url' uploads and returns only the public URL + metadata (default when " +
+              "upload=true); 'png' returns the rasterized image inline; 'svg' returns the full SVG " +
+              "source (default otherwise).",
+          ),
+        uploadKey: z
+          .string()
+          .max(512)
+          .optional()
+          .describe(
+            "Suggested image id for uploads, namespaced per brand/campaign, e.g. " +
+              "'nhimbe/2026-07/harvest-post.png'. Must be unique; unusable keys fall back to a " +
+              "generated id.",
+          ),
       },
     },
     async (args: {
@@ -270,8 +380,13 @@ function buildServer(env: Env): McpServer {
       role?: string;
       brand?: StudioParams["brand"];
       seedKey?: string;
+      showHexes?: boolean;
+      dekFontSize?: number;
+      dekColor?: string;
+      upload?: boolean;
+      returnFormat?: "url" | "png" | "svg";
+      uploadKey?: string;
     }) => {
-      await ensureBrandIconsLoaded(env.ASSETS);
       const layout = args.layout ?? 5;
       const params: StudioParams = {
         format: args.format ?? "ig",
@@ -285,6 +400,9 @@ function buildServer(env: Env): McpServer {
         footnote: args.footnote,
         role: args.role,
         brand: args.brand ?? "nyuchi",
+        showHexes: args.showHexes,
+        dekFontSize: args.dekFontSize,
+        dekColor: args.dekColor,
         // SPA defaults (StudioPage INITIAL state).
         facet: "diagonal",
         angle: 62,
@@ -294,12 +412,230 @@ function buildServer(env: Env): McpServer {
         // Same derivation as the SPA (salt 0).
         seedKey: args.seedKey ?? `${args.title}${args.category}${layout}0`,
       };
+      const returnFormat = args.returnFormat ?? (args.upload ? "url" : "svg");
+      if (args.upload && returnFormat === "svg") {
+        throw new Error(
+          "upload:true cannot be combined with returnFormat 'svg' — nothing would be uploaded. " +
+            "Use 'url' (the default with upload), 'png' (uploads AND returns the pixels inline), " +
+            "or drop upload.",
+        );
+      }
+      const wantUpload = Boolean(args.upload) || returnFormat === "url";
+      // Overlap rasterizer cold-start (wasm + fonts) with icon loading.
+      if (returnFormat !== "svg") warmRaster(env.ASSETS);
+      await ensureBrandIconsLoaded(env.ASSETS);
       const { svg, format, seed } = buildStudioCard(params);
+
+      if (returnFormat === "svg") {
+        return {
+          content: [
+            { type: "text", text: svg },
+            { type: "text", text: JSON.stringify({ format: { w: format.w, h: format.h }, seed }) },
+          ],
+        };
+      }
+
+      const png = await rasterizeSvg(svg, env.ASSETS);
+      let uploaded: { url: string; id: string } | undefined;
+      if (wantUpload) {
+        if (!imagesConfigured(env)) {
+          throw new Error(
+            "Uploading needs Cloudflare Images configured on this server (CF_IMAGES_ACCOUNT_ID " +
+              "plus the CF_IMAGES_TOKEN — or legacy CF_IMAGE_TOKEN — secret). " +
+              "Use returnFormat 'png' or 'svg' without upload instead.",
+          );
+        }
+        uploaded = await uploadImage(env, png, {
+          id: sanitizeKey(args.uploadKey),
+          contentType: "image/png",
+        });
+      }
+
+      if (returnFormat === "png") {
+        const meta = {
+          format: { w: format.w, h: format.h },
+          seed,
+          ...(uploaded ? { url: uploaded.url, id: uploaded.id } : {}),
+        };
+        return {
+          content: [
+            { type: "image", data: bytesToBase64(png), mimeType: "image/png" },
+            { type: "text", text: JSON.stringify(meta) },
+          ],
+        };
+      }
+
+      const payload = { url: uploaded!.url, id: uploaded!.id, width: format.w, height: format.h, seed };
       return {
-        content: [
-          { type: "text", text: svg },
-          { type: "text", text: JSON.stringify({ format: { w: format.w, h: format.h }, seed }) },
-        ],
+        content: [{ type: "text", text: JSON.stringify(payload) }],
+        structuredContent: payload,
+      };
+    },
+  );
+
+  // --- upload_asset --------------------------------------------------------
+  // Standalone "give me a public URL" tool: takes SVG (rasterized
+  // server-side) or ready PNG bytes and uploads to Cloudflare Images, so a
+  // generated image can be attached to anything that needs a fetchable URL
+  // (Buffer, Instagram, X, ...).
+  server.registerTool(
+    "upload_asset",
+    {
+      title: "Upload an image asset, get a public URL",
+      description:
+        "Upload a generated image to Cloudflare Images and return a stable public URL in one call. " +
+        "Give it either `svg` (e.g. the output of generate_studio_card — it is rasterized to PNG " +
+        "server-side, no client SVG→PNG pipeline needed) or `pngBase64` (pre-rasterized bytes). " +
+        "For generate_studio_card output, prefer calling that tool with upload=true instead — one " +
+        "call, no SVG round-trip.",
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+      outputSchema: {
+        url: z.string().describe("Public delivery URL of the uploaded asset."),
+        id: z.string().describe("Cloudflare Images id (the sanitized key, or a generated id)."),
+        contentType: z.enum(["image/png", "image/svg+xml"]).describe("Stored content type."),
+      },
+      inputSchema: {
+        svg: z
+          .string()
+          .optional()
+          .describe("Raw SVG source to rasterize and upload. Exactly one of svg / pngBase64."),
+        pngBase64: z
+          .string()
+          .optional()
+          .describe("Base64-encoded PNG bytes to upload as-is. Exactly one of svg / pngBase64."),
+        key: z
+          .string()
+          .max(512)
+          .optional()
+          .describe(
+            "Suggested image id, namespaced per brand/campaign (e.g. 'nhimbe/2026-07/slug.png'). " +
+              "Must be unique; unusable keys fall back to a generated id.",
+          ),
+        contentType: z
+          .enum(["image/png", "image/svg+xml"])
+          .optional()
+          .describe(
+            "Only meaningful with `svg` input: 'image/svg+xml' uploads the raw SVG without " +
+              "rasterizing (note: social platforms generally can't use SVG URLs). Default: rasterize " +
+              "to image/png.",
+          ),
+      },
+    },
+    async (args: {
+      svg?: string;
+      pngBase64?: string;
+      key?: string;
+      contentType?: "image/png" | "image/svg+xml";
+    }) => {
+      // Truthiness on purpose, and the same predicate drives the dispatch
+      // below — an empty-string pngBase64 must not shadow a valid svg.
+      if ((args.svg ? 1 : 0) + (args.pngBase64 ? 1 : 0) !== 1) {
+        throw new Error("Provide exactly one of `svg` or `pngBase64`.");
+      }
+      if (!imagesConfigured(env)) {
+        throw new Error(
+          "Image upload is not configured on this server (CF_IMAGES_ACCOUNT_ID / CF_IMAGES_TOKEN " +
+            "unset). Ask the operator to provision Cloudflare Images credentials.",
+        );
+      }
+
+      let bytes: Uint8Array;
+      let contentType: "image/png" | "image/svg+xml";
+      if (args.pngBase64) {
+        try {
+          bytes = base64ToBytes(args.pngBase64);
+        } catch {
+          throw new Error("`pngBase64` is not valid base64.");
+        }
+        // PNG magic: eight fixed signature bytes.
+        const magic = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+        if (bytes.length < 8 || magic.some((b, i) => bytes[i] !== b)) {
+          throw new Error("`pngBase64` does not decode to a PNG (bad signature).");
+        }
+        contentType = "image/png";
+      } else if (args.contentType === "image/svg+xml") {
+        bytes = new TextEncoder().encode(args.svg as string);
+        contentType = "image/svg+xml";
+      } else {
+        bytes = await rasterizeSvg(args.svg as string, env.ASSETS);
+        contentType = "image/png";
+      }
+      if (bytes.length > MAX_UPLOAD_BYTES) {
+        throw new Error(`Asset is ${bytes.length} bytes; the upload cap is ${MAX_UPLOAD_BYTES} bytes.`);
+      }
+
+      const { url, id } = await uploadImage(env, bytes, {
+        id: sanitizeKey(args.key),
+        contentType,
+      });
+      const payload = { url, id, contentType };
+      return {
+        content: [{ type: "text", text: JSON.stringify(payload) }],
+        structuredContent: payload,
+      };
+    },
+  );
+
+  // --- report_issue --------------------------------------------------------
+  // Feedback loop: file a real GitHub issue on the Nyuchi Tools repo from
+  // inside a session, instead of relying on someone writing a doc afterward.
+  server.registerTool(
+    "report_issue",
+    {
+      title: "Report an issue with a Nyuchi Tools tool",
+      description:
+        "File a GitHub issue on the Nyuchi Tools repo about a problem or gap in one of this " +
+        "server's tools — a bug, a missing capability, confusing output, or a documentation gap. " +
+        "The target repo is configured server-side. Include what was tried, what happened, and " +
+        "what was expected; always name the specific tool concerned.",
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+      outputSchema: {
+        url: z.string().describe("URL of the created GitHub issue."),
+        number: z.number().describe("Issue number."),
+        repo: z.string().describe("owner/repo the issue was filed on."),
+      },
+      inputSchema: {
+        title: z.string().min(4).max(200).describe("Short summary of the issue."),
+        description: z
+          .string()
+          .min(10)
+          .max(20000)
+          .describe("What was tried, what happened, and what was expected. Markdown welcome."),
+        tool_name: z
+          .string()
+          .max(100)
+          .describe(
+            "Which tool this concerns (e.g. generate_studio_card, upload_asset, " +
+              "generate_email_signature) — be unambiguous.",
+          ),
+        severity: z
+          .enum(["low", "medium", "high"])
+          .optional()
+          .default("medium")
+          .describe("Impact of the issue."),
+        category: z
+          .enum(["bug", "missing_capability", "confusing_output", "documentation"])
+          .describe("What kind of issue this is."),
+      },
+    },
+    async (args: {
+      title: string;
+      description: string;
+      tool_name: string;
+      severity?: FeedbackSeverity;
+      category: FeedbackCategory;
+    }) => {
+      const { url, number } = await createFeedbackIssue(env, {
+        title: args.title,
+        description: args.description,
+        toolName: args.tool_name,
+        severity: args.severity ?? "medium",
+        category: args.category,
+      });
+      const payload = { url, number, repo: feedbackRepo(env) };
+      return {
+        content: [{ type: "text", text: JSON.stringify(payload) }],
+        structuredContent: payload,
       };
     },
   );
@@ -311,15 +647,21 @@ function buildServer(env: Env): McpServer {
   server.registerTool(
     "generate_article_banner",
     {
-      title: "Generate article banner",
+      title: "Generate article banner (deprecated)",
       description:
+        "DEPRECATED — use generate_studio_card instead: the Studio fully replaces this legacy " +
+        "banner generator (it covers every banner use case, adds the mineral layout, the 'story' " +
+        "format, PNG/upload output, and receives all visual fixes; this tool gets none of them). " +
+        "Kept only for existing callers pending removal. " +
         "Generate an article banner as an SVG string (same engine as the /banner page). " +
         "`format` (canvas shape) and `layout` (composition) are independent axes — every combination " +
         "is valid, so pick each on its own merits rather than treating them as one choice. Default is " +
         "format 'ig' (square) + layout 1 (type-forward); reach for '16x9' when the banner needs a wide " +
-        "article-header shape, or 'og'/'li' for a link-preview unfurl. PNG rasterization is a follow-up. " +
+        "article-header shape, or 'og'/'li' for a link-preview unfurl. This tool returns SVG only — " +
+        "PNG and upload output exist on generate_studio_card, not here. " +
         "The second content item is JSON metadata: {format:{w,h}, seed}. Note: unlike " +
         "generate_studio_card, this engine has no 'story' format and only layouts 1-4 (no mineral swatch).",
+      annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
       inputSchema: {
         title: z.string().describe("Banner title."),
         dek: z.string().optional().describe("Supporting line under the title."),
@@ -442,7 +784,7 @@ function authorizationServerMetadataHandler(wellKnownPath: "oauth-authorization-
  * site-wide login gate's signing secret, and the static-assets binding the
  * post-auth catch-all route serves the built Astro site from.
  */
-interface Env extends SiteAuthEnv {
+interface Env extends SiteAuthEnv, ImagesEnv, FeedbackEnv {
   ASSETS: Fetcher;
 }
 

@@ -165,6 +165,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Links
 
-- [GitHub Repository](https://github.com/nyuchitech/workspace-tools)
-- [Issue Tracker](https://github.com/nyuchitech/workspace-tools/issues)
+- [GitHub Repository](https://github.com/nyuchi/workspace-tools)
+- [Issue Tracker](https://github.com/nyuchi/workspace-tools/issues)
 - [Security Policy](./SECURITY.md)
