@@ -5,7 +5,7 @@ Automatically generates and applies branded email signatures for all users **and
 ## Features
 
 - Pulls user data (name, title, phone) from Google Workspace directory
-- Generates HTML signatures with Nyuchi branding
+- Fetches signature HTML from the `tools.nyuchi.com` render API (`POST /api/signature`), which renders through the one canonical engine — the script no longer carries its own template
 - Applies signatures to primary emails AND all aliases
 - Can run on a schedule to keep signatures updated
 
@@ -50,24 +50,23 @@ Required to set signatures for other users:
      https://www.googleapis.com/auth/gmail.settings.sharing
      ```
 
-### 4. Update Configuration
+### 4. Configure the Signature Render API
 
-Edit the `CONFIG` object in `Code.gs` to match your brand:
+Signature HTML is fetched from the `nyuchi-tools` Worker, not generated
+locally. Set these **Script Properties** (Project Settings > Script
+Properties):
 
-```javascript
-const CONFIG = {
-  domain: 'nyuchi.com',
-  companyName: 'Nyuchi Africa',
-  tagline: 'I am because we are',
-  website: 'nyuchi.com',
-  colors: {
-    primary: '#2D5016',
-    secondary: '#4A7C23',
-    text: '#333333',
-    lightText: '#666666'
-  }
-};
-```
+| Property | Required | Value |
+|----------|----------|-------|
+| `SIGNATURE_API_KEY` | yes | Bearer token for `POST /api/signature` |
+| `SIGNATURE_API_URL` | no | Base URL; defaults to `https://tools.nyuchi.com` |
+
+Without `SIGNATURE_API_KEY`, every signature function throws — there is
+deliberately no local-template fallback.
+
+The `CONFIG` object in `Code.js` now only holds the workspace domain, the
+promotional banner passed to the API, and the email-domain → division/brand
+mapping (each division carries the `brandSlug` sent to the API).
 
 ## Usage
 
@@ -148,24 +147,10 @@ Example: If `jane@nyuchi.com` has aliases `support@nyuchi.com` and `info@nyuchi.
 
 ## Customization
 
-### Add a Logo
-
-Add an image column to the signature table:
-
-```javascript
-<table>
-  <tr>
-    <td style="padding-right: 15px; vertical-align: top;">
-      <img src="YOUR_LOGO_URL" width="60" alt="Nyuchi">
-    </td>
-    <td>
-      <!-- rest of signature -->
-    </td>
-  </tr>
-</table>
-```
-
-**Note:** Logo must be hosted on a publicly accessible URL.
+The signature markup lives in the canonical engine
+(`signature-generator/src/engines/signature/index.ts`), served through the
+`tools.nyuchi.com` Worker. To change the emitted signature, change the engine
+— never re-add a local template here.
 
 ## License
 

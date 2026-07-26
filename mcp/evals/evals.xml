@@ -1,0 +1,53 @@
+<!--
+  MCP server evaluations for nyuchi-tools (mcp-builder Phase 4 format).
+
+  Ten read-only questions an MCP client should be able to answer using ONLY
+  this server's tools, resources, and prompts. Every answer is deterministic:
+  it comes from the pure engine data (brand registry, mineral palettes,
+  studio formats) or from stable tool behavior — no uploads, no GitHub, no
+  network. Run by giving each question to an agent connected to
+  https://tools.nyuchi.dev/mcp and comparing its final answer to the
+  expected one.
+-->
+<evaluation>
+  <qa_pair>
+    <question>What are the dark-theme and light-theme hex values of the Mzizi mineral whose semantic role is "Growth"?</question>
+    <answer>Malachite: dark #64FFDA, light #004D40 (read from the nyuchi://minerals resource).</answer>
+  </qa_pair>
+  <qa_pair>
+    <question>Which top-level Bundu-ecosystem brand plays the "consumer" pillar role, and what is its primary domain?</question>
+    <answer>Mukoko, domain mukoko.com (nyuchi://brands or nyuchi://brands/mukoko).</answer>
+  </qa_pair>
+  <qa_pair>
+    <question>How many divisions does the nyuchi brand have, and what are their slugs?</question>
+    <answer>Four: lingo, learning, development, foundation (nyuchi://brands/nyuchi).</answer>
+  </qa_pair>
+  <qa_pair>
+    <question>What pixel dimensions does the studio card engine use for the "story" format?</question>
+    <answer>1080 × 1920 (nyuchi://studio/reference, or the format metadata returned by nyuchi_generate_studio_card with format "story").</answer>
+  </qa_pair>
+  <qa_pair>
+    <question>Which studio layout is the "meet this mineral" educational card, and is it the default layout?</question>
+    <answer>Layout 5 (mineral), and yes — it is the default when no layout is given.</answer>
+  </qa_pair>
+  <qa_pair>
+    <question>Generate a studio card twice with the identical title "Hive", category "gold", and layout 1. Do the two calls return the same seed?</question>
+    <answer>Yes — the seed derives deterministically from title+category+layout, so both calls return the same seed (and identical SVG).</answer>
+  </qa_pair>
+  <qa_pair>
+    <question>Under what conditions do the DARK/LIGHT hex spec labels appear on a layout-5 mineral card by default?</question>
+    <answer>Only when the card is about the mineral itself — no title, or the title equals the mineral's name; generic cards hide them (overridable with showHexes).</answer>
+  </qa_pair>
+  <qa_pair>
+    <question>What tagline does the nyuchi_generate_email_signature output carry for the bundu brand?</question>
+    <answer>"The wilderness holds the hive" (visible in the emitted signature HTML for brand "bundu", and in nyuchi://brands).</answer>
+  </qa_pair>
+  <qa_pair>
+    <question>Which of this server's tools are annotated read-only, and which can publish to the outside world?</question>
+    <answer>nyuchi_generate_email_signature is read-only/closed-world; nyuchi_generate_studio_card, nyuchi_upload_asset, and nyuchi_report_issue are open-world (upload/publish or file issues) but non-destructive.</answer>
+  </qa_pair>
+  <qa_pair>
+    <question>According to the create_social_card prompt, which mineral should a post about community stories use?</question>
+    <answer>Terracotta — the prompt directs picking the mineral whose role matches the topic, and Terracotta's role is Community.</answer>
+  </qa_pair>
+</evaluation>
