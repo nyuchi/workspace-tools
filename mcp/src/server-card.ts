@@ -21,7 +21,11 @@ export interface ServerCard {
   description: string;
   websiteUrl: string;
   remotes: { transportType: string; url: string }[];
-  capabilities: { tools: { listChanged: boolean } };
+  capabilities: {
+    tools: { listChanged: boolean };
+    resources: { listChanged: boolean };
+    prompts: { listChanged: boolean };
+  };
 }
 
 export function buildServerCard(name: string, version: string, env: AuthEnv): ServerCard {
@@ -30,10 +34,13 @@ export function buildServerCard(name: string, version: string, env: AuthEnv): Se
     name,
     description:
       "MCP server for Nyuchi Africa tools: email signatures, Nyuchi Studio social cards " +
-      "(SVG, PNG, or hosted Cloudflare Images URL), asset uploads, and issue reporting. " +
-      "The legacy article-banner tool is deprecated in favor of the Studio.",
+      "(SVG, PNG, or hosted Cloudflare Images URL), asset uploads, and issue reporting.",
     websiteUrl: "https://tools.nyuchi.com",
     remotes: [{ transportType: "streamable-http", url: resourceUrl(env) }],
-    capabilities: { tools: { listChanged: true } },
+    capabilities: {
+      tools: { listChanged: true },
+      resources: { listChanged: true },
+      prompts: { listChanged: true },
+    },
   };
 }

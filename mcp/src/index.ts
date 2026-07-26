@@ -78,10 +78,6 @@ import {
   HEX_COLOR_RE,
   type Params as StudioParams,
 } from "../../signature-generator/src/engines/nyuchi";
-import {
-  buildSVG as buildArticleBanner,
-  type Params as BannerParams,
-} from "../../signature-generator/src/engines/banner";
 import { ensureBrandIconsLoaded } from "./brand-icons.js";
 import { rasterizeSvg, warmRaster } from "./raster.js";
 import {
@@ -98,6 +94,14 @@ import {
   type FeedbackEnv,
   type FeedbackSeverity,
 } from "./feedback.js";
+import {
+  registerSignatureApi,
+  SIGNATURE_API_PATH,
+  type SignatureApiEnv,
+} from "./signature-api.js";
+import { registerGoogleRoutes, type GoogleAuthEnv } from "./google-auth.js";
+import { registerCatalog } from "./catalog.js";
+import { registerGoogleAdminRoutes, type GoogleAdminEnv } from "./google-admin.js";
 
 /** Chunked bytes → base64 (no Buffer dependency; works in Workers + node). */
 function bytesToBase64(bytes: Uint8Array): string {
@@ -133,7 +137,7 @@ const MINERALS = [
 ] as const;
 
 const SERVER_NAME = "nyuchi-tools";
-const SERVER_VERSION = "0.1.0";
+const SERVER_VERSION = "0.2.0";
 /** Display-only (GET /mcp ping): actual negotiation is per-request in the SDK. */
 const MCP_PROTOCOL_VERSION = LATEST_PROTOCOL_VERSION;
 
@@ -193,11 +197,11 @@ function buildServer(env: Env): McpServer {
     version: SERVER_VERSION,
   });
 
-  // --- generate_email_signature -------------------------------------------
+  // --- nyuchi_generate_email_signature -------------------------------------------
   // Shares the pure signature engine with the SPA so both surfaces emit
   // byte-identical signature HTML.
   server.registerTool(
-    "generate_email_signature",
+    "nyuchi_generate_email_signature",
     {
       title: "Generate email signature",
       description: "Generate a branded Nyuchi email signature as HTML.",
@@ -229,12 +233,12 @@ function buildServer(env: Env): McpServer {
     },
   );
 
-  // --- generate_studio_card -----------------------------------------------
+  // --- nyuchi_generate_studio_card -----------------------------------------------
   // The real Studio engine — the same pure module the SPA's /studio page
   // renders with. Text is measured from the committed font-metrics table
   // (Workers have no canvas); all user input is escaped inside the engine.
   server.registerTool(
-    "generate_studio_card",
+    "nyuchi_generate_studio_card",
     {
       title: "Generate Nyuchi Studio social card",
       description:
@@ -473,20 +477,20 @@ function buildServer(env: Env): McpServer {
     },
   );
 
-  // --- upload_asset --------------------------------------------------------
+  // --- nyuchi_upload_asset --------------------------------------------------------
   // Standalone "give me a public URL" tool: takes SVG (rasterized
   // server-side) or ready PNG bytes and uploads to Cloudflare Images, so a
   // generated image can be attached to anything that needs a fetchable URL
   // (Buffer, Instagram, X, ...).
   server.registerTool(
-    "upload_asset",
+    "nyuchi_upload_asset",
     {
       title: "Upload an image asset, get a public URL",
       description:
         "Upload a generated image to Cloudflare Images and return a stable public URL in one call. " +
-        "Give it either `svg` (e.g. the output of generate_studio_card — it is rasterized to PNG " +
+        "Give it either `svg` (e.g. the output of nyuchi_generate_studio_card — it is rasterized to PNG " +
         "server-side, no client SVG→PNG pipeline needed) or `pngBase64` (pre-rasterized bytes). " +
-        "For generate_studio_card output, prefer calling that tool with upload=true instead — one " +
+        "For nyuchi_generate_studio_card output, prefer calling that tool with upload=true instead — one " +
         "call, no SVG round-trip.",
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
       outputSchema: {
@@ -576,11 +580,11 @@ function buildServer(env: Env): McpServer {
     },
   );
 
-  // --- report_issue --------------------------------------------------------
+  // --- nyuchi_report_issue --------------------------------------------------------
   // Feedback loop: file a real GitHub issue on the Nyuchi Tools repo from
   // inside a session, instead of relying on someone writing a doc afterward.
   server.registerTool(
-    "report_issue",
+    "nyuchi_report_issue",
     {
       title: "Report an issue with a Nyuchi Tools tool",
       description:
@@ -605,8 +609,8 @@ function buildServer(env: Env): McpServer {
           .string()
           .max(100)
           .describe(
-            "Which tool this concerns (e.g. generate_studio_card, upload_asset, " +
-              "generate_email_signature) — be unambiguous.",
+            "Which tool this concerns (e.g. nyuchi_generate_studio_card, nyuchi_upload_asset, " +
+              "nyuchi_generate_email_signature) — be unambiguous.",
           ),
         severity: z
           .enum(["low", "medium", "high"])
@@ -640,106 +644,10 @@ function buildServer(env: Env): McpServer {
     },
   );
 
-  // --- generate_article_banner --------------------------------------------
-  // The real banner engine — the same pure module the SPA's /banner page
-  // renders with. Note the banner engine has no 'story' format and only
-  // layouts 1–4.
-  server.registerTool(
-    "generate_article_banner",
-    {
-      title: "Generate article banner (deprecated)",
-      description:
-        "DEPRECATED — use generate_studio_card instead: the Studio fully replaces this legacy " +
-        "banner generator (it covers every banner use case, adds the mineral layout, the 'story' " +
-        "format, PNG/upload output, and receives all visual fixes; this tool gets none of them). " +
-        "Kept only for existing callers pending removal. " +
-        "Generate an article banner as an SVG string (same engine as the /banner page). " +
-        "`format` (canvas shape) and `layout` (composition) are independent axes — every combination " +
-        "is valid, so pick each on its own merits rather than treating them as one choice. Default is " +
-        "format 'ig' (square) + layout 1 (type-forward); reach for '16x9' when the banner needs a wide " +
-        "article-header shape, or 'og'/'li' for a link-preview unfurl. This tool returns SVG only — " +
-        "PNG and upload output exist on generate_studio_card, not here. " +
-        "The second content item is JSON metadata: {format:{w,h}, seed}. Note: unlike " +
-        "generate_studio_card, this engine has no 'story' format and only layouts 1-4 (no mineral swatch).",
-      annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
-      inputSchema: {
-        title: z.string().describe("Banner title."),
-        dek: z.string().optional().describe("Supporting line under the title."),
-        category: z.enum(MINERALS).describe("Mineral palette."),
-        format: z
-          .enum(["16x9", "og", "li", "ig"])
-          .optional()
-          .default("ig")
-          .describe(
-            "Canvas aspect ratio / target platform — independent of layout. " +
-              "'ig' Square 1080x1080 (default; Instagram feed or any square social slot). " +
-              "'16x9' 1600x900 (wide article hero/header image). " +
-              "'og' 1200x630 (Open Graph link-preview unfurl for Slack/X/iMessage). " +
-              "'li' 1200x627 (LinkedIn share image, near-identical to og).",
-          ),
-        layout: z
-          .number()
-          .int()
-          .min(1)
-          .max(4)
-          .optional()
-          .default(1)
-          .describe(
-            "Composition — independent of format, applies at any aspect ratio. " +
-              "1 type-forward (default): the headline dominates the frame, node graph subtle in the " +
-              "background — best for a punchy title with little else. " +
-              "2 anchor: text in a left column, a large node-graph mark anchored on the right half. " +
-              "3 split: a solid mineral-colour panel (with the node graph) split against the headline on " +
-              "a dark panel — the boldest, most color-blocked option. " +
-              "4 halo: everything centered, with the node graph arcing around the text like a halo.",
-          ),
-        theme: z.enum(["light", "dark"]).optional().default("dark").describe("Surface theme."),
-        brand: z
-          .enum(TOP_BRAND_KEYS)
-          .optional()
-          .default("nyuchi")
-          .describe(`Lockup brand. ${BRAND_TAXONOMY}`),
-        seedKey: z
-          .string()
-          .optional()
-          .describe("Seed for the generative graph; defaults to title·category·layout like the SPA."),
-      },
-    },
-    async (args: {
-      title: string;
-      dek?: string;
-      category: BannerParams["category"];
-      format?: BannerParams["format"];
-      layout?: number;
-      theme?: BannerParams["theme"];
-      brand?: BannerParams["brand"];
-      seedKey?: string;
-    }) => {
-      await ensureBrandIconsLoaded(env.ASSETS);
-      const layout = args.layout ?? 1;
-      const params: BannerParams = {
-        format: args.format ?? "ig",
-        layout,
-        theme: args.theme ?? "dark",
-        category: args.category,
-        title: args.title,
-        dek: args.dek,
-        // SPA defaults (BannerPage INITIAL state).
-        lattice: true,
-        lockup: true,
-        brand: args.brand ?? "nyuchi",
-        // Same derivation as the SPA (seedSalt 0).
-        seedKey: args.seedKey ?? `${args.title}·${args.category}·${layout}·0`,
-      };
-      const { svg, format, seed } = buildArticleBanner(params);
-      return {
-        content: [
-          { type: "text", text: svg },
-          { type: "text", text: JSON.stringify({ format: { w: format.w, h: format.h }, seed }) },
-        ],
-      };
-    },
-  );
+  // --- Resources + prompts (mcp/src/catalog.ts) ---------------------------
+  // Read-only views of the canonical engine data (brand registry, mineral
+  // palettes, studio reference) and guided prompts for the common workflows.
+  registerCatalog(server);
 
   return server;
 }
@@ -784,7 +692,7 @@ function authorizationServerMetadataHandler(wellKnownPath: "oauth-authorization-
  * site-wide login gate's signing secret, and the static-assets binding the
  * post-auth catch-all route serves the built Astro site from.
  */
-interface Env extends SiteAuthEnv, ImagesEnv, FeedbackEnv {
+interface Env extends SiteAuthEnv, ImagesEnv, FeedbackEnv, SignatureApiEnv, GoogleAuthEnv, GoogleAdminEnv {
   ASSETS: Fetcher;
 }
 
@@ -822,6 +730,10 @@ const EXEMPT_SITE_AUTH_PATHS = new Set<string>([
   "/login",
   CALLBACK_PATH,
   "/logout",
+  // /api/signature does its OWN auth (SIGNATURE_API_KEY bearer or session
+  // cookie — see signature-api.ts); the gate's 302-to-/login would break
+  // its non-browser callers (Apps Script UrlFetchApp).
+  SIGNATURE_API_PATH,
 ]);
 
 function isExemptFromSiteAuth(pathname: string): boolean {
@@ -1047,6 +959,22 @@ app.post("/mcp", async (c) => {
 
 // Anything else under /mcp/*: 404 with a hint.
 app.all("/mcp/*", (c) => c.json({ error: "not found", hint: "POST /mcp for JSON-RPC" }, 404));
+
+// POST /api/signature — byte-locked signature HTML from the canonical
+// engine, for Apps Script and other server-to-server callers. Does its own
+// auth (bearer key or session cookie); exempted from the site gate above.
+registerSignatureApi(app);
+
+// Google OAuth + self-service Gmail insert (see google-auth.ts). These
+// paths are deliberately NOT on the site-gate exempt list: they require a
+// signed-in site session, and the gate middleware above (registered first)
+// runs before any of them.
+registerGoogleRoutes(app);
+
+// Admin orchestration: directory listing + bulk signature push (see
+// google-admin.ts). Same posture as the routes above: behind the site
+// login gate, fail-closed until Google env is provisioned.
+registerGoogleAdminRoutes(app);
 
 // Everything else, once the login gate above has passed (or the path was
 // exempt): the built Astro site as static assets (see [assets] in
