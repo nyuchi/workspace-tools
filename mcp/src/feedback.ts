@@ -1,5 +1,5 @@
 /**
- * report_issue backend: files a GitHub issue on the Nyuchi Tools repo so
+ * nyuchi_report_issue backend: files a GitHub issue on the Nyuchi Tools repo so
  * any MCP caller (agent or human) can turn "I hit a bug in the Studio"
  * into a tracked issue with repro details, in the moment.
  *
@@ -59,7 +59,7 @@ export async function createFeedbackIssue(env: FeedbackEnv, input: FeedbackInput
     input.description,
     "",
     "---",
-    "_Filed via the `report_issue` tool on the nyuchi-tools MCP server._",
+    "_Filed via the `nyuchi_report_issue` tool on the nyuchi-tools MCP server._",
   ].join("\n");
 
   const res = await fetch(`https://api.github.com/repos/${feedbackRepo(env)}/issues`, {
