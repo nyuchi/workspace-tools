@@ -6,12 +6,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Sub-projects for managing Nyuchi Africa email signatures and design assets. They share branding but **no code** — the TypeScript side shares one brand registry (`signature-generator/src/engines/brands`); the Apps Script projects each maintain a hand-synced copy of the brand list.
 
-| Directory | Stack | Purpose | Deploy target |
-|-----------|-------|---------|---------------|
-| `gmail-addon/` | Google Apps Script (V8) | Gmail Add-on (CardService UI) + admin web dashboard | Apps Script via clasp |
-| `email-signature/` | Google Apps Script (V8) | Admin batch script: push signatures to all domain users & aliases | Apps Script via clasp |
-| `signature-generator/` | Astro (static) + React 19 islands + TypeScript + `@bundu/ui` | Standalone web app: signature builder, Nyuchi Studio (social cards), setup docs | Bundled into the `nyuchi-tools` Worker as static assets |
-| `mcp/src/` | Cloudflare Workers + Hono + `@modelcontextprotocol/sdk` | Source of the `nyuchi-tools` Worker: serves the built static site **and** the MCP HTTP server | Workers Custom Domain on `tools.nyuchi.com` (site) **and** `tools.nyuchi.dev` (MCP) — same Worker, two domains (config: root `wrangler.toml`) |
+| Directory              | Stack                                                        | Purpose                                                                                       | Deploy target                                                                                                                                 |
+| ---------------------- | ------------------------------------------------------------ | --------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gmail-addon/`         | Google Apps Script (V8)                                      | Gmail Add-on (CardService UI) + admin web dashboard                                           | Apps Script via clasp                                                                                                                         |
+| `email-signature/`     | Google Apps Script (V8)                                      | Admin batch script: push signatures to all domain users & aliases                             | Apps Script via clasp                                                                                                                         |
+| `signature-generator/` | Astro (static) + React 19 islands + TypeScript + `@bundu/ui` | Standalone web app: signature builder, Nyuchi Studio (social cards), setup docs               | Bundled into the `nyuchi-tools` Worker as static assets                                                                                       |
+| `mcp/src/`             | Cloudflare Workers + Hono + `@modelcontextprotocol/sdk`      | Source of the `nyuchi-tools` Worker: serves the built static site **and** the MCP HTTP server | Workers Custom Domain on `tools.nyuchi.com` (site) **and** `tools.nyuchi.dev` (MCP) — same Worker, two domains (config: root `wrangler.toml`) |
 
 The repo root package.json carries the Apps Script npm workspace **and** the Worker's dependencies + deploy scripts; `signature-generator/` is a separate npm project with its own lockfile. `mcp/` holds only Worker source and its tsconfig — no package.json.
 
@@ -32,7 +32,9 @@ GitHub Pages is **no longer used** — the DNS record is a proxied Workers-only 
 ## Commands
 
 ### Apps Script projects (root)
+
 Wrappers around [clasp](https://github.com/google/clasp). Requires `clasp login` first; `gmail-addon/.clasp.json` has an empty `scriptId` that must be filled before pushing.
+
 ```bash
 npm run push:gmail        # clasp push gmail-addon
 npm run push:signature    # clasp push email-signature
@@ -42,6 +44,7 @@ npm run open:gmail        # open in Apps Script editor
 ```
 
 ### Web app (`signature-generator/`, Astro)
+
 ```bash
 cd signature-generator
 npm run dev      # astro dev server
@@ -51,7 +54,9 @@ npm run preview  # astro preview — serves the built dist/
 ```
 
 ### The `nyuchi-tools` Worker (root `wrangler.toml`, source in `mcp/src/`)
+
 Deployment lives at the **repo root** — there is no per-directory package for the Worker.
+
 ```bash
 npm install               # root deps include wrangler + the Worker's runtime deps
 npm run build:web         # build the site into signature-generator/dist (required before deploy)
@@ -59,20 +64,25 @@ npm run dev:tools         # wrangler dev — local Worker at http://localhost:87
 npm run deploy:tools      # build:web + wrangler deploy
 npm run typecheck:worker  # tsc against mcp/tsconfig.json
 ```
+
 `wrangler` reads `CLOUDFLARE_API_TOKEN` from the environment; the account id is pinned in `wrangler.toml`. `tools.nyuchi.com` (site) is a Workers Custom Domain on the `nyuchi.com` zone; `tools.nyuchi.dev` (MCP) is a Workers Custom Domain on the `nyuchi.dev` zone — both point at the same Worker.
 
 ### Tests
+
 Two **Vitest** suites (node environment, no jsdom); `npm test` at the repo root runs both. CI (`.github/workflows/ci.yml`) runs lint, `typecheck:worker`, the site build, and both suites on Node 22.
+
 - `signature-generator/`: `npm test` (`vitest.config.ts`, tests in `tests/`) — unit tests for the two pure engines (`signature`, `nyuchi`) plus the signature-page helpers (`tests/signature-page.test.ts` imports `src/pages/signature/helpers.ts` — keep that file at that path with those exports). The nyuchi engine measures text via a lazily created canvas 2d context; `tests/setup.canvas.ts` installs a deterministic `document`/canvas stub (chars × 0.53 × font-size) before any engine import — keep that stub if you add engine tests.
 - Repo root: `npm run test:worker` (`vitest.worker.config.ts`, tests in `mcp/tests/`) — HTTP-level tests of the `nyuchi-tools` Worker, exercising the default export via `worker.fetch(new Request(...), env)`. These live at the root because the Worker's deps are root dependencies and `mcp/` intentionally has no package.json; `mcp/tsconfig.json` only includes `src/**`, so `typecheck:worker` never sees them.
 
 The Apps Script "tests" remain exported functions run manually from the Apps Script editor:
+
 - `email-signature/Code.js`: `runAllTests()`, `testSignatureGeneration()`, `testDivisionDetection()`, `testMySignature()` (these now require `SIGNATURE_API_KEY` in Script Properties), plus dry-run `listAllUsersAndAliases()` and `updateSingleUserSignature(email)` before a full `updateAllUserSignatures()`.
 - `gmail-addon/Code.js`: `testSignatureGeneration()`, `testAdminSignature()`.
 
 ## Architecture notes
 
 ### Astro islands architecture
+
 `signature-generator/` is a static **Astro** site (no SSR adapter; `astro.config.ts` at the project root):
 
 - Routes are `src/pages/*.astro` (`/`, `/signature-generator`, `/studio`, `/help`, `/setup`, `/gmail-addon`, `404`; `/banner` is a static redirect to `/studio` via astro.config `redirects`), all sharing `src/layouts/Base.astro` — html shell, theme bootstrap (`localStorage['nyuchi-theme']`, default **dark**, sets `data-theme` before first paint), sticky 4rem nav (the tool panels' `top: 4rem` sticky math depends on that height), theme toggle, footer.
@@ -81,6 +91,7 @@ The Apps Script "tests" remain exported functions run manually from the Apps Scr
 - Content pages (`/`, `/help`, `/setup`, `/gmail-addon`, 404) are native Astro composed from `@bundu/ui` Astro components; there is no client-side router (react-router is gone).
 
 ### Design tokens live in Mzizi; `@bundu/ui` ships them
+
 The web app's design system is **`@bundu/ui`** (npm) — the canonical Mzizi implementation: 7 mineral palettes (cobalt/tanzanite/malachite/gold/terracotta/sodalite/copper), semantic tokens, type scale, radius (**pill for buttons/inputs**, 14px for cards), a Tailwind preset, and Astro/React components. Wiring lives in `src/styles/global.css`: Tailwind 4 → `@bundu/ui/styles/globals.css` → `brand-nyuchi.css` (site primary = gold) → `fonts.css` → `compat.css`, plus `@config "../../tailwind.config.mjs"` (loads the preset and adds `node_modules/@bundu/ui/src` to the content globs — required so the package's own utility classes compile). Rules:
 
 1. When changing colors, radius, spacing, or type scale, update Mzizi/@bundu/ui first. Do not invent values or redefine canonical vars locally.
@@ -91,6 +102,7 @@ The web app's design system is **`@bundu/ui`** (npm) — the canonical Mzizi imp
 Nyuchi's canonical mineral is **gold** (`#FFD740`). Every other brand has its own — the signature-page mapping lives in `signature-generator/src/pages/signature/helpers.ts` (`BRAND_MINERAL`).
 
 ### The brand registry is the canonical source; Apps Script copies are hand-synced
+
 `signature-generator/src/engines/brands/index.ts` is THE canonical brand
 registry — a pure module holding the Bundu-ecosystem taxonomy:
 
@@ -107,6 +119,7 @@ registry — a pure module holding the Bundu-ecosystem taxonomy:
   light-surface bee is vendored today).
 
 Consumers:
+
 - `signature-generator/src/engines/signature/index.ts` (`BRANDS`,
   `buildSignatureHtml`, `buildSignatureText`) — the signature template +
   the **historical signature copies** of the brand data, imported by both the
@@ -132,14 +145,18 @@ both Apps Script files. The two Apps Script files also differ in shape
 GitHub).
 
 ### The emitted email-signature HTML is separate from the web-app UI
+
 The signature page (`signature-generator/src/pages/signature/`) has two visual surfaces:
+
 - **Web-app UI** — the panel + stage the user works in (studio layout pattern). Styled to the Mzizi mineral / dark design system.
 - **Emitted signature HTML** — the string the page previews and copies into Gmail, built by `src/engines/signature/index.ts` (`buildSignatureHtml`). This uses the historical signature styling (Plus Jakarta Sans / Noto Serif, brand primary colors) and is now the single template for every surface: the Apps Script projects fetch it via `POST /api/signature` instead of carrying copies. Change it only in the engine module, never per-surface. The page injects the engine output verbatim for the live preview, so preview and clipboard share one code path.
 
 Don't accidentally restyle the emitted HTML when working on the web-app UI. The distinction is important: the UI is behind the studio's mineral tokens; the signature markup is brand-locked to the historical Nyuchi purple.
 
 ### Apps Script global functions are the API contract
+
 In `gmail-addon/`, top-level function names are referenced by string elsewhere, so renaming one silently breaks it:
+
 - `appsscript.json` triggers point to `onHomepage`, `onComposeInsert`, `openDashboard`, `resetSettings`.
 - `Dashboard.html` calls server functions via `google.script.run` (e.g. `getDashboardData`, `getSignaturePreview`, `updateSingleUserFromDashboard`, `updateAllFromDashboard`).
 - `doGet` serves `Dashboard.html` as a web app (`webapp.executeAs: USER_ACCESSING`, `access: DOMAIN`).
@@ -147,11 +164,13 @@ In `gmail-addon/`, top-level function names are referenced by string elsewhere, 
 The add-on has two tabs built by `buildTabbedCard`: a **User tab** (self-service, only the user's own signature) and an **Admin tab** (domain-wide, requires Admin SDK access).
 
 ### Permission model
+
 - `gmail-addon` User tab: per-user, `gmail.settings.basic`.
 - `gmail-addon` Admin tab & `email-signature`: read the directory via `admin.directory.user.readonly` and write other users' send-as signatures via `gmail.settings.sharing`, which requires **domain-wide delegation** configured in the Google Admin Console (see `email-signature/README.md` and `TESTING.md`).
 - `email-signature` also handles aliases: for each user it applies a signature to the primary address plus every send-as alias.
 
 ### The Nyuchi Studio
+
 `/studio` is a React port of a vanilla-JS/HTML tool originally built in Claude Design. The ported SVG-generation engine lives under `signature-generator/src/engines/nyuchi/`. It is a **pure function** — `buildSVG(params) → { svg, format, seed }` — so the same code path is imported by the MCP server tool (`nyuchi_generate_studio_card`) without duplication.
 
 **The legacy Banner tool was removed entirely (2026-07)** — page, engine (`engines/banner`), and the `generate_article_banner` MCP tool are gone; the Studio covers every banner use case. `/banner` is a static redirect to `/studio` (astro.config `redirects`), and the worker suite asserts the removed tool name errors cleanly. Don't resurrect it.
@@ -161,9 +180,11 @@ Studio behavior worth knowing (2026-07 passes): dek at ~0.88× the fitted title 
 PNG rasterization is done client-side via `<canvas>` in the web app. On the MCP side, `nyuchi_generate_studio_card` also rasterizes **server-side** via `@resvg/resvg-wasm` (`mcp/src/raster.ts`): fonts come from the static TTFs in `signature-generator/public/fonts/raster/` (vendored from Google Fonts; served to the Worker through the ASSETS binding — keep them in `public/` or rasterization breaks). `returnFormat` controls the response: `'svg'` (default), `'png'` (inline image), or `'url'` (default when `upload: true` — rasterize, upload to **Cloudflare Images**, return only `{url, id, width, height, seed}`, no SVG body). `nyuchi_upload_asset` does the same for arbitrary SVG/PNG input, and `nyuchi_report_issue` files GitHub issues on `FEEDBACK_REPO`. Beyond tools, the MCP server also exposes **resources** (`nyuchi://brands[/{key}]`, `nyuchi://minerals`, `nyuchi://studio/reference` — read-only JSON views of the canonical engine data) and **prompts** (`create_social_card`, `create_email_signature`, `mineral_education_card`), registered in `mcp/src/catalog.ts`; deterministic client-side evals live in `mcp/evals/evals.xml`. Upload needs `CF_IMAGES_ACCOUNT_ID` + the `CF_IMAGES_TOKEN` secret; nyuchi_report_issue needs the `GITHUB_FEEDBACK_TOKEN` secret — all fail closed with clear tool errors when unconfigured (see `wrangler.toml`).
 
 ### HTML generation & XSS
+
 All signature HTML is assembled from user input by hand. Both Apps Script files have an `escapeHtml()` helper; the React component additionally uses `@braintree/sanitize-url` plus `escapeHtml`/`createMailtoUrl`/`createTelUrl`/`createWhatsAppUrl` helpers. **Preserve this escaping when editing signature templates** — these strings end up as raw HTML in users' mailboxes.
 
 ### Process docs, skills, and agents
+
 - `TEST.md` documents the test infrastructure (suites, stubs, commands, what CI runs, what needs manual/visual checks); `REVIEW.md` documents the review standard and holds the latest review record; `SECURITY.md` covers both the Apps Script and Worker/MCP security models. Keep all three in sync with the code — the `docs-sync` skill defines the sweep order (README → SECURITY → CLAUDE.md → TEST.md → REVIEW.md).
 - Repo skills in `.claude/skills/`: `verify` (full check sequence), `docs-sync` (documentation drift sweep), `studio-qa` (visual render verification after engine changes). Repo agents in `.claude/agents/` (`verifier`, `docs-curator`, `studio-qa`) run these repeatedly.
 - **Brand/architecture authority is Mzizi** (the design-system registry, also reachable as the Mzizi MCP server): mineral palettes, semantic tokens, pill geometry, touch targets, and the ecosystem taxonomy come from there — query it rather than inventing values (`@bundu/ui` is its shipped implementation). Its doctrine for Nyuchi tools also includes the feedback loop this repo implements as `nyuchi_report_issue`: failures become tracked GitHub issues with humans in the loop.

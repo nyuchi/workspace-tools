@@ -18,6 +18,7 @@ The Gmail add-on now features two distinct tabs:
 
 **User Tab**
 Your familiar self-service signature generator with all existing features:
+
 - Brand selection (9 Nyuchi brands)
 - Personal information fields
 - Social media links
@@ -25,6 +26,7 @@ Your familiar self-service signature generator with all existing features:
 
 **Admin Tab**
 New administrative controls for domain-wide management:
+
 - View domain configuration
 - Update individual user signatures
 - List all users and aliases
@@ -35,23 +37,25 @@ New administrative controls for domain-wide management:
 #### Full-Scale Web Dashboard
 
 A comprehensive administrative dashboard accessible via:
+
 - "Open Dashboard" button in Admin tab
 - Universal action menu in Gmail
 - Direct web app URL
 
 **Dashboard Features:**
 
-| Section | Capabilities |
-|---------|--------------|
-| **Overview** | Statistics, quick actions, activity log |
-| **Users** | Search, preview, update individual users |
-| **Signatures** | Live template preview by brand |
-| **Brands** | Visual display of all 9 brands |
-| **Settings** | Scheduling, banner configuration |
+| Section        | Capabilities                             |
+| -------------- | ---------------------------------------- |
+| **Overview**   | Statistics, quick actions, activity log  |
+| **Users**      | Search, preview, update individual users |
+| **Signatures** | Live template preview by brand           |
+| **Brands**     | Visual display of all 9 brands           |
+| **Settings**   | Scheduling, banner configuration         |
 
 #### Nyuchi Design System
 
 The dashboard implements the complete Nyuchi design system:
+
 - **Colors**: Nyuchi purple (#5f5873) primary
 - **Typography**: Plus Jakarta Sans, Noto Serif
 - **Accents**: Zimbabwe flag horizontal strip
@@ -63,6 +67,7 @@ The dashboard implements the complete Nyuchi design system:
 ### Screenshots
 
 #### Tabbed Interface
+
 ```
 ┌─────────────────────────────────────────┐
 │  Email Signature Manager                │
@@ -82,6 +87,7 @@ The dashboard implements the complete Nyuchi design system:
 ```
 
 #### Web Dashboard
+
 ```
 ┌──────────┬──────────────────────────────────────────┐
 │ Nyuchi   │  Email Signature Dashboard               │
@@ -107,11 +113,13 @@ The dashboard implements the complete Nyuchi design system:
 #### For Existing Users
 
 1. **Pull the latest code:**
+
    ```bash
    git pull origin main
    ```
 
 2. **Push to Apps Script:**
+
    ```bash
    npm run push:gmail
    ```
@@ -143,10 +151,10 @@ Additional steps for Admin features:
 
 ### Breaking Changes
 
-| Change | Impact | Migration |
-|--------|--------|-----------|
-| Function rename | `generateSignatureHtml` → `generateUserSignatureHtml` | Update any custom scripts calling this function |
-| New OAuth scopes | Additional permissions required | Users must re-authorize the add-on |
+| Change           | Impact                                                | Migration                                       |
+| ---------------- | ----------------------------------------------------- | ----------------------------------------------- |
+| Function rename  | `generateSignatureHtml` → `generateUserSignatureHtml` | Update any custom scripts calling this function |
+| New OAuth scopes | Additional permissions required                       | Users must re-authorize the add-on              |
 
 ---
 
@@ -191,6 +199,7 @@ Additional steps for Admin features:
 ### v1.0.0 - Initial Release (December 14, 2025)
 
 First public release of Nyuchi Email Signature tools:
+
 - Gmail Add-on for self-service signature generation
 - Email Signature Generator for batch deployment
 - Support for 9 Nyuchi brands

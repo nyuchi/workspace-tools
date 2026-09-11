@@ -18,19 +18,19 @@ A self-service Gmail Add-on that allows each user to generate and apply their ow
 
 ## Supported Brands
 
-| Brand | Website | Parent |
-|-------|---------|--------|
-| Bundu Foundation | bundu.org | - |
-| Nyuchi Africa | nyuchi.com | Bundu Foundation |
-| Nyuchi Lingo | lingo.nyuchi.com | Nyuchi Africa |
-| Nyuchi Learning | learning.nyuchi.com | Nyuchi Africa |
-| Nyuchi Development | services.nyuchi.com | Nyuchi Africa |
-| Nyuchi Foundation | foundation.nyuchi.com | Nyuchi Africa |
-| Mukoko | mukoko.com | Bundu Foundation |
-| Mukoko News | news.mukoko.com | Mukoko |
-| Shamwari AI | shamwari.ai | Bundu Foundation |
-| Zimbabwe Travel | travel-info.co.zw | Bundu initiative |
-| TELIA — Technology Leaders in Africa | telia.bundu.org | Bundu initiative |
+| Brand                                | Website               | Parent           |
+| ------------------------------------ | --------------------- | ---------------- |
+| Bundu Foundation                     | bundu.org             | -                |
+| Nyuchi Africa                        | nyuchi.com            | Bundu Foundation |
+| Nyuchi Lingo                         | lingo.nyuchi.com      | Nyuchi Africa    |
+| Nyuchi Learning                      | learning.nyuchi.com   | Nyuchi Africa    |
+| Nyuchi Development                   | services.nyuchi.com   | Nyuchi Africa    |
+| Nyuchi Foundation                    | foundation.nyuchi.com | Nyuchi Africa    |
+| Mukoko                               | mukoko.com            | Bundu Foundation |
+| Mukoko News                          | news.mukoko.com       | Mukoko           |
+| Shamwari AI                          | shamwari.ai           | Bundu Foundation |
+| Zimbabwe Travel                      | travel-info.co.zw     | Bundu initiative |
+| TELIA — Technology Leaders in Africa | telia.bundu.org       | Bundu initiative |
 
 ## Installation
 
@@ -108,41 +108,44 @@ clasp open
 ### Inserting into Emails
 
 When composing a new email:
+
 1. Click the **three-dot menu** at the bottom of the compose window
 2. Select **Nyuchi Email Signature** > **Insert Signature**
 
 ## Configuration Fields
 
 ### Required Fields
-| Field | Description | Example |
-|-------|-------------|---------|
-| Brand | Your organization/division | Nyuchi Africa |
-| Full Name | Your display name | Bryan Fawcett |
-| Email | Your email address | bryan@nyuchi.com |
+
+| Field     | Description                | Example            |
+| --------- | -------------------------- | ------------------ |
+| Brand     | Your organization/division | Nyuchi Africa      |
+| Full Name | Your display name          | Bryan Fawcett      |
+| Email     | Your email address         | `bryan@nyuchi.com` |
 
 ### Optional Fields
-| Field | Description | Example |
-|-------|-------------|---------|
-| Job Title | Your position | CEO & Founder |
-| Phone | Contact number | +65 9814 3374 |
-| Profile Image | URL to your photo | https://... |
-| LinkedIn | LinkedIn profile | https://linkedin.com/in/... |
-| X / Twitter | Twitter profile | https://x.com/... |
-| Facebook | Facebook page | https://facebook.com/... |
-| Instagram | Instagram handle | https://instagram.com/... |
-| WhatsApp | WhatsApp number | 6598143374 |
-| Promo Banner | Banner image URL | https://... |
-| Banner Link | Banner click URL | https://... |
+
+| Field         | Description       | Example                       |
+| ------------- | ----------------- | ----------------------------- |
+| Job Title     | Your position     | CEO & Founder                 |
+| Phone         | Contact number    | +65 9814 3374                 |
+| Profile Image | URL to your photo | `https://...`                 |
+| LinkedIn      | LinkedIn profile  | `https://linkedin.com/in/...` |
+| X / Twitter   | Twitter profile   | `https://x.com/...`           |
+| Facebook      | Facebook page     | `https://facebook.com/...`    |
+| Instagram     | Instagram handle  | `https://instagram.com/...`   |
+| WhatsApp      | WhatsApp number   | 6598143374                    |
+| Promo Banner  | Banner image URL  | `https://...`                 |
+| Banner Link   | Banner click URL  | `https://...`                 |
 
 ## OAuth Scopes
 
 The add-on requires the following permissions:
 
-| Scope | Purpose |
-|-------|---------|
-| `gmail.settings.basic` | Apply signature to Gmail settings |
-| `script.external_request` | Load social media icons |
-| `userinfo.email` | Pre-fill user's email address |
+| Scope                     | Purpose                           |
+| ------------------------- | --------------------------------- |
+| `gmail.settings.basic`    | Apply signature to Gmail settings |
+| `script.external_request` | Load social media icons           |
+| `userinfo.email`          | Pre-fill user's email address     |
 
 ## Signature Design
 
@@ -159,6 +162,7 @@ The generated signature includes:
 - **Promo Banner**: Optional promotional image
 
 ### Brand Colors
+
 - Primary (Purple): `#5f5873`
 - Text: `#2a2a2a`
 - Muted: `#737373`
@@ -166,38 +170,43 @@ The generated signature includes:
 ## Troubleshooting
 
 ### "Error applying signature"
+
 - Ensure Gmail API is enabled in the Apps Script project
 - Check that you've authorized the add-on with all required scopes
 - Re-authorize: Go to Project Settings > Clear all authorizations, then run again
 
 ### Signature not appearing
+
 - Gmail may cache settings; try refreshing the page
 - Compose a new email to test (don't check existing drafts)
 
 ### Images not loading
+
 - Ensure image URLs are publicly accessible (no authentication required)
 - Use HTTPS URLs
 - Check that the URL returns an actual image file
 
 ### Add-on not visible in Gmail
+
 - Make sure you've installed it via Deploy > Test deployments
 - Refresh Gmail
 - Check browser extensions aren't blocking it
 
 ## Differences from Admin Script
 
-| Feature | Gmail Add-on | Admin Script (email-signature/) |
-|---------|--------------|--------------------------------|
-| Who runs it | Each user | Workspace admin |
-| Permissions | User's own signature | Domain-wide delegation |
-| Deployment | Apps Script add-on | Standalone script |
-| User input | Interactive form | Config file |
-| Aliases | Not supported | Supported |
-| Bulk update | No | Yes |
+| Feature     | Gmail Add-on         | Admin Script (email-signature/) |
+| ----------- | -------------------- | ------------------------------- |
+| Who runs it | Each user            | Workspace admin                 |
+| Permissions | User's own signature | Domain-wide delegation          |
+| Deployment  | Apps Script add-on   | Standalone script               |
+| User input  | Interactive form     | Config file                     |
+| Aliases     | Not supported        | Supported                       |
+| Bulk update | No                   | Yes                             |
 
 ## Development
 
 ### File Structure
+
 ```
 gmail-addon/
 ├── appsscript.json    # Add-on manifest
@@ -206,6 +215,7 @@ gmail-addon/
 ```
 
 ### Testing Locally
+
 ```bash
 # Using clasp
 clasp push
@@ -218,13 +228,13 @@ clasp open
 
 ### Key Functions
 
-| Function | Purpose |
-|----------|---------|
-| `onHomepage()` | Entry point, builds main card |
-| `buildMainCard()` | Creates the configuration form |
-| `saveAndPreview()` | Saves settings and shows preview |
-| `applyToGmail()` | Applies signature via Gmail API |
-| `generateSignatureHtml()` | Generates HTML signature |
+| Function                  | Purpose                          |
+| ------------------------- | -------------------------------- |
+| `onHomepage()`            | Entry point, builds main card    |
+| `buildMainCard()`         | Creates the configuration form   |
+| `saveAndPreview()`        | Saves settings and shows preview |
+| `applyToGmail()`          | Applies signature via Gmail API  |
+| `generateSignatureHtml()` | Generates HTML signature         |
 
 ## License
 
@@ -233,5 +243,6 @@ MIT License - see [LICENSE](../LICENSE) for details.
 ## Support
 
 For issues or feature requests:
-- Email: support@nyuchi.com
-- Documentation: https://brand.nyuchi.com
+
+- Email: <support@nyuchi.com>
+- Documentation: <https://brand.nyuchi.com>

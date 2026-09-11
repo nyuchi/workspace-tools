@@ -44,6 +44,7 @@ Required to set signatures for other users:
    - Click **Add new**
    - Paste the Client ID
    - Add these scopes:
+
      ```
      https://www.googleapis.com/auth/admin.directory.user.readonly
      https://www.googleapis.com/auth/gmail.settings.basic
@@ -56,10 +57,10 @@ Signature HTML is fetched from the `nyuchi-tools` Worker, not generated
 locally. Set these **Script Properties** (Project Settings > Script
 Properties):
 
-| Property | Required | Value |
-|----------|----------|-------|
-| `SIGNATURE_API_KEY` | yes | Bearer token for `POST /api/signature` |
-| `SIGNATURE_API_URL` | no | Base URL; defaults to `https://tools.nyuchi.com` |
+| Property            | Required | Value                                            |
+| ------------------- | -------- | ------------------------------------------------ |
+| `SIGNATURE_API_KEY` | yes      | Bearer token for `POST /api/signature`           |
+| `SIGNATURE_API_URL` | no       | Base URL; defaults to `https://tools.nyuchi.com` |
 
 Without `SIGNATURE_API_KEY`, every signature function throws — there is
 deliberately no local-template fallback.
@@ -123,26 +124,29 @@ Example: If `jane@nyuchi.com` has aliases `support@nyuchi.com` and `info@nyuchi.
 
 ## User Data Sources
 
-| Field | Source |
-|-------|--------|
-| Name | `user.name.fullName` |
-| Title | `user.organizations[].title` |
+| Field | Source                                |
+| ----- | ------------------------------------- |
+| Name  | `user.name.fullName`                  |
+| Title | `user.organizations[].title`          |
 | Phone | `user.phones[]` (prefers work/mobile) |
-| Email | Primary email or alias |
+| Email | Primary email or alias                |
 
 **Important:** Populate user profiles in Google Admin with titles and phone numbers for complete signatures.
 
 ## Troubleshooting
 
 ### "Access denied" errors
+
 - Verify domain-wide delegation is configured correctly
 - Ensure OAuth scopes match exactly
 
 ### Aliases not updating
+
 - Run `listAllUsersAndAliases()` to verify aliases are detected
 - Check if aliases are configured as SendAs addresses in Gmail
 
 ### Missing titles/phones
+
 - Update user profiles in Google Admin Console
 
 ## Customization
