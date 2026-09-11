@@ -82,7 +82,7 @@ authorization server `identity.nyuchi.com`), used here as a public client
   `robots.txt` / `llms.txt` / `llms-full.txt` / `ads.txt` today, so there was
   nothing else to add; add them here too if any of those files show up
   later.) A catch-all route (`app.all("*", (c) => c.env.ASSETS.fetch(...))`)
-  registered *last* serves the built site once the gate passes.
+  registered _last_ serves the built site once the gate passes.
 - **`SESSION_SECRET` must be provisioned before this works in production:**
   `wrangler secret put SESSION_SECRET` — it is deliberately not in
   `wrangler.toml`'s `[vars]` (that would commit it in plaintext). Every

@@ -10,12 +10,12 @@
 
 ## 1. Current state (what we're unifying)
 
-| Surface | Template copy | Can push to Gmail? | UI |
-|---|---|---|---|
-| Web `/signature-generator` | canonical engine (`engines/signature`) | no — clipboard only | Mzizi (React island) |
-| `gmail-addon` (User tab) | 2nd copy (`generateUserSignatureHtml`) | own mailbox (`gmail.settings.basic`) | CardService (unstylable) |
-| `gmail-addon` (Admin tab + Dashboard.html) | 2nd copy | all users (`gmail.settings.sharing` via DWD) | CardService + 1,700-line bespoke HTML |
-| `email-signature` script | 3rd copy (`generateSignatureHtml`) | all users **+ aliases** | none (script editor) |
+| Surface                                    | Template copy                          | Can push to Gmail?                           | UI                                    |
+| ------------------------------------------ | -------------------------------------- | -------------------------------------------- | ------------------------------------- |
+| Web `/signature-generator`                 | canonical engine (`engines/signature`) | no — clipboard only                          | Mzizi (React island)                  |
+| `gmail-addon` (User tab)                   | 2nd copy (`generateUserSignatureHtml`) | own mailbox (`gmail.settings.basic`)         | CardService (unstylable)              |
+| `gmail-addon` (Admin tab + Dashboard.html) | 2nd copy                               | all users (`gmail.settings.sharing` via DWD) | CardService + 1,700-line bespoke HTML |
+| `email-signature` script                   | 3rd copy (`generateSignatureHtml`)     | all users **+ aliases**                      | none (script editor)                  |
 
 The emitted signature HTML is byte-locked to the historical design; **unification must not change the emitted markup** — the engine remains the single authority and the other copies are retired, not re-synced.
 
@@ -48,6 +48,7 @@ flowchart LR
 ```
 
 Key properties:
+
 - **One engine.** Every surface renders through `engines/signature` — the Worker exposes it as an API so nothing ever hand-syncs a template again.
 - **Two trust paths, matching today's model.** Self-service acts as the signed-in user (OAuth, least privilege). Bulk admin push uses a service account with domain-wide delegation — the same mechanism the Apps Script admin flows already require, just held by the Worker instead.
 - **Humans in the loop** (Mzizi doctrine): admin bulk push always previews first, supports dry-run, and reports per-user success/failure; failures can be filed through the existing `nyuchi_report_issue` loop.
@@ -55,11 +56,13 @@ Key properties:
 ## 3. Phases
 
 ### Phase 0 — one engine everywhere (small; no Google setup)
+
 - Add `POST /api/signature` to the Worker: signature params in, byte-locked HTML out (same code path as the MCP tool; requires the site session or a bearer token — never open).
 - Point both Apps Script projects at it (`UrlFetchApp`), deleting their template functions. Behavior identical; drift impossible.
 - Acceptance: Apps Script `runAllTests()` passes with fetched HTML byte-equal to engine output; worker tests cover the endpoint.
 
 ### Phase 1 — orchestration
+
 - **Google OAuth in the Worker** (`/api/google/login`, `/callback`): authorization code flow with incremental scopes; tokens held server-side in a session, never exposed to the page.
 - **Self mode:** "Insert into Gmail" writes the generated signature to the user's own send-as (`gmail.settings.basic`). Clipboard copy remains as fallback.
 - **Admin mode:** list users + send-as aliases (`admin.directory.user.readonly`, auto-deriving brand/division from email domain like the batch script does), generate previews for all, push selected/all via the service account (`gmail.settings.sharing`), covering **aliases** to preserve the batch script's superpower.
@@ -67,24 +70,26 @@ Key properties:
 - Acceptance: a real end-to-end on the live domain — one self insert, one single-user admin push, one dry-run-all — verified in Gmail.
 
 ### Phase 2 — UX/UI uplift (Mzizi)
+
 - Rebuild the console page on the Mzizi shell: mode switch (Self/Admin), user table with search/filter by division, preview drawer per user, bulk action bar, per-row status (pushed / failed / skipped), progress for long runs, dark/light/accent-consistent semantic tokens, pill controls, 48px touch targets.
 - Design authority: query Mzizi for tokens/components; `@bundu/ui` provides the implementation. `studio-qa`-style visual review before ship.
 
 ### Phase 3 — retire the old surfaces
+
 - `email-signature` script: delete (its alias handling and scheduling now live in the Worker).
 - `gmail-addon`: shrink to a thin sidebar companion — open the console, quick "re-apply my signature" (still valuable inside Gmail); Admin tab and Dashboard.html retire. CardService cannot render Mzizi; the launcher is the honest scope.
 - Docs sweep per `docs-sync`; CLAUDE.md's hand-sync rules become historical notes.
 
 ## 4. Worker API surface (new)
 
-| Endpoint | Auth | Purpose |
-|---|---|---|
-| `POST /api/signature` | site session or bearer | Render signature HTML from the engine |
-| `GET /api/google/login`, `/api/google/callback` | site session | Google OAuth (incremental scopes) |
-| `GET /api/admin/users` | Google session w/ directory scope | List users + aliases + derived brand |
-| `POST /api/admin/push` | Google session (admin) + SA | Push signatures (targets, `dryRun`, per-user results) |
-| `POST /api/self/insert` | Google session | Write own send-as signature |
-| cron trigger | — | Scheduled refresh with report |
+| Endpoint                                        | Auth                              | Purpose                                               |
+| ----------------------------------------------- | --------------------------------- | ----------------------------------------------------- |
+| `POST /api/signature`                           | site session or bearer            | Render signature HTML from the engine                 |
+| `GET /api/google/login`, `/api/google/callback` | site session                      | Google OAuth (incremental scopes)                     |
+| `GET /api/admin/users`                          | Google session w/ directory scope | List users + aliases + derived brand                  |
+| `POST /api/admin/push`                          | Google session (admin) + SA       | Push signatures (targets, `dryRun`, per-user results) |
+| `POST /api/self/insert`                         | Google session                    | Write own send-as signature                           |
+| cron trigger                                    | —                                 | Scheduled refresh with report                         |
 
 ## 5. Google-side setup (Bryan, one-time — Phase 1 prerequisite)
 

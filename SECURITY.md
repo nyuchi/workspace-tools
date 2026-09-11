@@ -13,26 +13,29 @@
 
 This application requires sensitive OAuth scopes to function. These scopes are minimized to only what is necessary:
 
-| Scope | Purpose | Required For |
-|-------|---------|--------------|
-| `gmail.settings.basic` | Modify user's own Gmail signature | User Tab |
-| `gmail.settings.sharing` | Modify other users' signatures | Admin Tab |
-| `admin.directory.user.readonly` | Read user directory information | Admin Tab |
-| `script.external_request` | Fetch external resources (logos) | All |
-| `script.scriptapp` | Create scheduled triggers | Admin Tab |
-| `userinfo.email` | Get current user's email | All |
+| Scope                           | Purpose                           | Required For |
+| ------------------------------- | --------------------------------- | ------------ |
+| `gmail.settings.basic`          | Modify user's own Gmail signature | User Tab     |
+| `gmail.settings.sharing`        | Modify other users' signatures    | Admin Tab    |
+| `admin.directory.user.readonly` | Read user directory information   | Admin Tab    |
+| `script.external_request`       | Fetch external resources (logos)  | All          |
+| `script.scriptapp`              | Create scheduled triggers         | Admin Tab    |
+| `userinfo.email`                | Get current user's email          | All          |
 
 ### Data Handling
 
 **Data Accessed:**
+
 - User names, email addresses, and phone numbers from Google Workspace Directory
 - Gmail signature settings
 
 **Data Stored:**
+
 - User preferences stored in Google Apps Script Properties Service (per-user)
 - No data is stored externally or transmitted to third parties
 
 **Data Not Collected:**
+
 - Email content
 - Passwords or authentication tokens
 - Personal files or documents
@@ -40,6 +43,7 @@ This application requires sensitive OAuth scopes to function. These scopes are m
 ### Domain-Wide Delegation
 
 Admin features require domain-wide delegation. This grants the script the ability to:
+
 - Read user directory information for all domain users
 - Modify Gmail signatures for all domain users
 
@@ -77,7 +81,7 @@ If you discover a security vulnerability, please report it responsibly:
 
 ### Contact
 
-- **Email**: security@nyuchi.com
+- **Email**: <security@nyuchi.com>
 - **Subject**: `[SECURITY] workspace-tools vulnerability`
 
 ### What to Include
@@ -89,12 +93,12 @@ If you discover a security vulnerability, please report it responsibly:
 
 ### Response Timeline
 
-| Stage | Timeline |
-|-------|----------|
-| Initial Response | Within 48 hours |
-| Vulnerability Assessment | Within 7 days |
-| Fix Development | Within 30 days |
-| Patch Release | Within 45 days |
+| Stage                    | Timeline        |
+| ------------------------ | --------------- |
+| Initial Response         | Within 48 hours |
+| Vulnerability Assessment | Within 7 days   |
+| Fix Development          | Within 30 days  |
+| Patch Release            | Within 45 days  |
 
 ### Responsible Disclosure
 
@@ -121,13 +125,13 @@ The application logs the following actions (viewable in Apps Script execution lo
 
 ## Third-Party Dependencies
 
-| Dependency | Purpose | Security Notes |
-|------------|---------|----------------|
-| Google Apps Script | Runtime environment | Managed by Google |
-| Gmail API | Signature management | OAuth 2.0 secured |
-| Admin SDK | Directory access | OAuth 2.0 secured |
-| Flaticon CDN | Social media icons | Public CDN |
-| Nyuchi Assets CDN | Brand logos | Nyuchi-managed |
+| Dependency         | Purpose              | Security Notes    |
+| ------------------ | -------------------- | ----------------- |
+| Google Apps Script | Runtime environment  | Managed by Google |
+| Gmail API          | Signature management | OAuth 2.0 secured |
+| Admin SDK          | Directory access     | OAuth 2.0 secured |
+| Flaticon CDN       | Social media icons   | Public CDN        |
+| Nyuchi Assets CDN  | Brand logos          | Nyuchi-managed    |
 
 ## Compliance
 

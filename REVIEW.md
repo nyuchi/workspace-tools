@@ -10,7 +10,7 @@
 
 1. **Find** along independent angles, each surfacing candidates with a concrete failure scenario:
    - line-by-line diff scan (wrong conditions, off-by-one, missing escape/await, swallowed errors)
-   - removed-behavior audit (every deleted line enforced *something* — where is it re-established?)
+   - removed-behavior audit (every deleted line enforced _something_ — where is it re-established?)
    - cross-file trace (callers/callees of every changed symbol, widened types, changed defaults)
    - reuse / simplification / efficiency (duplication, derivable state, wasted work)
    - altitude (is the fix at the right depth, or a point-patch on shared infrastructure?)
