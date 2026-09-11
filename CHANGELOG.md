@@ -10,11 +10,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 #### Tabbed Interface
+
 - **User Tab**: Self-service signature generation for individual users
 - **Admin Tab**: Enterprise signature deployment for administrators
 - Tab switching with visual indicators and persistent state
 
 #### Full Web Dashboard
+
 - Complete administrative dashboard (`Dashboard.html`)
 - Sidebar navigation with 5 sections: Overview, Users, Signatures, Brands, Settings
 - Statistics cards showing total users, signatures, aliases, brands
@@ -27,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Nyuchi design system with Zimbabwe flag accent
 
 #### Admin Features
+
 - List all domain users and their email aliases
 - Preview signature for any user
 - Update single user signature (including all aliases)
@@ -35,6 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Web app deployment (`doGet()` entry point)
 
 #### Dashboard Server Functions
+
 - `getCurrentUserInfo()` - Get logged-in user details
 - `getDashboardData()` - Fetch all users and statistics
 - `getSignaturePreview(brandKey)` - Preview template by brand
@@ -45,9 +49,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `removeDailyTriggerFromDashboard()` - Disable scheduling
 
 #### Universal Actions
+
 - "Open Dashboard" action in Gmail add-on menu
 
 #### OAuth & Permissions
+
 - Added Admin SDK Directory API dependency
 - Added `gmail.settings.sharing` scope for admin operations
 - Added `admin.directory.user.readonly` scope
@@ -73,6 +79,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 #### Gmail Add-on
+
 - Initial Gmail add-on implementation
 - Brand selection dropdown with 9 brands
 - Personal information form (name, title, email, phone)
@@ -86,6 +93,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Help link to brand guidelines
 
 #### Email Signature Generator
+
 - Standalone batch deployment script
 - Domain-wide signature deployment
 - Automatic brand detection by email domain
@@ -98,6 +106,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Comprehensive test suite
 
 #### Brand Support
+
 - Nyuchi Africa (nyuchi.com)
 - Nyuchi Lingo (lingo.nyuchi.com)
 - Nyuchi Learning (learning.nyuchi.com)
@@ -109,6 +118,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Technology Leaders of Africa (techdirectors.africa)
 
 #### Design System
+
 - Nyuchi purple primary color (#5f5873)
 - Plus Jakarta Sans typography
 - Noto Serif for brand names
@@ -116,6 +126,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Consistent spacing and styling
 
 #### Infrastructure
+
 - npm workspace configuration
 - clasp deployment scripts
 - Apps Script manifests
@@ -131,21 +142,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Version History Summary
 
-| Version | Date | Highlights |
-|---------|------|------------|
-| 2.0.0 | 2025-12-15 | Tabbed UI, Admin features, Web dashboard |
-| 1.0.0 | 2025-12-14 | Initial release with Gmail add-on |
+| Version | Date       | Highlights                               |
+| ------- | ---------- | ---------------------------------------- |
+| 2.0.0   | 2025-12-15 | Tabbed UI, Admin features, Web dashboard |
+| 1.0.0   | 2025-12-14 | Initial release with Gmail add-on        |
 
 ## Upgrade Guide
 
 ### From 1.x to 2.x
 
 1. **Pull latest code**:
+
    ```bash
    git pull origin main
    ```
 
 2. **Push to Apps Script**:
+
    ```bash
    npm run push:gmail
    ```
