@@ -38,7 +38,7 @@ npm run test:worker        # worker suite (root vitest.worker.config.ts)
 
 ## Visual verification (manual, after engine changes)
 
-Rendered output must be *looked at*, not just asserted on: rasterize sample cards (each changed layout × dark/accent) via `returnFormat: "png"` and inspect. In a Claude session, write a temporary test that saves PNGs to the scratchpad and view them; delete the temp file before committing. This catch rate is real — the dek/divider collision and the layout-2 dek truncation were both found only in renders.
+Rendered output must be _looked at_, not just asserted on: rasterize sample cards (each changed layout × dark/accent) via `returnFormat: "png"` and inspect. In a Claude session, write a temporary test that saves PNGs to the scratchpad and view them; delete the temp file before committing. This catch rate is real — the dek/divider collision and the layout-2 dek truncation were both found only in renders.
 
 ## Apps Script (manual — no CI)
 

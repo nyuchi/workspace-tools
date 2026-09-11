@@ -23,12 +23,14 @@ This guide helps you test the Google Apps Script functions before deploying sign
 **Purpose**: Execute all test functions in sequence and get a comprehensive report
 
 **How to run**:
-1. Open the Apps Script IDE: https://script.google.com/d/1fTujgXkM9sguM8gB0QgJdtbUJv5MbMsX2UrVSoLJV1anpm-bHS-bY-jv/edit
+
+1. Open the Apps Script IDE: <https://script.google.com/d/1fTujgXkM9sguM8gB0QgJdtbUJv5MbMsX2UrVSoLJV1anpm-bHS-bY-jv/edit>
 2. Select `runAllTests` from the function dropdown
 3. Click the Run button (▶)
 4. View the execution log
 
 **What it tests**:
+
 - ✅ Configuration display (CONFIG object)
 - ✅ Division detection (email domain → API brand slug mapping)
 - ✅ Signature generation with mock data (requires `SIGNATURE_API_KEY` — HTML is fetched from the render API)
@@ -36,6 +38,7 @@ This guide helps you test the Google Apps Script functions before deploying sign
 - ✅ Your own signature (requires Admin SDK + `SIGNATURE_API_KEY`)
 
 **Expected output**:
+
 ```
 ╔═══════════════════════════════════════════════════════════════════╗
 ║         NYUCHI EMAIL SIGNATURE - COMPREHENSIVE TEST SUITE         ║
@@ -71,11 +74,13 @@ These functions work without Admin SDK permissions and use mock data:
 **Purpose**: Display all configuration settings
 
 **How to run**:
+
 ```javascript
 showConfig()
 ```
 
 **Expected output**:
+
 ```
 ========== NYUCHI EMAIL SIGNATURE CONFIGURATION ==========
 
@@ -102,11 +107,13 @@ Divisions (10 total):
 **Purpose**: Verify email domain to division mapping
 
 **How to run**:
+
 ```javascript
 testDivisionDetection()
 ```
 
 **Expected output**:
+
 ```
 ========== TESTING DIVISION DETECTION ==========
 
@@ -131,11 +138,13 @@ PASS: testDivisionDetection
 **Requires**: `SIGNATURE_API_KEY` in Script Properties (calls the live `tools.nyuchi.com` API)
 
 **How to run**:
+
 ```javascript
 testSignatureGeneration()
 ```
 
 **Expected output**:
+
 ```
 ========== TESTING SIGNATURE GENERATION (render API) ==========
 
@@ -165,11 +174,13 @@ These require the Admin SDK API to be enabled and proper admin permissions:
 **Purpose**: Preview your signature and see how aliases are detected
 
 **How to run**:
+
 ```javascript
 testMySignature()
 ```
 
 **Expected output**:
+
 ```
 Your primary email: yourname@nyuchi.com
 Your aliases: alias1@division.com, alias2@division.com
@@ -184,6 +195,7 @@ Your aliases: alias1@division.com, alias2@division.com
 ```
 
 **What to check**:
+
 - ✅ Your email address is detected correctly
 - ✅ All your aliases are listed
 - ✅ The signature HTML comes back from the render API (canonical engine markup — brand name/tagline/website, no local template)
@@ -196,11 +208,13 @@ Your aliases: alias1@division.com, alias2@division.com
 **Purpose**: See all users in your domain and their aliases with detected divisions
 
 **How to run**:
+
 ```javascript
 listAllUsersAndAliases()
 ```
 
 **Expected output**:
+
 ```
 ========== ALL USERS AND ALIASES ==========
 
@@ -215,6 +229,7 @@ Bob Wilson (bob@nyuchi.com) - Nyuchi Africa
 ```
 
 **What to check**:
+
 - ✅ All users in your domain are listed
 - ✅ Each user shows their primary email and division
 - ✅ Aliases are indented and show their respective divisions
@@ -228,11 +243,13 @@ Bob Wilson (bob@nyuchi.com) - Nyuchi Africa
 **Purpose**: Generate and preview the signature HTML for any email address
 
 **How to run**:
+
 ```javascript
 previewSignature('john@lingo.nyuchi.com')
 ```
 
 **Expected output** (canonical engine markup from the render API):
+
 ```html
 <table cellpadding="0" cellspacing="0" style="font-family: 'Plus Jakarta Sans', Arial, sans-serif; ...">
   [Name, title, brand name + tagline, email/phone/website links, promo banner]
@@ -240,6 +257,7 @@ previewSignature('john@lingo.nyuchi.com')
 ```
 
 **What to check**:
+
 - ✅ User's name is populated correctly
 - ✅ Job title is present (if user has one in Google Workspace)
 - ✅ Phone number is formatted correctly
@@ -254,6 +272,7 @@ previewSignature('john@lingo.nyuchi.com')
 **Purpose**: Verify that division mapping works correctly
 
 **How to run**:
+
 ```javascript
 // Test each division
 const testEmails = [
@@ -274,6 +293,7 @@ testEmails.forEach(email => {
 ```
 
 **Expected output**:
+
 ```
 test@lingo.nyuchi.com → Nyuchi Lingo (lingo.nyuchi.com)
 test@learning.nyuchi.com → Nyuchi Learning (learning.nyuchi.com)
@@ -286,6 +306,7 @@ test@nyuchi.com → Nyuchi Africa (nyuchi.com)
 ```
 
 **What to check**:
+
 - ✅ Each email domain maps to the correct division
 - ✅ Division names are correct
 - ✅ Website URLs match the division
@@ -298,6 +319,7 @@ test@nyuchi.com → Nyuchi Africa (nyuchi.com)
 **Purpose**: Test signature generation for one user without actually updating Gmail
 
 **How to run**:
+
 ```javascript
 // First, let's just preview without updating
 const email = 'yourname@nyuchi.com';
@@ -319,6 +341,7 @@ Logger.log('');
 ```
 
 **What to check**:
+
 - ✅ User object is retrieved correctly from Admin SDK
 - ✅ Aliases are detected
 - ✅ Each email address gets a signature with correct division
@@ -332,30 +355,34 @@ Logger.log('');
 `brandSlug` is what gets sent to the render API; divisions without their own
 engine signature identity render under their parent brand.
 
-| Email Domain | Division Name | API brand slug |
-|--------------|---------------|----------------|
-| `lingo.nyuchi.com` | Nyuchi Lingo | `nyuchi` |
-| `learning.nyuchi.com` | Nyuchi Learning | `learning` |
-| `services.nyuchi.com` | Nyuchi Development | `nyuchi` |
-| `travel-info.co.zw` | Zimbabwe Travel Information | `travel` |
-| `mukoko.com` | Mukoko | `mukoko` |
-| `hararemetro.co.zw` | Mukoko News | `mukoko` |
-| `news.mukoko.com` | Mukoko News | `mukoko` |
-| `nyuchi.com` | Nyuchi Africa | `nyuchi` |
-| `bundu.org` | Bundu Foundation | `bundu` |
-| `shamwari.ai` | Shamwari AI | `shamwari` |
+| Email Domain          | Division Name               | API brand slug |
+| --------------------- | --------------------------- | -------------- |
+| `lingo.nyuchi.com`    | Nyuchi Lingo                | `nyuchi`       |
+| `learning.nyuchi.com` | Nyuchi Learning             | `learning`     |
+| `services.nyuchi.com` | Nyuchi Development          | `nyuchi`       |
+| `travel-info.co.zw`   | Zimbabwe Travel Information | `travel`       |
+| `mukoko.com`          | Mukoko                      | `mukoko`       |
+| `hararemetro.co.zw`   | Mukoko News                 | `mukoko`       |
+| `news.mukoko.com`     | Mukoko News                 | `mukoko`       |
+| `nyuchi.com`          | Nyuchi Africa               | `nyuchi`       |
+| `bundu.org`           | Bundu Foundation            | `bundu`        |
+| `shamwari.ai`         | Shamwari AI                 | `shamwari`     |
 
 ---
 
 ## Common Issues and Solutions
 
 ### Issue: "Delegation denied" or "Access restricted to service accounts"
+
 **Error Message**:
+
 ```
 API call to gmail.users.settings.sendAs.update failed with error:
 Delegation denied for bryan@nyuchi.com
 ```
+
 OR
+
 ```
 Access restricted to service accounts that have been delegated domain-wide authority
 ```
@@ -365,32 +392,41 @@ Access restricted to service accounts that have been delegated domain-wide autho
 **Quick Fix**: Run the helper function `showDelegationSetup()` in the Apps Script IDE to get step-by-step instructions with the exact OAuth scopes to use.
 
 **Manual Steps**:
-1. Get OAuth Client ID from: https://console.cloud.google.com/apis/credentials?project=nyuchi-app-script
-2. Go to: https://admin.google.com → Security → Access and data control → API controls
+
+1. Get OAuth Client ID from: <https://console.cloud.google.com/apis/credentials?project=nyuchi-app-script>
+2. Go to: <https://admin.google.com> → Security → Access and data control → API controls
 3. Click "Manage Domain Wide Delegation" → "Add new"
 4. Enter the Client ID and these scopes (comma-separated):
+
    ```
    https://www.googleapis.com/auth/admin.directory.user.readonly,https://www.googleapis.com/auth/gmail.settings.basic,https://www.googleapis.com/auth/gmail.settings.sharing
    ```
+
 5. Click "Authorize"
 6. Re-run the script
 
 ### Issue: "Exception: User not found"
+
 **Solution**: Make sure you're using a valid email address from your domain
 
 ### Issue: "Exception: Access denied"
+
 **Solution**: Verify domain-wide delegation is configured correctly (see above)
 
 ### Issue: "Division shows as Nyuchi Africa for all emails"
+
 **Solution**: Check that the email domain exactly matches the CONFIG.divisions keys
 
 ### Issue: "SIGNATURE_API_KEY is not set in Script Properties"
+
 **Solution**: Add `SIGNATURE_API_KEY` (and optionally `SIGNATURE_API_URL`) under Project Settings > Script Properties — signature HTML is fetched from the `tools.nyuchi.com` render API and there is no local fallback
 
 ### Issue: "Signature API request failed (HTTP 401/403)"
+
 **Solution**: The bearer token is wrong or revoked — update `SIGNATURE_API_KEY`
 
 ### Issue: "Phone number is null"
+
 **Solution**: Add phone numbers to user profiles in Google Admin Console
 
 ---

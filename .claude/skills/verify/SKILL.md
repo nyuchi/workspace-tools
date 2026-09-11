@@ -19,6 +19,7 @@ npm run test:worker
 ```
 
 Notes:
+
 - Directory matters: the engine suite/`tsc -b`/lint run **inside** `signature-generator/`; the worker suite and `typecheck:worker` run at the **repo root** (its config is root `vitest.worker.config.ts`, deps are root deps).
 - If dependencies were never installed in this container: `npm install` at the root **and** in `signature-generator/` first.
 - A changed engine also warrants visual verification — see the `studio-qa` skill.
