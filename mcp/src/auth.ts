@@ -38,6 +38,12 @@ export const DEFAULT_RESOURCE = "https://tools.nyuchi.dev/mcp";
 /** Message used whenever a flow needs AUTHKIT_DOMAIN and it is unset. */
 export const AUTHKIT_DOMAIN_MISSING = "AUTHKIT_DOMAIN is not configured";
 
+/**
+ * True when AUTHKIT_DOMAIN is set at all. Deliberately presence-only: this
+ * switches auth ON, and an unusable value must not switch it OFF (that would
+ * fail open). With auth on and an invalid value, `issuerUrl` throws, so bearer
+ * verification returns null (401) and the OAuth surfaces error — fail closed.
+ */
 export function authConfigured(env: AuthEnv): boolean {
   return typeof env.AUTHKIT_DOMAIN === "string" && env.AUTHKIT_DOMAIN.trim().length > 0;
 }
@@ -47,16 +53,36 @@ export function resourceUrl(env: AuthEnv): string {
 }
 
 /**
- * The AuthKit issuer origin, from configuration only. Accepts a bare host or
- * an https origin; trims whitespace and any trailing slash (the `iss` check is
- * an exact string match). Throws when AUTHKIT_DOMAIN is unset — callers check
- * `authConfigured` first; there is no fallback host.
+ * Parse — never concatenate — a configured AuthKit domain into an https origin.
+ *
+ * Accepts a bare host or an https origin, in any case. Any path, query or
+ * fragment is dropped. A blank value, `http:`, any other scheme, embedded
+ * credentials and anything `URL` cannot parse all throw an error whose message
+ * starts with `AUTHKIT_DOMAIN_MISSING`. The result is `URL.origin`.
+ */
+export function normaliseAuthkitDomain(value: string | undefined): string {
+  const raw = value?.trim();
+  if (!raw) throw new Error(AUTHKIT_DOMAIN_MISSING);
+  let url: URL;
+  try {
+    url = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(raw) ? raw : `https://${raw}`);
+  } catch {
+    throw new Error(`${AUTHKIT_DOMAIN_MISSING} (not a valid host or URL)`);
+  }
+  if (url.protocol !== "https:" || url.username || url.password) {
+    throw new Error(`${AUTHKIT_DOMAIN_MISSING} (must be an https origin)`);
+  }
+  return url.origin;
+}
+
+/**
+ * The AuthKit issuer origin, from configuration only, parsed by
+ * `normaliseAuthkitDomain` (the `iss` check is an exact string match against
+ * it). Throws when AUTHKIT_DOMAIN is unset or is not a bare host / https
+ * origin — callers check `authConfigured` first; there is no fallback host.
  */
 export function issuerUrl(env: AuthEnv): string {
-  const raw = env.AUTHKIT_DOMAIN?.trim();
-  if (!raw) throw new Error(AUTHKIT_DOMAIN_MISSING);
-  const origin = /^https?:\/\//.test(raw) ? raw : `https://${raw}`;
-  return origin.replace(/\/+$/, "");
+  return normaliseAuthkitDomain(env.AUTHKIT_DOMAIN);
 }
 
 /**
@@ -94,7 +120,7 @@ const jwksCache = new Map<string, ReturnType<typeof createRemoteJWKSet>>();
 function jwksFor(issuer: string): ReturnType<typeof createRemoteJWKSet> {
   let jwks = jwksCache.get(issuer);
   if (!jwks) {
-    jwks = createRemoteJWKSet(new URL(`${issuer}/oauth2/jwks`));
+    jwks = createRemoteJWKSet(new URL("/oauth2/jwks", issuer));
     jwksCache.set(issuer, jwks);
   }
   return jwks;

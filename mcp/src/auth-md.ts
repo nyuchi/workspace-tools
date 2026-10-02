@@ -19,11 +19,20 @@ import { type AuthEnv, authConfigured, issuerUrl, resourceOrigin, resourceUrl } 
 export function authMd(env: AuthEnv): string {
   // The issuer comes only from configuration (AUTHKIT_DOMAIN) — never a
   // compiled-in host. When it is unset this page says so rather than naming one.
-  const issuer = authConfigured(env) ? issuerUrl(env) : null;
-  const issuerLabel = issuer ?? "not configured (AUTHKIT_DOMAIN is unset)";
+  // An unusable value is described as such, never echoed.
+  let issuer: string | null = null;
+  let unsetReason = "AUTHKIT_DOMAIN is unset";
+  if (authConfigured(env)) {
+    try {
+      issuer = issuerUrl(env);
+    } catch {
+      unsetReason = "AUTHKIT_DOMAIN is not an https origin";
+    }
+  }
+  const issuerLabel = issuer ?? `not configured (${unsetReason})`;
   const issuerMetadata = issuer
-    ? `${issuer}/.well-known/oauth-authorization-server`
-    : "not available (AUTHKIT_DOMAIN is unset)";
+    ? new URL("/.well-known/oauth-authorization-server", issuer).href
+    : `not available (${unsetReason})`;
   const resource = resourceUrl(env);
   const origin = resourceOrigin(env);
   const host = new URL(origin).hostname;
