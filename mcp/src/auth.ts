@@ -1,9 +1,11 @@
 /**
  * Optional WorkOS Connect (OAuth 2.1) protection for the MCP endpoint.
  *
- * Config comes from Worker vars (wrangler.toml [vars] or dashboard secrets):
+ * Config comes from the Worker's settings — never from committed config:
  *   AUTHKIT_DOMAIN — the WorkOS AuthKit/Connect domain for the environment,
- *                    e.g. "your-workspace.authkit.app". When UNSET, the MCP
+ *                    a bare host or an https origin. Set per environment as a
+ *                    Worker secret (never a wrangler.toml [vars] entry, and
+ *                    there is no default in code). When UNSET, the MCP
  *                    server runs open (no auth) and OAuth discovery endpoints
  *                    return 404s that tell clients no sign-in is needed.
  *   MCP_RESOURCE   — this server's canonical resource URL
@@ -15,7 +17,7 @@
  *   - Unauthenticated /mcp requests get 401 + WWW-Authenticate pointing at
  *     that metadata, which is how MCP clients discover the OAuth flow.
  *   - Bearer tokens are JWTs verified against the WorkOS JWKS
- *     (https://<AUTHKIT_DOMAIN>/oauth2/jwks) with issuer + audience checks.
+ *     (<AUTHKIT_DOMAIN>/oauth2/jwks) with issuer + audience checks.
  *
  * Client registration (CIMD / dynamic client registration) is handled by
  * WorkOS itself — enable it in the WorkOS dashboard under
@@ -33,16 +35,28 @@ export interface AuthEnv {
 // for this integration — see the MCP_RESOURCE comment in wrangler.toml.
 export const DEFAULT_RESOURCE = "https://tools.nyuchi.dev/mcp";
 
+/** Message used whenever a flow needs AUTHKIT_DOMAIN and it is unset. */
+export const AUTHKIT_DOMAIN_MISSING = "AUTHKIT_DOMAIN is not configured";
+
 export function authConfigured(env: AuthEnv): boolean {
-  return typeof env.AUTHKIT_DOMAIN === "string" && env.AUTHKIT_DOMAIN.length > 0;
+  return typeof env.AUTHKIT_DOMAIN === "string" && env.AUTHKIT_DOMAIN.trim().length > 0;
 }
 
 export function resourceUrl(env: AuthEnv): string {
   return env.MCP_RESOURCE || DEFAULT_RESOURCE;
 }
 
+/**
+ * The AuthKit issuer origin, from configuration only. Accepts a bare host or
+ * an https origin; trims whitespace and any trailing slash (the `iss` check is
+ * an exact string match). Throws when AUTHKIT_DOMAIN is unset — callers check
+ * `authConfigured` first; there is no fallback host.
+ */
 export function issuerUrl(env: AuthEnv): string {
-  return `https://${env.AUTHKIT_DOMAIN}`;
+  const raw = env.AUTHKIT_DOMAIN?.trim();
+  if (!raw) throw new Error(AUTHKIT_DOMAIN_MISSING);
+  const origin = /^https?:\/\//.test(raw) ? raw : `https://${raw}`;
+  return origin.replace(/\/+$/, "");
 }
 
 /**
@@ -77,11 +91,11 @@ export function wwwAuthenticateHeader(env: AuthEnv): string {
 /* JWKS instances are cached per AuthKit domain for the isolate's lifetime. */
 const jwksCache = new Map<string, ReturnType<typeof createRemoteJWKSet>>();
 
-function jwksFor(domain: string): ReturnType<typeof createRemoteJWKSet> {
-  let jwks = jwksCache.get(domain);
+function jwksFor(issuer: string): ReturnType<typeof createRemoteJWKSet> {
+  let jwks = jwksCache.get(issuer);
   if (!jwks) {
-    jwks = createRemoteJWKSet(new URL(`https://${domain}/oauth2/jwks`));
-    jwksCache.set(domain, jwks);
+    jwks = createRemoteJWKSet(new URL(`${issuer}/oauth2/jwks`));
+    jwksCache.set(issuer, jwks);
   }
   return jwks;
 }
@@ -117,10 +131,11 @@ export async function verifyJwt(
   token: string | undefined,
   expectedAudience?: string,
 ): Promise<VerifiedJwt | null> {
-  if (!token || !env.AUTHKIT_DOMAIN) return null;
+  if (!token || !authConfigured(env)) return null;
   try {
-    const { payload } = await jwtVerify(token, jwksFor(env.AUTHKIT_DOMAIN), {
-      issuer: issuerUrl(env),
+    const issuer = issuerUrl(env);
+    const { payload } = await jwtVerify(token, jwksFor(issuer), {
+      issuer,
       audience: expectedAudience ?? resourceUrl(env),
     });
     const scopes =

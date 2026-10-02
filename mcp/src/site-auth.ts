@@ -9,8 +9,8 @@
  * that flow succeeds.
  *
  * This reuses the SAME WorkOS Connect app that already protects /mcp
- * (client_01KVTX0V2K1VM3PSC0DJ9VZWTV, authorization server
- * identity.nyuchi.com — see auth.ts) as a public client (PKCE,
+ * (client_01KVTX0V2K1VM3PSC0DJ9VZWTV; authorization server = the configured
+ * AUTHKIT_DOMAIN — see auth.ts) as a public client (PKCE,
  * token_endpoint_auth_method=none, no client_secret). The access token
  * returned by the token exchange is verified with the exact same
  * JWKS/issuer/audience logic /mcp uses for bearer tokens (`verifyJwt` in
@@ -31,7 +31,7 @@
  */
 
 import { SignJWT, base64url, jwtVerify } from "jose";
-import type { AuthEnv } from "./auth.js";
+import { type AuthEnv, issuerUrl } from "./auth.js";
 
 export interface SiteAuthEnv extends AuthEnv {
   SESSION_SECRET?: string;
@@ -52,8 +52,15 @@ export const OAUTH_COOKIE_NAME = "nyuchi_oauth";
 const SITE_ORIGIN = "https://tools.nyuchi.com";
 const REDIRECT_URI = `${SITE_ORIGIN}${CALLBACK_PATH}`;
 
-const AUTHORIZE_ENDPOINT = "https://identity.nyuchi.com/oauth2/authorize";
-const TOKEN_ENDPOINT = "https://identity.nyuchi.com/oauth2/token";
+// The authorize and token endpoints live on the configured AuthKit domain
+// (AUTHKIT_DOMAIN) — never a compiled-in host. `issuerUrl` throws when it is
+// unset; /login checks `authConfigured` first and answers 503.
+function authorizeEndpoint(env: AuthEnv): string {
+  return `${issuerUrl(env)}/oauth2/authorize`;
+}
+function tokenEndpoint(env: AuthEnv): string {
+  return `${issuerUrl(env)}/oauth2/token`;
+}
 
 /** Session cookie lifetime: 7 days. */
 const SESSION_TTL_SECONDS = 7 * 24 * 60 * 60;
@@ -143,9 +150,8 @@ export function buildAuthorizeUrl(
   codeChallenge: string,
   returnTo: string,
 ): string {
-  void env;
   void returnTo;
-  const url = new URL(AUTHORIZE_ENDPOINT);
+  const url = new URL(authorizeEndpoint(env));
   url.searchParams.set("response_type", "code");
   url.searchParams.set("client_id", SITE_CLIENT_ID);
   url.searchParams.set("redirect_uri", REDIRECT_URI);
@@ -171,7 +177,11 @@ export interface TokenResponse {
  * Throws on any non-2xx response or a malformed body; never returns a
  * partial/fabricated token.
  */
-export async function exchangeCode(code: string, codeVerifier: string): Promise<TokenResponse> {
+export async function exchangeCode(
+  env: AuthEnv,
+  code: string,
+  codeVerifier: string,
+): Promise<TokenResponse> {
   const body = new URLSearchParams({
     grant_type: "authorization_code",
     code,
@@ -179,7 +189,7 @@ export async function exchangeCode(code: string, codeVerifier: string): Promise<
     client_id: SITE_CLIENT_ID,
     code_verifier: codeVerifier,
   });
-  const response = await fetch(TOKEN_ENDPOINT, {
+  const response = await fetch(tokenEndpoint(env), {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: body.toString(),

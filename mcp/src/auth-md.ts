@@ -3,7 +3,7 @@
  * architecture, served at GET /auth.md (see index.ts). This is descriptive
  * documentation, not protocol metadata: the machine-readable metadata lives
  * at /.well-known/oauth-protected-resource (this resource server) and at
- * identity.nyuchi.com's own /.well-known/oauth-authorization-server (the
+ * the configured AUTHKIT_DOMAIN's own /.well-known/oauth-authorization-server (the
  * WorkOS Connect authorization server, mirrored read-only at the same path
  * on this domain — see auth.ts / index.ts).
  *
@@ -14,15 +14,16 @@
  * whichever hostname actually served the request.
  */
 
-import { type AuthEnv, resourceOrigin, resourceUrl } from "./auth";
-
-// Fixed, not derived from env.AUTHKIT_DOMAIN: this describes the canonical
-// architecture (which authorization server this resource server trusts)
-// even in open mode, when AUTHKIT_DOMAIN is unset — see "When auth is not
-// required" below. Only the resource-server side (this domain) varies.
-const ISSUER = "https://identity.nyuchi.com";
+import { type AuthEnv, authConfigured, issuerUrl, resourceOrigin, resourceUrl } from "./auth";
 
 export function authMd(env: AuthEnv): string {
+  // The issuer comes only from configuration (AUTHKIT_DOMAIN) — never a
+  // compiled-in host. When it is unset this page says so rather than naming one.
+  const issuer = authConfigured(env) ? issuerUrl(env) : null;
+  const issuerLabel = issuer ?? "not configured (AUTHKIT_DOMAIN is unset)";
+  const issuerMetadata = issuer
+    ? `${issuer}/.well-known/oauth-authorization-server`
+    : "not available (AUTHKIT_DOMAIN is unset)";
   const resource = resourceUrl(env);
   const origin = resourceOrigin(env);
   const host = new URL(origin).hostname;
@@ -35,7 +36,7 @@ ${resource}.
 
 ${host} is a resource server only — it verifies bearer tokens but
 never issues them and runs no authorization flow itself. The authorization
-server is identity.nyuchi.com (WorkOS Connect), outside this repo; this page
+server is WorkOS Connect (${issuerLabel}), outside this repo; this page
 describes our side of the handshake only and does not restate or invent
 authorization-server metadata on its behalf.
 
@@ -46,8 +47,8 @@ authorization-server metadata on its behalf.
 
 ## Authorization server
 
-- Issuer: ${ISSUER} (WorkOS Connect)
-- Metadata: ${ISSUER}/.well-known/oauth-authorization-server
+- Issuer: ${issuerLabel} (WorkOS Connect)
+- Metadata: ${issuerMetadata}
   (mirrored at /.well-known/oauth-authorization-server on this domain)
 - Flow: OAuth 2.1 Authorization Code + PKCE
 - Client registration: Dynamic Client Registration (RFC 7591) at the
