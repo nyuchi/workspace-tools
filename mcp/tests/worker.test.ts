@@ -10,7 +10,7 @@
 import { generateKeyPairSync } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vite-plus/test'
 import { SignJWT, base64url } from 'jose'
 import worker from '../src/index'
 import {
