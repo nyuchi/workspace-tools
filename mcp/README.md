@@ -62,10 +62,9 @@ authorization server = the configured `AUTHKIT_DOMAIN`), used here as a public c
   PKCE `state`/`code_verifier`/`code_challenge`, stashes them in a
   short-lived `nyuchi_oauth` cookie, and 302s to
   `<AUTHKIT_DOMAIN>/oauth2/authorize`. Returns 500 (fails closed) if
-  `SESSION_SECRET` isn't configured, and 503 `AUTHKIT_DOMAIN is not
-  configured` if the AuthKit domain isn't, rather than starting an OAuth
-  round trip that could never succeed.
-
+  `SESSION_SECRET` isn't configured, and 503 (naming `AUTHKIT_DOMAIN`) if
+  the AuthKit domain isn't, rather than starting an OAuth round trip that
+  could never succeed.
 - `GET /callback` — reads the `nyuchi_oauth` cookie, verifies `state`
   matches, exchanges `code` for an access token, verifies that token with
   the exact same JWKS/issuer/audience logic `/mcp`'s bearer-token gate uses
