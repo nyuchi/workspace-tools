@@ -14,7 +14,7 @@
  *     for MCP clients and agents. See auth.ts.
  *   - `/login`, `/callback`, `/logout` — the site-wide login gate for human
  *     visitors, an Authorization Code + PKCE flow against the Hosted AuthKit
- *     UI at identity.nyuchi.com. See site-auth.ts.
+ *     UI on the configured AUTHKIT_DOMAIN. See site-auth.ts.
  *   - everything else — the built signature-generator Astro site, served as
  *     static assets via `c.env.ASSETS.fetch(...)`, but only once the
  *     site-wide login gate above has let the request through.
@@ -37,6 +37,7 @@ import { z } from "zod";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import {
   type AuthEnv,
+  AUTHKIT_DOMAIN_MISSING,
   authConfigured,
   issuerUrl,
   protectedResourceMetadata,
@@ -664,7 +665,7 @@ function buildServer(env: Env): McpServer {
  * - Auth OFF (no AUTHKIT_DOMAIN): there is no authorization server to
  *   mirror, so this keeps returning the same JSON 404 as before.
  * - Auth ON: fetches (never fabricates) the real document from
- *   identity.nyuchi.com and passes it through; a fetch failure or a
+ *   the configured AUTHKIT_DOMAIN and passes it through; a fetch failure or a
  *   non-200 upstream response becomes a 502 — never fake metadata.
  */
 function authorizationServerMetadataHandler(wellKnownPath: "oauth-authorization-server" | "openid-configuration") {
@@ -769,6 +770,10 @@ app.get("/login", async (c) => {
     // the misconfiguration instead of silently granting or looping.
     return c.text("Site authentication is not configured.", 500);
   }
+  if (!authConfigured(c.env)) {
+    // Fail CLOSED: the authorization server comes only from configuration.
+    return c.text(`Service Unavailable: ${AUTHKIT_DOMAIN_MISSING}`, 503);
+  }
   const returnTo = sanitizeReturnTo(c.req.query("return_to"));
   const state = generateState();
   const codeVerifier = generateCodeVerifier();
@@ -796,14 +801,15 @@ app.get(CALLBACK_PATH, async (c) => {
   if (!oauthPayload || !code || !state || state !== oauthPayload.state) {
     return denyLogin();
   }
-  if (!c.env.SESSION_SECRET) {
-    // Fail CLOSED: never mint a session without a configured secret.
+  if (!c.env.SESSION_SECRET || !authConfigured(c.env)) {
+    // Fail CLOSED: never mint a session without a configured secret, and
+    // never exchange a code without a configured authorization server.
     return denyLogin();
   }
 
   let idToken: string | undefined;
   try {
-    const tokenResponse = await exchangeCode(code, oauthPayload.codeVerifier);
+    const tokenResponse = await exchangeCode(c.env, code, oauthPayload.codeVerifier);
     idToken = tokenResponse.id_token;
   } catch {
     return denyLogin();
@@ -850,7 +856,7 @@ app.get("/logout", (c) => {
 //     advertises the WorkOS authorization server; client registration and
 //     the actual OAuth flow happen on WorkOS, not here. The authorization
 //     server's own discovery documents (oauth-authorization-server,
-//     openid-configuration) are mirrored — fetched from identity.nyuchi.com
+//     openid-configuration) are mirrored — fetched from AUTHKIT_DOMAIN
 //     and passed through, never fabricated — onto this domain's
 //     `.well-known` paths so agents that only probe the resource server
 //     still find them.

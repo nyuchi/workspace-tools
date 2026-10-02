@@ -31,13 +31,13 @@ comment in `../wrangler.toml` for why `/mcp` lives on a separate hostname):
   JSON-RPC.
 - `/auth.md` — human/agent-readable description of the OAuth architecture
   (`text/markdown`). Documents that this server is a resource server only —
-  the authorization server is identity.nyuchi.com (WorkOS Connect), outside
-  this repo.
+  the authorization server is WorkOS Connect on the configured
+  `AUTHKIT_DOMAIN`, outside this repo.
 - `/.well-known/oauth-protected-resource` — protected-resource metadata (see
   `auth.ts`); JSON 404 when auth is off.
 - `/.well-known/oauth-authorization-server` and
   `/.well-known/openid-configuration` — read-only mirrors of
-  identity.nyuchi.com's own discovery documents, fetched and passed through
+  the `AUTHKIT_DOMAIN` authorization server's own discovery documents, fetched and passed through
   (never fabricated) when auth is on; JSON 404 when auth is off. Responses
   are cached in-memory per-isolate for ~5 minutes as a soft optimization.
 - `/login`, `/callback`, `/logout` — the **site-wide login gate** (see
@@ -54,16 +54,22 @@ Every human-facing page sits behind a session cookie (`nyuchi_session`), a
 compact HS256 JWT signed with the `SESSION_SECRET` secret. The flow (see
 `site-auth.ts`) is Authorization Code + PKCE against the same WorkOS Connect
 app that already protects `/mcp` (`client_01KVTX0V2K1VM3PSC0DJ9VZWTV`,
-authorization server `identity.nyuchi.com`), used here as a public client
+authorization server = the configured `AUTHKIT_DOMAIN`), used here as a public client
 (`token_endpoint_auth_method=none` — no client secret is ever sent):
 
 - `GET /login` — validates `?return_to=` as a same-origin relative path
   (rejects absolute/protocol-relative URLs, falling back to `/`), generates
   PKCE `state`/`code_verifier`/`code_challenge`, stashes them in a
   short-lived `nyuchi_oauth` cookie, and 302s to
-  `https://identity.nyuchi.com/oauth2/authorize`. Returns 500 (fails closed)
-  if `SESSION_SECRET` isn't configured, rather than starting an OAuth round
-  trip that could never succeed.
+  `<AUTHKIT_DOMAIN>/oauth2/authorize`. Returns 500 (fails closed) if
+  `SESSION_SECRET` isn't configured, and 503 `AUTHKIT_DOMAIN is not
+  configured` if the AuthKit domain isn't, rather than starting an OAuth
+  round trip that could never succeed.
+
+`AUTHKIT_DOMAIN` is **required** and set per environment as a Worker secret
+(the owner script reads it from 1Password, `nyuchi/workos`). It is never
+committed — not in code, not in `wrangler.toml` `[vars]` — and there is no
+default.
 - `GET /callback` — reads the `nyuchi_oauth` cookie, verifies `state`
   matches, exchanges `code` for an access token, verifies that token with
   the exact same JWKS/issuer/audience logic `/mcp`'s bearer-token gate uses

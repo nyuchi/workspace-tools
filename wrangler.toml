@@ -62,11 +62,13 @@ custom_domain = true
 # longer the advertised resource — MCP_RESOURCE below is what discovery
 # metadata and audience checks use.
 MCP_RESOURCE = "https://tools.nyuchi.dev/mcp"
-# WorkOS Connect hosted auth (Connect app client_01KVTX0V2K1VM3PSC0DJ9VZWTV).
-# /mcp requires bearer JWTs issued by this authorization server; MCP clients
-# discover it via /.well-known/oauth-protected-resource and self-register
-# through its dynamic client registration. Unset to run the MCP open.
-AUTHKIT_DOMAIN = "identity.nyuchi.com"
+# AUTHKIT_DOMAIN — the WorkOS Connect / AuthKit domain (Connect app
+# client_01KVTX0V2K1VM3PSC0DJ9VZWTV) — is deliberately NOT declared here. It is
+# REQUIRED and set per environment as a Worker secret (see the secrets note
+# below); it is never committed and there is no default in code. /mcp requires
+# bearer JWTs issued by this authorization server; MCP clients discover it via
+# /.well-known/oauth-protected-resource and self-register through its dynamic
+# client registration.
 # Cloudflare Images account for the MCP upload tools (nyuchi_generate_studio_card's
 # returnFormat 'url' / nyuchi_upload_asset). Same account as account_id above. The
 # matching CF_IMAGES_TOKEN secret (an API token with Cloudflare Images edit
@@ -87,6 +89,12 @@ GOOGLE_WORKSPACE_DOMAIN = "nyuchi.com"
 # Secrets are deliberately NOT set here — they must never be committed to
 # git in plaintext. Provision each out-of-band with `wrangler secret put`:
 #
+#   AUTHKIT_DOMAIN         — the WorkOS AuthKit domain (bare host or https
+#     origin). REQUIRED; set per environment by the owner script from
+#     1Password (nyuchi/workos, field WORKOS_AUTHKIT_DOMAIN). Never a [vars]
+#     entry: a var of the same name wins on every deploy. Without it /login
+#     answers 503 "AUTHKIT_DOMAIN is not configured" and /mcp runs without
+#     its bearer-token gate (open mode), so set it before deploying.
 #   SESSION_SECRET         — site-wide login gate (mcp/src/site-auth.ts).
 #     Fails CLOSED without it: every session-cookie verification treats a
 #     missing SESSION_SECRET as "no valid session" (redirect to /login), and

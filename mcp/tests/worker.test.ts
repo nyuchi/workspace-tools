@@ -51,6 +51,8 @@ const AUTH_ENV = { AUTHKIT_DOMAIN: 'x.authkit.app' }
 /** Site-wide login gate configured with a known, throwaway test secret. */
 const TEST_SESSION_SECRET = 'test-secret-do-not-use-in-prod'
 const SITE_ENV = { SESSION_SECRET: TEST_SESSION_SECRET }
+/** SITE_ENV plus an AuthKit domain — the login flow needs both (test fixture). */
+const LOGIN_ENV = { ...SITE_ENV, AUTHKIT_DOMAIN: 'identity.example.test' }
 
 /** Stub ASSETS binding: the real one only exists in the real Workers
  * runtime, so tests that need a request to reach the post-auth catch-all
@@ -1090,12 +1092,18 @@ describe('GET /auth.md', () => {
   })
 
   it('describes the real architecture without fabricating an agent_auth block', async () => {
-    const res = await get('/auth.md')
+    const res = await get('/auth.md', { AUTHKIT_DOMAIN: 'identity.example.test' })
     const body = await res.text()
-    expect(body).toContain('https://identity.nyuchi.com')
+    expect(body).toContain('https://identity.example.test')
     expect(body).toContain('/.well-known/oauth-protected-resource')
     expect(body).toContain('tools.nyuchi.dev is a resource server')
     expect(body).not.toContain('agent_auth')
+  })
+
+  it('names no authorization server when AUTHKIT_DOMAIN is unset — never a compiled-in host', async () => {
+    const body = await (await get('/auth.md')).text()
+    expect(body).toContain('AUTHKIT_DOMAIN is unset')
+    expect(body).not.toMatch(/https:\/\/[^\s]*(identity|accounts|authkit)/)
   })
 
   it('is reachable the same way in auth-on mode too', async () => {
@@ -1255,14 +1263,20 @@ describe('GET /login', () => {
     expect(res.status).toBe(500)
   })
 
-  it('sets the oauth cookie and redirects to the authorize endpoint with the right params', async () => {
+  it('returns 503 (fails closed) when AUTHKIT_DOMAIN is not configured — no default host', async () => {
     const res = await get('/login', SITE_ENV)
+    expect(res.status).toBe(503)
+    expect(await res.text()).toContain('AUTHKIT_DOMAIN is not configured')
+  })
+
+  it('sets the oauth cookie and redirects to the authorize endpoint with the right params', async () => {
+    const res = await get('/login', LOGIN_ENV)
     expect(res.status).toBe(302)
 
     const location = res.headers.get('Location')
     expect(location).toBeTruthy()
     const url = new URL(location!)
-    expect(url.origin + url.pathname).toBe('https://identity.nyuchi.com/oauth2/authorize')
+    expect(url.origin + url.pathname).toBe('https://identity.example.test/oauth2/authorize')
     expect(url.searchParams.get('response_type')).toBe('code')
     expect(url.searchParams.get('client_id')).toBe(SITE_CLIENT_ID)
     expect(url.searchParams.get('redirect_uri')).toBe('https://tools.nyuchi.com/callback')
@@ -1285,7 +1299,7 @@ describe('GET /login', () => {
   })
 
   it('rejects an absolute-URL return_to and stores "/" instead', async () => {
-    const res = await get(`/login?return_to=${encodeURIComponent('https://evil.com')}`, SITE_ENV)
+    const res = await get(`/login?return_to=${encodeURIComponent('https://evil.com')}`, LOGIN_ENV)
     expect(res.status).toBe(302)
     const oauthValue = cookieValueFrom(res.headers.get('Set-Cookie'), OAUTH_COOKIE_NAME)
     const payload = decodeOauthCookie(oauthValue ?? undefined)
@@ -1293,14 +1307,14 @@ describe('GET /login', () => {
   })
 
   it('rejects a protocol-relative return_to ("//evil.com") and stores "/" instead', async () => {
-    const res = await get(`/login?return_to=${encodeURIComponent('//evil.com')}`, SITE_ENV)
+    const res = await get(`/login?return_to=${encodeURIComponent('//evil.com')}`, LOGIN_ENV)
     const oauthValue = cookieValueFrom(res.headers.get('Set-Cookie'), OAUTH_COOKIE_NAME)
     const payload = decodeOauthCookie(oauthValue ?? undefined)
     expect(payload?.returnTo).toBe('/')
   })
 
   it('rejects a return_to containing a CRLF (header-injection attempt) and stores "/" instead', async () => {
-    const res = await get(`/login?return_to=${encodeURIComponent('/studio\r\nSet-Cookie: evil=1')}`, SITE_ENV)
+    const res = await get(`/login?return_to=${encodeURIComponent('/studio\r\nSet-Cookie: evil=1')}`, LOGIN_ENV)
     expect(res.status).toBe(302)
     const oauthValue = cookieValueFrom(res.headers.get('Set-Cookie'), OAUTH_COOKIE_NAME)
     const payload = decodeOauthCookie(oauthValue ?? undefined)
@@ -1308,7 +1322,7 @@ describe('GET /login', () => {
   })
 
   it('accepts a legitimate same-origin relative return_to', async () => {
-    const res = await get(`/login?return_to=${encodeURIComponent('/studio')}`, SITE_ENV)
+    const res = await get(`/login?return_to=${encodeURIComponent('/studio')}`, LOGIN_ENV)
     const oauthValue = cookieValueFrom(res.headers.get('Set-Cookie'), OAUTH_COOKIE_NAME)
     const payload = decodeOauthCookie(oauthValue ?? undefined)
     expect(payload?.returnTo).toBe('/studio')
@@ -1354,7 +1368,7 @@ describe('GET /callback', () => {
   })
 
   describe('successful exchange (mocked token + JWKS endpoints)', () => {
-    const CALLBACK_ENV = { SESSION_SECRET: TEST_SESSION_SECRET, AUTHKIT_DOMAIN: 'identity.nyuchi.com' }
+    const CALLBACK_ENV = { SESSION_SECRET: TEST_SESSION_SECRET, AUTHKIT_DOMAIN: 'identity.example.test' }
 
     afterEach(() => {
       vi.restoreAllMocks()
@@ -1372,7 +1386,7 @@ describe('GET /callback', () => {
       const idToken = await new SignJWT({ email: claims.email })
         .setProtectedHeader({ alg: 'RS256', kid })
         .setIssuedAt()
-        .setIssuer('https://identity.nyuchi.com')
+        .setIssuer('https://identity.example.test')
         .setAudience(SITE_CLIENT_ID)
         .setSubject(claims.sub)
         .setExpirationTime('5m')
@@ -1380,13 +1394,13 @@ describe('GET /callback', () => {
 
       vi.spyOn(globalThis, 'fetch').mockImplementation(async (input: RequestInfo | URL) => {
         const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
-        if (url === 'https://identity.nyuchi.com/oauth2/token') {
+        if (url === 'https://identity.example.test/oauth2/token') {
           return new Response(
             JSON.stringify({ access_token: 'unused-access-token', id_token: idToken, token_type: 'Bearer', expires_in: 300 }),
             { status: 200, headers: { 'content-type': 'application/json' } },
           )
         }
-        if (url === 'https://identity.nyuchi.com/oauth2/jwks') {
+        if (url === 'https://identity.example.test/oauth2/jwks') {
           return new Response(JSON.stringify({ keys: [{ ...publicJwk, kid, alg: 'RS256', use: 'sig' }] }), {
             status: 200,
             headers: { 'content-type': 'application/json' },
@@ -1424,7 +1438,7 @@ describe('GET /callback', () => {
       const wrongAudienceToken = await new SignJWT({ email: 'bryan@nyuchi.com' })
         .setProtectedHeader({ alg: 'RS256', kid })
         .setIssuedAt()
-        .setIssuer('https://identity.nyuchi.com')
+        .setIssuer('https://identity.example.test')
         .setAudience('https://tools.nyuchi.dev/mcp')
         .setSubject('user_123')
         .setExpirationTime('5m')
@@ -1432,13 +1446,13 @@ describe('GET /callback', () => {
 
       vi.spyOn(globalThis, 'fetch').mockImplementation(async (input: RequestInfo | URL) => {
         const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
-        if (url === 'https://identity.nyuchi.com/oauth2/token') {
+        if (url === 'https://identity.example.test/oauth2/token') {
           return new Response(
             JSON.stringify({ access_token: 'unused', id_token: wrongAudienceToken, token_type: 'Bearer', expires_in: 300 }),
             { status: 200, headers: { 'content-type': 'application/json' } },
           )
         }
-        if (url === 'https://identity.nyuchi.com/oauth2/jwks') {
+        if (url === 'https://identity.example.test/oauth2/jwks') {
           return new Response(JSON.stringify({ keys: [{ ...publicJwk, kid, alg: 'RS256', use: 'sig' }] }), {
             status: 200,
             headers: { 'content-type': 'application/json' },
@@ -1462,7 +1476,7 @@ describe('GET /callback', () => {
     it('denies login when the token response has no id_token', async () => {
       vi.spyOn(globalThis, 'fetch').mockImplementation(async (input: RequestInfo | URL) => {
         const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
-        if (url === 'https://identity.nyuchi.com/oauth2/token') {
+        if (url === 'https://identity.example.test/oauth2/token') {
           return new Response(JSON.stringify({ access_token: 'unused', token_type: 'Bearer', expires_in: 300 }), {
             status: 200,
             headers: { 'content-type': 'application/json' },
