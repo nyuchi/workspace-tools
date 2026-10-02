@@ -66,10 +66,6 @@ authorization server = the configured `AUTHKIT_DOMAIN`), used here as a public c
   configured` if the AuthKit domain isn't, rather than starting an OAuth
   round trip that could never succeed.
 
-`AUTHKIT_DOMAIN` is **required** and set per environment as a Worker secret
-(the owner script reads it from 1Password, `nyuchi/workos`). It is never
-committed — not in code, not in `wrangler.toml` `[vars]` — and there is no
-default.
 - `GET /callback` — reads the `nyuchi_oauth` cookie, verifies `state`
   matches, exchanges `code` for an access token, verifies that token with
   the exact same JWKS/issuer/audience logic `/mcp`'s bearer-token gate uses
@@ -99,6 +95,10 @@ default.
   just a fixed path list) and `[assets]` has an explicit `binding = "ASSETS"`
   so `c.env.ASSETS.fetch(...)` can serve the static build from inside the
   Worker after the gate passes.
+- **`AUTHKIT_DOMAIN` is required** and set per environment as a Worker secret
+  (the owner script reads it from 1Password, `nyuchi/workos`). It is never
+  committed — not in code, not in `wrangler.toml` `[vars]` — and there is no
+  default.
 
 ## Where things live
 
