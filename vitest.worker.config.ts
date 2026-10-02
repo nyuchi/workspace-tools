@@ -1,4 +1,4 @@
-import { defineConfig, type Plugin } from 'vitest/config'
+import { defineConfig, type Plugin } from 'vite-plus'
 
 // mcp/src/raster.ts imports @resvg/resvg-wasm's binary the way Wrangler's
 // CompiledWasm module rule expects (default export = WebAssembly.Module).
