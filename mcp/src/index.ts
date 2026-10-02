@@ -41,6 +41,7 @@ import {
   authConfigured,
   issuerUrl,
   protectedResourceMetadata,
+  unauthenticatedDevAllowed,
   verifyBearer,
   verifyJwt,
   wwwAuthenticateHeader,
@@ -845,12 +846,14 @@ app.get("/logout", (c) => {
   return c.redirect("/", 302);
 });
 
-// OAuth surface. Behavior is driven by the AUTHKIT_DOMAIN Worker var:
+// OAuth surface. Behavior is driven by the AUTHKIT_DOMAIN Worker secret:
 //
-//   unset → the MCP server is OPEN. Discovery endpoints return JSON 404s so
-//     MCP clients (e.g. claude.ai connectors) conclude "no sign-in needed"
-//     instead of hitting the SPA fallback's 200 text/html and inventing a
-//     broken sign-in service.
+//   unset → FAIL CLOSED. `/mcp` answers 503 "AUTHKIT_DOMAIN is not
+//     configured" and the protected-resource metadata says the same, so no
+//     client is ever served tools unauthenticated. The one exception is the
+//     explicit local-development opt-out (`ALLOW_UNAUTHENTICATED_DEV=true`,
+//     only on localhost — see `unauthenticatedDevAllowed`), where discovery
+//     returns JSON 404s so a local MCP client concludes "no sign-in needed".
 //
 //   set → WorkOS Connect protects /mcp. The protected-resource metadata
 //     advertises the WorkOS authorization server; client registration and
@@ -862,19 +865,21 @@ app.get("/logout", (c) => {
 //     still find them.
 //
 // These paths reach the Worker via assets.run_worker_first in wrangler.toml.
-app.all("/.well-known/oauth-protected-resource", (c) => {
+function protectedResourceResponse(c: Context<{ Bindings: Env; Variables: Variables }>) {
   if (authConfigured(c.env)) return c.json(protectedResourceMetadata(c.env));
-  return c.json(
-    { error: "no_protected_resource_metadata", detail: "This MCP server does not require authentication." },
-    404,
-  );
+  if (unauthenticatedDevAllowed(c.env, c.req.url)) {
+    return c.json(
+      { error: "no_protected_resource_metadata", detail: "Local development: this MCP server does not require authentication." },
+      404,
+    );
+  }
+  return c.json({ error: "authorization_not_configured", detail: AUTHKIT_DOMAIN_MISSING }, 503);
+}
+app.all("/.well-known/oauth-protected-resource", (c) => {
+  return protectedResourceResponse(c);
 });
 app.all("/.well-known/oauth-protected-resource/*", (c) => {
-  if (authConfigured(c.env)) return c.json(protectedResourceMetadata(c.env));
-  return c.json(
-    { error: "no_protected_resource_metadata", detail: "This MCP server does not require authentication." },
-    404,
-  );
+  return protectedResourceResponse(c);
 });
 app.all("/.well-known/oauth-authorization-server", authorizationServerMetadataHandler("oauth-authorization-server"));
 app.all("/.well-known/oauth-authorization-server/*", authorizationServerMetadataHandler("oauth-authorization-server"));
@@ -893,9 +898,18 @@ app.get("/.well-known/mcp/server-card.json", (c) => c.json(buildServerCard(SERVE
 // wrangler.toml's assets.run_worker_first.
 app.get("/auth.md", (c) => c.text(authMd(c.env), 200, { "Content-Type": "text/markdown; charset=utf-8" }));
 
-// Bearer-token gate for /mcp — no-op until AUTHKIT_DOMAIN is configured.
+// Bearer-token gate for /mcp. Fails CLOSED: with AUTHKIT_DOMAIN unset, /mcp
+// answers 503 and never serves tools unauthenticated — except the explicit
+// localhost-only development opt-out (`unauthenticatedDevAllowed`). With it set
+// but unusable, bearer verification fails and every request is 401.
 app.use("/mcp", async (c, next) => {
-  if (!authConfigured(c.env)) return next();
+  if (!authConfigured(c.env)) {
+    if (unauthenticatedDevAllowed(c.env, c.req.url)) return next();
+    return c.json(
+      { error: "authorization_not_configured", detail: `Service Unavailable: ${AUTHKIT_DOMAIN_MISSING}` },
+      503,
+    );
+  }
   const verified = await verifyBearer(c.env, c.req.header("Authorization"));
   if (!verified) {
     return c.json(

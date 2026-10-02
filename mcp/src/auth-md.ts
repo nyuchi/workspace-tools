@@ -72,11 +72,11 @@ Send the access token as \`Authorization: Bearer <token>\` on requests to
 \`/mcp\`. Unauthenticated requests receive \`401\` with a \`WWW-Authenticate\`
 header pointing back at the protected-resource metadata.
 
-## When auth is not required
+## When auth is not configured
 
-This server can run in an open mode (no \`AUTHKIT_DOMAIN\` configured) for
-local development; the protected-resource metadata endpoint returns \`404\`
-in that mode to signal no authorization is needed, and \`/mcp\` accepts
-requests without a bearer token.
+\`/mcp\` fails closed: if \`AUTHKIT_DOMAIN\` is not configured it answers
+\`503\` and serves no tools. The only exception is local development, with
+\`ALLOW_UNAUTHENTICATED_DEV=true\` set explicitly and requests addressed to
+\`localhost\`; that setting is never present in a deployed environment.
 `;
 }

@@ -93,8 +93,11 @@ GOOGLE_WORKSPACE_DOMAIN = "nyuchi.com"
 #     origin). REQUIRED; set per environment by the owner script from
 #     1Password (nyuchi/workos, field WORKOS_AUTHKIT_DOMAIN). Never a [vars]
 #     entry: a var of the same name wins on every deploy. Without it /login
-#     answers 503 "AUTHKIT_DOMAIN is not configured" and /mcp runs without
-#     its bearer-token gate (open mode), so set it before deploying.
+#     answers 503 "AUTHKIT_DOMAIN is not configured" and so does /mcp —
+#     it never serves tools unauthenticated. Set it before deploying.
+#   ALLOW_UNAUTHENTICATED_DEV — NEVER set here or as a secret. Local
+#     development only (`.dev.vars`): "true" lets /mcp run without a bearer
+#     token when AUTHKIT_DOMAIN is unset and the request is to localhost.
 #   SESSION_SECRET         — site-wide login gate (mcp/src/site-auth.ts).
 #     Fails CLOSED without it: every session-cookie verification treats a
 #     missing SESSION_SECRET as "no valid session" (redirect to /login), and
