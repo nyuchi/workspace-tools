@@ -29,6 +29,13 @@ import { createRemoteJWKSet, jwtVerify } from "jose";
 export interface AuthEnv {
   AUTHKIT_DOMAIN?: string;
   MCP_RESOURCE?: string;
+  /**
+   * Local development only: `"true"` lets `/mcp` run without a bearer token
+   * when AUTHKIT_DOMAIN is unset AND the request is to localhost. Never set in
+   * any deployed environment (it is not in wrangler.toml); put it in
+   * `.dev.vars` for `wrangler dev`.
+   */
+  ALLOW_UNAUTHENTICATED_DEV?: string;
 }
 
 // Must match the "AuthKit OAuth resource" registered in the WorkOS dashboard
@@ -46,6 +53,24 @@ export const AUTHKIT_DOMAIN_MISSING = "AUTHKIT_DOMAIN is not configured";
  */
 export function authConfigured(env: AuthEnv): boolean {
   return typeof env.AUTHKIT_DOMAIN === "string" && env.AUTHKIT_DOMAIN.trim().length > 0;
+}
+
+const LOCAL_HOSTNAMES = new Set(["localhost", "127.0.0.1", "[::1]"]);
+
+/**
+ * True only for the explicit local-development opt-out: AUTHKIT_DOMAIN unset,
+ * `ALLOW_UNAUTHENTICATED_DEV` exactly `"true"`, and the request addressed to
+ * localhost. Everywhere else an unset AUTHKIT_DOMAIN fails closed — `/mcp`
+ * never serves tools unauthenticated by default.
+ */
+export function unauthenticatedDevAllowed(env: AuthEnv, requestUrl: string): boolean {
+  if (authConfigured(env)) return false;
+  if (env.ALLOW_UNAUTHENTICATED_DEV !== "true") return false;
+  try {
+    return LOCAL_HOSTNAMES.has(new URL(requestUrl).hostname);
+  } catch {
+    return false;
+  }
 }
 
 export function resourceUrl(env: AuthEnv): string {

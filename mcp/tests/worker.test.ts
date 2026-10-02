@@ -43,8 +43,13 @@ import { buildSignatureHtml } from '../../signature-generator/src/engines/signat
 
 const BASE = 'https://tools.nyuchi.com'
 
-/** No auth configured: the MCP server runs open. */
-const OPEN_ENV = {}
+/** Nothing configured. With AUTHKIT_DOMAIN unset, /mcp fails closed (503). */
+const NO_CONFIG_ENV = {}
+
+/** The explicit local-development opt-out: /mcp runs without a bearer token,
+ * but only for requests to localhost (see LOCAL_BASE). Never set in production. */
+const LOCAL_DEV_ENV = { ALLOW_UNAUTHENTICATED_DEV: 'true' }
+const LOCAL_BASE = 'http://localhost:8787'
 
 /** Auth configured: WorkOS AuthKit protects /mcp. */
 const AUTH_ENV = { AUTHKIT_DOMAIN: 'x.authkit.app' }
@@ -92,6 +97,7 @@ const FONT_ASSETS_STUB = {
 /** Env with Cloudflare Images + GitHub feedback configured (values fake;
  * the corresponding fetches are mocked per test). */
 const UPLOAD_ENV = {
+  ...LOCAL_DEV_ENV,
   ASSETS: FONT_ASSETS_STUB,
   CF_IMAGES_ACCOUNT_ID: 'acct123',
   CF_IMAGES_TOKEN: 'tok123',
@@ -102,14 +108,20 @@ const PNG_MAGIC = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]
 
 type Env = Record<string, unknown>
 
-function get(path: string, env: Env = OPEN_ENV, headers?: HeadersInit): Promise<Response> {
-  return Promise.resolve(worker.fetch(new Request(`${BASE}${path}`, { headers }), env))
+/** Requests under the local-development opt-out go to localhost, as they would
+ * under `wrangler dev`; everything else to the production host. */
+function baseFor(env: Env): string {
+  return env.ALLOW_UNAUTHENTICATED_DEV === 'true' ? LOCAL_BASE : BASE
 }
 
-function post(path: string, body: unknown, env: Env = OPEN_ENV): Promise<Response> {
+function get(path: string, env: Env = LOCAL_DEV_ENV, headers?: HeadersInit): Promise<Response> {
+  return Promise.resolve(worker.fetch(new Request(`${baseFor(env)}${path}`, { headers }), env))
+}
+
+function post(path: string, body: unknown, env: Env = LOCAL_DEV_ENV): Promise<Response> {
   return Promise.resolve(
     worker.fetch(
-      new Request(`${BASE}${path}`, {
+      new Request(`${baseFor(env)}${path}`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: typeof body === 'string' ? body : JSON.stringify(body),
@@ -479,7 +491,7 @@ describe('POST /mcp — JSON-RPC', () => {
         },
         18,
       ),
-      { ...OPEN_ENV, ASSETS: ICON_ASSETS_STUB },
+      { ...LOCAL_DEV_ENV, ASSETS: ICON_ASSETS_STUB },
     )
     expect(res.status).toBe(200)
     const body = (await res.json()) as JsonRpcResponse
@@ -609,7 +621,7 @@ describe('nyuchi_generate_studio_card — returnFormat / upload', () => {
         },
         42,
       ),
-      { ...OPEN_ENV, ASSETS: FONT_ASSETS_STUB },
+      { ...LOCAL_DEV_ENV, ASSETS: FONT_ASSETS_STUB },
     )
     expect(res.status).toBe(200)
     const body = (await res.json()) as JsonRpcResponse
@@ -687,7 +699,7 @@ describe('nyuchi_generate_studio_card — returnFormat / upload', () => {
         },
         43,
       ),
-      { ...OPEN_ENV, ASSETS: FONT_ASSETS_STUB },
+      { ...LOCAL_DEV_ENV, ASSETS: FONT_ASSETS_STUB },
     )
     const body = (await res.json()) as JsonRpcResponse
     const result = body.result as { isError: boolean; content: { text: string }[] }
@@ -878,7 +890,7 @@ describe('nyuchi_upload_asset', () => {
     const res = await post(
       '/mcp',
       rpc('tools/call', { name: 'nyuchi_upload_asset', arguments: { pngBase64: TINY_PNG_B64 } }, 54),
-      { ...OPEN_ENV, ASSETS: FONT_ASSETS_STUB },
+      { ...LOCAL_DEV_ENV, ASSETS: FONT_ASSETS_STUB },
     )
     const body = (await res.json()) as JsonRpcResponse
     const result = body.result as { isError: boolean; content: { text: string }[] }
@@ -988,17 +1000,71 @@ describe('nyuchi_report_issue', () => {
   })
 })
 
-describe('OAuth discovery — auth OFF (no AUTHKIT_DOMAIN)', () => {
-  it('protected-resource metadata is a JSON 404 (open server)', async () => {
-    const res = await get('/.well-known/oauth-protected-resource')
+describe('OAuth discovery — auth OFF (no AUTHKIT_DOMAIN): fails closed', () => {
+  it('protected-resource metadata is a 503 naming AUTHKIT_DOMAIN', async () => {
+    for (const path of ['/.well-known/oauth-protected-resource', '/.well-known/oauth-protected-resource/mcp']) {
+      const res = await get(path, NO_CONFIG_ENV)
+      expect(res.status, path).toBe(503)
+      const body = (await res.json()) as { error: string; detail: string }
+      expect(body.error).toBe('authorization_not_configured')
+      expect(body.detail).toContain('AUTHKIT_DOMAIN is not configured')
+    }
+  })
+
+  it('GET /mcp is 503, never open', async () => {
+    const res = await get('/mcp', NO_CONFIG_ENV)
+    expect(res.status).toBe(503)
+    const body = (await res.json()) as { error: string; detail: string }
+    expect(body.error).toBe('authorization_not_configured')
+    expect(body.detail).toContain('AUTHKIT_DOMAIN is not configured')
+  })
+
+  it('POST /mcp serves no tools without auth', async () => {
+    const res = await post('/mcp', rpc('tools/list'), NO_CONFIG_ENV)
+    expect(res.status).toBe(503)
+    expect(await res.text()).not.toContain('"tools"')
+  })
+
+  it('the dev opt-out does not apply to a non-localhost host', async () => {
+    const res = await Promise.resolve(
+      worker.fetch(
+        new Request(`${BASE}/mcp`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(rpc('tools/list')),
+        }),
+        LOCAL_DEV_ENV,
+      ),
+    )
+    expect(res.status).toBe(503)
+  })
+
+  it('localhost alone does not open /mcp — the opt-out must be exactly "true"', async () => {
+    for (const env of [NO_CONFIG_ENV, { ALLOW_UNAUTHENTICATED_DEV: '1' }, { ALLOW_UNAUTHENTICATED_DEV: 'TRUE' }]) {
+      const res = await Promise.resolve(worker.fetch(new Request(`${LOCAL_BASE}/mcp`), env))
+      expect(res.status).toBe(503)
+    }
+  })
+
+  it('the dev opt-out never overrides a configured AUTHKIT_DOMAIN', async () => {
+    const res = await Promise.resolve(
+      worker.fetch(new Request(`${LOCAL_BASE}/mcp`), { ...LOCAL_DEV_ENV, ...AUTH_ENV }),
+    )
+    expect(res.status).toBe(401)
+  })
+})
+
+describe('Local development opt-out (ALLOW_UNAUTHENTICATED_DEV=true on localhost)', () => {
+  it('/mcp requires no token', async () => {
+    const res = await get('/mcp', LOCAL_DEV_ENV)
+    expect(res.status).toBe(200)
+  })
+
+  it('protected-resource metadata is a JSON 404 (no sign-in needed locally)', async () => {
+    const res = await get('/.well-known/oauth-protected-resource', LOCAL_DEV_ENV)
     expect(res.status).toBe(404)
     const body = (await res.json()) as { error: string }
     expect(body.error).toBe('no_protected_resource_metadata')
-  })
-
-  it('/mcp requires no token', async () => {
-    const res = await get('/mcp')
-    expect(res.status).toBe(200)
   })
 })
 
@@ -1190,19 +1256,22 @@ describe('Authorization server metadata mirror', () => {
 })
 
 describe('Site-wide login gate — exempt paths still work with zero cookies', () => {
+  // AUTH_ENV puts /mcp behind its own bearer gate: the answer is that gate's
+  // 401 (or the metadata), never the site gate's redirect to /login.
   it('/mcp (GET discovery) needs no session cookie', async () => {
-    const res = await get('/mcp', SITE_ENV)
-    expect(res.status).toBe(200)
+    const res = await get('/mcp', { ...SITE_ENV, ...AUTH_ENV })
+    expect(res.status).toBe(401)
+    expect(res.headers.get('WWW-Authenticate')).toContain('Bearer')
   })
 
   it('/mcp (POST JSON-RPC) needs no session cookie', async () => {
-    const res = await post('/mcp', rpc('tools/list', {}, 1), SITE_ENV)
+    const res = await post('/mcp', rpc('tools/list', {}, 1), { ...SITE_ENV, ...LOCAL_DEV_ENV })
     expect(res.status).toBe(200)
   })
 
   it('/.well-known/oauth-protected-resource needs no session cookie', async () => {
-    const res = await get('/.well-known/oauth-protected-resource', SITE_ENV)
-    expect(res.status).toBe(404) // auth not configured for /mcp in this env — still reachable, not redirected
+    const res = await get('/.well-known/oauth-protected-resource', { ...SITE_ENV, ...AUTH_ENV })
+    expect(res.status).toBe(200) // the metadata itself — reachable, not redirected
   })
 
   it('/.well-known/mcp/server-card.json needs no session cookie', async () => {
@@ -1237,7 +1306,7 @@ describe('Site-wide login gate — protected paths', () => {
   it('denies access (redirects, never passes through) when SESSION_SECRET is unset entirely', async () => {
     // Fail CLOSED: no SESSION_SECRET at all must behave exactly like "no
     // valid session", never like "auth is off".
-    const res = await get('/', OPEN_ENV)
+    const res = await get('/', NO_CONFIG_ENV)
     expect(res.status).toBe(302)
     expect(res.headers.get('Location')).toContain('/login?return_to=')
   })
@@ -1260,7 +1329,7 @@ describe('Site-wide login gate — protected paths', () => {
 
 describe('GET /login', () => {
   it('returns 500 (fails closed) when SESSION_SECRET is not configured', async () => {
-    const res = await get('/login', OPEN_ENV)
+    const res = await get('/login', NO_CONFIG_ENV)
     expect(res.status).toBe(500)
   })
 
@@ -1361,7 +1430,7 @@ describe('GET /callback', () => {
 
   it('redirects to /login (never crashes) when SESSION_SECRET is unset, even with matching state', async () => {
     const oauthCookie = encodeOauthCookie({ state: 'expected-state', codeVerifier: 'verifier', returnTo: '/' })
-    const res = await get(`${CALLBACK_PATH}?code=abc&state=expected-state`, OPEN_ENV, {
+    const res = await get(`${CALLBACK_PATH}?code=abc&state=expected-state`, NO_CONFIG_ENV, {
       Cookie: `${OAUTH_COOKIE_NAME}=${oauthCookie}`,
     })
     expect(res.status).toBe(302)

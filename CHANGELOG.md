@@ -25,6 +25,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ledger keeps re-runs idempotent. The `market-release` skill runs it.
 - **Bundu theme and official logos** in `nyuchi-imaging`: a `bundu` theme in
   copper and terracotta, signed with the published Bundu Foundation logo.
+### Security
+
+- **`/mcp` fails closed when `AUTHKIT_DOMAIN` is not configured.** It used to
+  run without its bearer-token gate ("open mode"), so a missing secret served
+  every tool unauthenticated. It now answers `503` "AUTHKIT_DOMAIN is not
+  configured", as does the protected-resource metadata. Local development can
+  still opt out explicitly with `ALLOW_UNAUTHENTICATED_DEV=true`, honoured only
+  for requests to `localhost` and never set in a deployed environment.
 
 ### Changed
 
