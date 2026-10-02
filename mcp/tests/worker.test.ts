@@ -13,6 +13,7 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vite-plus/test'
 import { SignJWT, base64url } from 'jose'
 import worker from '../src/index'
+import { AUTHKIT_DOMAIN_MISSING, issuerUrl, normaliseAuthkitDomain, verifyJwt } from '../src/auth'
 import {
   CALLBACK_PATH,
   decodeOauthCookie,
@@ -2714,5 +2715,85 @@ describe('POST /mcp — resources & prompts (catalog)', () => {
     const text = (body.result as { messages: { content: { text: string } }[] }).messages[0].content.text
     expect(text).toContain("'copper'")
     expect(text).toContain('layout 5')
+  })
+})
+
+describe('AUTHKIT_DOMAIN is parsed into an https origin — never concatenated', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('fails closed when unset or blank', () => {
+    expect(() => normaliseAuthkitDomain(undefined)).toThrow(AUTHKIT_DOMAIN_MISSING)
+    expect(() => normaliseAuthkitDomain('   ')).toThrow(AUTHKIT_DOMAIN_MISSING)
+    expect(() => issuerUrl({})).toThrow(AUTHKIT_DOMAIN_MISSING)
+  })
+
+  it('accepts a bare host or an https origin in any case, and returns the origin', () => {
+    expect(issuerUrl({ AUTHKIT_DOMAIN: 'https://identity.example.test' })).toBe('https://identity.example.test')
+    expect(issuerUrl({ AUTHKIT_DOMAIN: 'identity.example.test' })).toBe('https://identity.example.test')
+    expect(issuerUrl({ AUTHKIT_DOMAIN: 'https://identity.example.test/' })).toBe('https://identity.example.test')
+    expect(issuerUrl({ AUTHKIT_DOMAIN: 'HTTPS://Identity.Example.Test' })).toBe('https://identity.example.test')
+  })
+
+  it('drops any path, query or fragment', () => {
+    expect(issuerUrl({ AUTHKIT_DOMAIN: 'https://identity.example.test/x/y?z=1#f' })).toBe(
+      'https://identity.example.test',
+    )
+  })
+
+  it('rejects anything that is not an https origin', () => {
+    for (const bad of [
+      'http://identity.example.test',
+      'javascript://identity.example.test',
+      'https://user:pass@identity.example.test',
+      'user@identity.example.test',
+      'https://',
+    ]) {
+      expect(() => issuerUrl({ AUTHKIT_DOMAIN: bad }), bad).toThrow(AUTHKIT_DOMAIN_MISSING)
+    }
+  })
+
+  it('an unusable value keeps auth ON and fails closed — /mcp is 401, never open', async () => {
+    const res = await get('/mcp', { AUTHKIT_DOMAIN: 'http://identity.example.test' })
+    expect(res.status).toBe(401)
+  })
+
+  it('binds iss to the normalised origin by exact match, never by prefix', async () => {
+    const { generateKeyPair, exportJWK } = await import('jose')
+    const { publicKey, privateKey } = await generateKeyPair('RS256')
+    const publicJwk = await exportJWK(publicKey)
+    const fetched: string[] = []
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input: RequestInfo | URL) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+      fetched.push(url)
+      return new Response(JSON.stringify({ keys: [{ ...publicJwk, kid: 'k1', alg: 'RS256', use: 'sig' }] }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    })
+    const sign = (iss: string) =>
+      new SignJWT({})
+        .setProtectedHeader({ alg: 'RS256', kid: 'k1' })
+        .setIssuedAt()
+        .setIssuer(iss)
+        .setAudience('aud-test')
+        .setSubject('user_123')
+        .setExpirationTime('5m')
+        .sign(privateKey)
+    // A host of its own: the JWKS set is cached per issuer for the isolate.
+    const env = { AUTHKIT_DOMAIN: 'HTTPS://Iss-Bind.Example.Test/some/path' }
+
+    expect(await verifyJwt(env, await sign('https://iss-bind.example.test'), 'aud-test')).toMatchObject({
+      sub: 'user_123',
+    })
+    expect(fetched).toEqual(['https://iss-bind.example.test/oauth2/jwks'])
+    for (const iss of [
+      'https://iss-bind.example.test.evil.test',
+      'https://iss-bind.example.test/',
+      'http://iss-bind.example.test',
+    ]) {
+      expect(await verifyJwt(env, await sign(iss), 'aud-test'), iss).toBeNull()
+    }
   })
 })

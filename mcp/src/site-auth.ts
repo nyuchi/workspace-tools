@@ -56,10 +56,10 @@ const REDIRECT_URI = `${SITE_ORIGIN}${CALLBACK_PATH}`;
 // (AUTHKIT_DOMAIN) — never a compiled-in host. `issuerUrl` throws when it is
 // unset; /login checks `authConfigured` first and answers 503.
 function authorizeEndpoint(env: AuthEnv): string {
-  return `${issuerUrl(env)}/oauth2/authorize`;
+  return new URL("/oauth2/authorize", issuerUrl(env)).href;
 }
 function tokenEndpoint(env: AuthEnv): string {
-  return `${issuerUrl(env)}/oauth2/token`;
+  return new URL("/oauth2/token", issuerUrl(env)).href;
 }
 
 /** Session cookie lifetime: 7 days. */

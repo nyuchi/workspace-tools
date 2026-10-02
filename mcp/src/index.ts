@@ -679,7 +679,7 @@ function authorizationServerMetadataHandler(wellKnownPath: "oauth-authorization-
         404,
       );
     }
-    const upstream = `${issuerUrl(c.env)}/.well-known/${wellKnownPath}`;
+    const upstream = new URL(`/.well-known/${wellKnownPath}`, issuerUrl(c.env)).href;
     const result = await fetchMetadata(upstream);
     if (!result.ok) {
       return c.json({ error: "upstream_fetch_failed", detail: result.message }, 502);
