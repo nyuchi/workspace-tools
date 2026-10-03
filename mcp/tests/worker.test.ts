@@ -13,6 +13,7 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vite-plus/test'
 import { SignJWT, base64url } from 'jose'
 import worker from '../src/index'
+import { AUTHKIT_DOMAIN_MISSING, issuerUrl, normaliseAuthkitDomain, verifyJwt } from '../src/auth'
 import {
   CALLBACK_PATH,
   decodeOauthCookie,
@@ -20,7 +21,8 @@ import {
   mintSessionCookie,
   OAUTH_COOKIE_NAME,
   SESSION_COOKIE_NAME,
-  SITE_CLIENT_ID,
+  siteClientId,
+  WORKOS_CLIENT_ID_MISSING,
   verifySessionCookie,
 } from '../src/site-auth'
 import {
@@ -42,8 +44,13 @@ import { buildSignatureHtml } from '../../signature-generator/src/engines/signat
 
 const BASE = 'https://tools.nyuchi.com'
 
-/** No auth configured: the MCP server runs open. */
-const OPEN_ENV = {}
+/** Nothing configured. With AUTHKIT_DOMAIN unset, /mcp fails closed (503). */
+const NO_CONFIG_ENV = {}
+
+/** The explicit local-development opt-out: /mcp runs without a bearer token,
+ * but only for requests to localhost (see LOCAL_BASE). Never set in production. */
+const LOCAL_DEV_ENV = { ALLOW_UNAUTHENTICATED_DEV: 'true' }
+const LOCAL_BASE = 'http://localhost:8787'
 
 /** Auth configured: WorkOS AuthKit protects /mcp. */
 const AUTH_ENV = { AUTHKIT_DOMAIN: 'x.authkit.app' }
@@ -51,6 +58,10 @@ const AUTH_ENV = { AUTHKIT_DOMAIN: 'x.authkit.app' }
 /** Site-wide login gate configured with a known, throwaway test secret. */
 const TEST_SESSION_SECRET = 'test-secret-do-not-use-in-prod'
 const SITE_ENV = { SESSION_SECRET: TEST_SESSION_SECRET }
+/** Throwaway site client ID (test fixture) — the real one is configuration only. */
+const TEST_CLIENT_ID = 'client_test_site_login'
+/** SITE_ENV plus an AuthKit domain and client ID — the login flow needs all three (test fixture). */
+const LOGIN_ENV = { ...SITE_ENV, AUTHKIT_DOMAIN: 'identity.example.test', WORKOS_CLIENT_ID: TEST_CLIENT_ID }
 
 /** Stub ASSETS binding: the real one only exists in the real Workers
  * runtime, so tests that need a request to reach the post-auth catch-all
@@ -89,6 +100,7 @@ const FONT_ASSETS_STUB = {
 /** Env with Cloudflare Images + GitHub feedback configured (values fake;
  * the corresponding fetches are mocked per test). */
 const UPLOAD_ENV = {
+  ...LOCAL_DEV_ENV,
   ASSETS: FONT_ASSETS_STUB,
   CF_IMAGES_ACCOUNT_ID: 'acct123',
   CF_IMAGES_TOKEN: 'tok123',
@@ -99,14 +111,20 @@ const PNG_MAGIC = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]
 
 type Env = Record<string, unknown>
 
-function get(path: string, env: Env = OPEN_ENV, headers?: HeadersInit): Promise<Response> {
-  return Promise.resolve(worker.fetch(new Request(`${BASE}${path}`, { headers }), env))
+/** Requests under the local-development opt-out go to localhost, as they would
+ * under `wrangler dev`; everything else to the production host. */
+function baseFor(env: Env): string {
+  return env.ALLOW_UNAUTHENTICATED_DEV === 'true' ? LOCAL_BASE : BASE
 }
 
-function post(path: string, body: unknown, env: Env = OPEN_ENV): Promise<Response> {
+function get(path: string, env: Env = LOCAL_DEV_ENV, headers?: HeadersInit): Promise<Response> {
+  return Promise.resolve(worker.fetch(new Request(`${baseFor(env)}${path}`, { headers }), env))
+}
+
+function post(path: string, body: unknown, env: Env = LOCAL_DEV_ENV): Promise<Response> {
   return Promise.resolve(
     worker.fetch(
-      new Request(`${BASE}${path}`, {
+      new Request(`${baseFor(env)}${path}`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: typeof body === 'string' ? body : JSON.stringify(body),
@@ -476,7 +494,7 @@ describe('POST /mcp — JSON-RPC', () => {
         },
         18,
       ),
-      { ...OPEN_ENV, ASSETS: ICON_ASSETS_STUB },
+      { ...LOCAL_DEV_ENV, ASSETS: ICON_ASSETS_STUB },
     )
     expect(res.status).toBe(200)
     const body = (await res.json()) as JsonRpcResponse
@@ -606,7 +624,7 @@ describe('nyuchi_generate_studio_card — returnFormat / upload', () => {
         },
         42,
       ),
-      { ...OPEN_ENV, ASSETS: FONT_ASSETS_STUB },
+      { ...LOCAL_DEV_ENV, ASSETS: FONT_ASSETS_STUB },
     )
     expect(res.status).toBe(200)
     const body = (await res.json()) as JsonRpcResponse
@@ -684,7 +702,7 @@ describe('nyuchi_generate_studio_card — returnFormat / upload', () => {
         },
         43,
       ),
-      { ...OPEN_ENV, ASSETS: FONT_ASSETS_STUB },
+      { ...LOCAL_DEV_ENV, ASSETS: FONT_ASSETS_STUB },
     )
     const body = (await res.json()) as JsonRpcResponse
     const result = body.result as { isError: boolean; content: { text: string }[] }
@@ -875,7 +893,7 @@ describe('nyuchi_upload_asset', () => {
     const res = await post(
       '/mcp',
       rpc('tools/call', { name: 'nyuchi_upload_asset', arguments: { pngBase64: TINY_PNG_B64 } }, 54),
-      { ...OPEN_ENV, ASSETS: FONT_ASSETS_STUB },
+      { ...LOCAL_DEV_ENV, ASSETS: FONT_ASSETS_STUB },
     )
     const body = (await res.json()) as JsonRpcResponse
     const result = body.result as { isError: boolean; content: { text: string }[] }
@@ -985,17 +1003,71 @@ describe('nyuchi_report_issue', () => {
   })
 })
 
-describe('OAuth discovery — auth OFF (no AUTHKIT_DOMAIN)', () => {
-  it('protected-resource metadata is a JSON 404 (open server)', async () => {
-    const res = await get('/.well-known/oauth-protected-resource')
+describe('OAuth discovery — auth OFF (no AUTHKIT_DOMAIN): fails closed', () => {
+  it('protected-resource metadata is a 503 naming AUTHKIT_DOMAIN', async () => {
+    for (const path of ['/.well-known/oauth-protected-resource', '/.well-known/oauth-protected-resource/mcp']) {
+      const res = await get(path, NO_CONFIG_ENV)
+      expect(res.status, path).toBe(503)
+      const body = (await res.json()) as { error: string; detail: string }
+      expect(body.error).toBe('authorization_not_configured')
+      expect(body.detail).toContain('AUTHKIT_DOMAIN is not configured')
+    }
+  })
+
+  it('GET /mcp is 503, never open', async () => {
+    const res = await get('/mcp', NO_CONFIG_ENV)
+    expect(res.status).toBe(503)
+    const body = (await res.json()) as { error: string; detail: string }
+    expect(body.error).toBe('authorization_not_configured')
+    expect(body.detail).toContain('AUTHKIT_DOMAIN is not configured')
+  })
+
+  it('POST /mcp serves no tools without auth', async () => {
+    const res = await post('/mcp', rpc('tools/list'), NO_CONFIG_ENV)
+    expect(res.status).toBe(503)
+    expect(await res.text()).not.toContain('"tools"')
+  })
+
+  it('the dev opt-out does not apply to a non-localhost host', async () => {
+    const res = await Promise.resolve(
+      worker.fetch(
+        new Request(`${BASE}/mcp`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(rpc('tools/list')),
+        }),
+        LOCAL_DEV_ENV,
+      ),
+    )
+    expect(res.status).toBe(503)
+  })
+
+  it('localhost alone does not open /mcp — the opt-out must be exactly "true"', async () => {
+    for (const env of [NO_CONFIG_ENV, { ALLOW_UNAUTHENTICATED_DEV: '1' }, { ALLOW_UNAUTHENTICATED_DEV: 'TRUE' }]) {
+      const res = await Promise.resolve(worker.fetch(new Request(`${LOCAL_BASE}/mcp`), env))
+      expect(res.status).toBe(503)
+    }
+  })
+
+  it('the dev opt-out never overrides a configured AUTHKIT_DOMAIN', async () => {
+    const res = await Promise.resolve(
+      worker.fetch(new Request(`${LOCAL_BASE}/mcp`), { ...LOCAL_DEV_ENV, ...AUTH_ENV }),
+    )
+    expect(res.status).toBe(401)
+  })
+})
+
+describe('Local development opt-out (ALLOW_UNAUTHENTICATED_DEV=true on localhost)', () => {
+  it('/mcp requires no token', async () => {
+    const res = await get('/mcp', LOCAL_DEV_ENV)
+    expect(res.status).toBe(200)
+  })
+
+  it('protected-resource metadata is a JSON 404 (no sign-in needed locally)', async () => {
+    const res = await get('/.well-known/oauth-protected-resource', LOCAL_DEV_ENV)
     expect(res.status).toBe(404)
     const body = (await res.json()) as { error: string }
     expect(body.error).toBe('no_protected_resource_metadata')
-  })
-
-  it('/mcp requires no token', async () => {
-    const res = await get('/mcp')
-    expect(res.status).toBe(200)
   })
 })
 
@@ -1090,12 +1162,18 @@ describe('GET /auth.md', () => {
   })
 
   it('describes the real architecture without fabricating an agent_auth block', async () => {
-    const res = await get('/auth.md')
+    const res = await get('/auth.md', { AUTHKIT_DOMAIN: 'identity.example.test' })
     const body = await res.text()
-    expect(body).toContain('https://identity.nyuchi.com')
+    expect(body).toContain('https://identity.example.test')
     expect(body).toContain('/.well-known/oauth-protected-resource')
     expect(body).toContain('tools.nyuchi.dev is a resource server')
     expect(body).not.toContain('agent_auth')
+  })
+
+  it('names no authorization server when AUTHKIT_DOMAIN is unset — never a compiled-in host', async () => {
+    const body = await (await get('/auth.md')).text()
+    expect(body).toContain('AUTHKIT_DOMAIN is unset')
+    expect(body).not.toMatch(/https:\/\/[^\s]*(identity|accounts|authkit)/)
   })
 
   it('is reachable the same way in auth-on mode too', async () => {
@@ -1181,19 +1259,22 @@ describe('Authorization server metadata mirror', () => {
 })
 
 describe('Site-wide login gate — exempt paths still work with zero cookies', () => {
+  // AUTH_ENV puts /mcp behind its own bearer gate: the answer is that gate's
+  // 401 (or the metadata), never the site gate's redirect to /login.
   it('/mcp (GET discovery) needs no session cookie', async () => {
-    const res = await get('/mcp', SITE_ENV)
-    expect(res.status).toBe(200)
+    const res = await get('/mcp', { ...SITE_ENV, ...AUTH_ENV })
+    expect(res.status).toBe(401)
+    expect(res.headers.get('WWW-Authenticate')).toContain('Bearer')
   })
 
   it('/mcp (POST JSON-RPC) needs no session cookie', async () => {
-    const res = await post('/mcp', rpc('tools/list', {}, 1), SITE_ENV)
+    const res = await post('/mcp', rpc('tools/list', {}, 1), { ...SITE_ENV, ...LOCAL_DEV_ENV })
     expect(res.status).toBe(200)
   })
 
   it('/.well-known/oauth-protected-resource needs no session cookie', async () => {
-    const res = await get('/.well-known/oauth-protected-resource', SITE_ENV)
-    expect(res.status).toBe(404) // auth not configured for /mcp in this env — still reachable, not redirected
+    const res = await get('/.well-known/oauth-protected-resource', { ...SITE_ENV, ...AUTH_ENV })
+    expect(res.status).toBe(200) // the metadata itself — reachable, not redirected
   })
 
   it('/.well-known/mcp/server-card.json needs no session cookie', async () => {
@@ -1228,7 +1309,7 @@ describe('Site-wide login gate — protected paths', () => {
   it('denies access (redirects, never passes through) when SESSION_SECRET is unset entirely', async () => {
     // Fail CLOSED: no SESSION_SECRET at all must behave exactly like "no
     // valid session", never like "auth is off".
-    const res = await get('/', OPEN_ENV)
+    const res = await get('/', NO_CONFIG_ENV)
     expect(res.status).toBe(302)
     expect(res.headers.get('Location')).toContain('/login?return_to=')
   })
@@ -1251,20 +1332,41 @@ describe('Site-wide login gate — protected paths', () => {
 
 describe('GET /login', () => {
   it('returns 500 (fails closed) when SESSION_SECRET is not configured', async () => {
-    const res = await get('/login', OPEN_ENV)
+    const res = await get('/login', NO_CONFIG_ENV)
     expect(res.status).toBe(500)
   })
 
-  it('sets the oauth cookie and redirects to the authorize endpoint with the right params', async () => {
+  it('returns 503 (fails closed) when AUTHKIT_DOMAIN is not configured — no default host', async () => {
     const res = await get('/login', SITE_ENV)
+    expect(res.status).toBe(503)
+    expect(await res.text()).toContain('AUTHKIT_DOMAIN is not configured')
+  })
+
+  it('returns 503 (fails closed) when WORKOS_CLIENT_ID is not configured — no compiled-in client', async () => {
+    for (const WORKOS_CLIENT_ID of [undefined, '', '   ']) {
+      const res = await get('/login', { ...LOGIN_ENV, WORKOS_CLIENT_ID })
+      expect(res.status).toBe(503)
+      expect(await res.text()).toContain('WORKOS_CLIENT_ID is not configured')
+      expect(res.headers.get('Set-Cookie')).toBeNull()
+    }
+  })
+
+  it('siteClientId reads only configuration and throws when it is unset', () => {
+    expect(siteClientId({ WORKOS_CLIENT_ID: '  client_abc  ' })).toBe('client_abc')
+    expect(() => siteClientId({})).toThrow(WORKOS_CLIENT_ID_MISSING)
+    expect(() => siteClientId({ WORKOS_CLIENT_ID: ' ' })).toThrow(WORKOS_CLIENT_ID_MISSING)
+  })
+
+  it('sets the oauth cookie and redirects to the authorize endpoint with the right params', async () => {
+    const res = await get('/login', LOGIN_ENV)
     expect(res.status).toBe(302)
 
     const location = res.headers.get('Location')
     expect(location).toBeTruthy()
     const url = new URL(location!)
-    expect(url.origin + url.pathname).toBe('https://identity.nyuchi.com/oauth2/authorize')
+    expect(url.origin + url.pathname).toBe('https://identity.example.test/oauth2/authorize')
     expect(url.searchParams.get('response_type')).toBe('code')
-    expect(url.searchParams.get('client_id')).toBe(SITE_CLIENT_ID)
+    expect(url.searchParams.get('client_id')).toBe(TEST_CLIENT_ID)
     expect(url.searchParams.get('redirect_uri')).toBe('https://tools.nyuchi.com/callback')
     expect(url.searchParams.get('code_challenge_method')).toBe('S256')
     expect(url.searchParams.get('scope')).toBe('openid profile email')
@@ -1285,7 +1387,7 @@ describe('GET /login', () => {
   })
 
   it('rejects an absolute-URL return_to and stores "/" instead', async () => {
-    const res = await get(`/login?return_to=${encodeURIComponent('https://evil.com')}`, SITE_ENV)
+    const res = await get(`/login?return_to=${encodeURIComponent('https://evil.com')}`, LOGIN_ENV)
     expect(res.status).toBe(302)
     const oauthValue = cookieValueFrom(res.headers.get('Set-Cookie'), OAUTH_COOKIE_NAME)
     const payload = decodeOauthCookie(oauthValue ?? undefined)
@@ -1293,14 +1395,14 @@ describe('GET /login', () => {
   })
 
   it('rejects a protocol-relative return_to ("//evil.com") and stores "/" instead', async () => {
-    const res = await get(`/login?return_to=${encodeURIComponent('//evil.com')}`, SITE_ENV)
+    const res = await get(`/login?return_to=${encodeURIComponent('//evil.com')}`, LOGIN_ENV)
     const oauthValue = cookieValueFrom(res.headers.get('Set-Cookie'), OAUTH_COOKIE_NAME)
     const payload = decodeOauthCookie(oauthValue ?? undefined)
     expect(payload?.returnTo).toBe('/')
   })
 
   it('rejects a return_to containing a CRLF (header-injection attempt) and stores "/" instead', async () => {
-    const res = await get(`/login?return_to=${encodeURIComponent('/studio\r\nSet-Cookie: evil=1')}`, SITE_ENV)
+    const res = await get(`/login?return_to=${encodeURIComponent('/studio\r\nSet-Cookie: evil=1')}`, LOGIN_ENV)
     expect(res.status).toBe(302)
     const oauthValue = cookieValueFrom(res.headers.get('Set-Cookie'), OAUTH_COOKIE_NAME)
     const payload = decodeOauthCookie(oauthValue ?? undefined)
@@ -1308,7 +1410,7 @@ describe('GET /login', () => {
   })
 
   it('accepts a legitimate same-origin relative return_to', async () => {
-    const res = await get(`/login?return_to=${encodeURIComponent('/studio')}`, SITE_ENV)
+    const res = await get(`/login?return_to=${encodeURIComponent('/studio')}`, LOGIN_ENV)
     const oauthValue = cookieValueFrom(res.headers.get('Set-Cookie'), OAUTH_COOKIE_NAME)
     const payload = decodeOauthCookie(oauthValue ?? undefined)
     expect(payload?.returnTo).toBe('/studio')
@@ -1346,15 +1448,33 @@ describe('GET /callback', () => {
 
   it('redirects to /login (never crashes) when SESSION_SECRET is unset, even with matching state', async () => {
     const oauthCookie = encodeOauthCookie({ state: 'expected-state', codeVerifier: 'verifier', returnTo: '/' })
-    const res = await get(`${CALLBACK_PATH}?code=abc&state=expected-state`, OPEN_ENV, {
+    const res = await get(`${CALLBACK_PATH}?code=abc&state=expected-state`, NO_CONFIG_ENV, {
       Cookie: `${OAUTH_COOKIE_NAME}=${oauthCookie}`,
     })
     expect(res.status).toBe(302)
     expect(res.headers.get('Location')).toBe('/login?error=1')
   })
 
+  it('redirects to /login without attempting the exchange when WORKOS_CLIENT_ID is unset', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch')
+    const oauthCookie = encodeOauthCookie({ state: 'expected-state', codeVerifier: 'verifier', returnTo: '/' })
+    const { WORKOS_CLIENT_ID: _omit, ...noClientEnv } = LOGIN_ENV
+    void _omit
+    const res = await get(`${CALLBACK_PATH}?code=abc&state=expected-state`, noClientEnv, {
+      Cookie: `${OAUTH_COOKIE_NAME}=${oauthCookie}`,
+    })
+    expect(res.status).toBe(302)
+    expect(res.headers.get('Location')).toBe('/login?error=1')
+    expect(fetchSpy).not.toHaveBeenCalled()
+    fetchSpy.mockRestore()
+  })
+
   describe('successful exchange (mocked token + JWKS endpoints)', () => {
-    const CALLBACK_ENV = { SESSION_SECRET: TEST_SESSION_SECRET, AUTHKIT_DOMAIN: 'identity.nyuchi.com' }
+    const CALLBACK_ENV = {
+      SESSION_SECRET: TEST_SESSION_SECRET,
+      AUTHKIT_DOMAIN: 'identity.example.test',
+      WORKOS_CLIENT_ID: TEST_CLIENT_ID,
+    }
 
     afterEach(() => {
       vi.restoreAllMocks()
@@ -1372,21 +1492,21 @@ describe('GET /callback', () => {
       const idToken = await new SignJWT({ email: claims.email })
         .setProtectedHeader({ alg: 'RS256', kid })
         .setIssuedAt()
-        .setIssuer('https://identity.nyuchi.com')
-        .setAudience(SITE_CLIENT_ID)
+        .setIssuer('https://identity.example.test')
+        .setAudience(TEST_CLIENT_ID)
         .setSubject(claims.sub)
         .setExpirationTime('5m')
         .sign(privateKey)
 
       vi.spyOn(globalThis, 'fetch').mockImplementation(async (input: RequestInfo | URL) => {
         const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
-        if (url === 'https://identity.nyuchi.com/oauth2/token') {
+        if (url === 'https://identity.example.test/oauth2/token') {
           return new Response(
             JSON.stringify({ access_token: 'unused-access-token', id_token: idToken, token_type: 'Bearer', expires_in: 300 }),
             { status: 200, headers: { 'content-type': 'application/json' } },
           )
         }
-        if (url === 'https://identity.nyuchi.com/oauth2/jwks') {
+        if (url === 'https://identity.example.test/oauth2/jwks') {
           return new Response(JSON.stringify({ keys: [{ ...publicJwk, kid, alg: 'RS256', use: 'sig' }] }), {
             status: 200,
             headers: { 'content-type': 'application/json' },
@@ -1415,7 +1535,7 @@ describe('GET /callback', () => {
 
     it('denies login when the id_token audience is wrong (e.g. an access token used by mistake)', async () => {
       // Same as above, but sign the token with aud=resourceUrl (the /mcp
-      // resource indicator) instead of aud=SITE_CLIENT_ID — the exact bug
+      // resource indicator) instead of aud=WORKOS_CLIENT_ID — the exact bug
       // this test guards against regressing to.
       const { generateKeyPair, exportJWK, SignJWT } = await import('jose')
       const { publicKey, privateKey } = await generateKeyPair('RS256')
@@ -1424,7 +1544,7 @@ describe('GET /callback', () => {
       const wrongAudienceToken = await new SignJWT({ email: 'bryan@nyuchi.com' })
         .setProtectedHeader({ alg: 'RS256', kid })
         .setIssuedAt()
-        .setIssuer('https://identity.nyuchi.com')
+        .setIssuer('https://identity.example.test')
         .setAudience('https://tools.nyuchi.dev/mcp')
         .setSubject('user_123')
         .setExpirationTime('5m')
@@ -1432,13 +1552,13 @@ describe('GET /callback', () => {
 
       vi.spyOn(globalThis, 'fetch').mockImplementation(async (input: RequestInfo | URL) => {
         const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
-        if (url === 'https://identity.nyuchi.com/oauth2/token') {
+        if (url === 'https://identity.example.test/oauth2/token') {
           return new Response(
             JSON.stringify({ access_token: 'unused', id_token: wrongAudienceToken, token_type: 'Bearer', expires_in: 300 }),
             { status: 200, headers: { 'content-type': 'application/json' } },
           )
         }
-        if (url === 'https://identity.nyuchi.com/oauth2/jwks') {
+        if (url === 'https://identity.example.test/oauth2/jwks') {
           return new Response(JSON.stringify({ keys: [{ ...publicJwk, kid, alg: 'RS256', use: 'sig' }] }), {
             status: 200,
             headers: { 'content-type': 'application/json' },
@@ -1462,7 +1582,7 @@ describe('GET /callback', () => {
     it('denies login when the token response has no id_token', async () => {
       vi.spyOn(globalThis, 'fetch').mockImplementation(async (input: RequestInfo | URL) => {
         const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
-        if (url === 'https://identity.nyuchi.com/oauth2/token') {
+        if (url === 'https://identity.example.test/oauth2/token') {
           return new Response(JSON.stringify({ access_token: 'unused', token_type: 'Bearer', expires_in: 300 }), {
             status: 200,
             headers: { 'content-type': 'application/json' },
@@ -2700,5 +2820,85 @@ describe('POST /mcp — resources & prompts (catalog)', () => {
     const text = (body.result as { messages: { content: { text: string } }[] }).messages[0].content.text
     expect(text).toContain("'copper'")
     expect(text).toContain('layout 5')
+  })
+})
+
+describe('AUTHKIT_DOMAIN is parsed into an https origin — never concatenated', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('fails closed when unset or blank', () => {
+    expect(() => normaliseAuthkitDomain(undefined)).toThrow(AUTHKIT_DOMAIN_MISSING)
+    expect(() => normaliseAuthkitDomain('   ')).toThrow(AUTHKIT_DOMAIN_MISSING)
+    expect(() => issuerUrl({})).toThrow(AUTHKIT_DOMAIN_MISSING)
+  })
+
+  it('accepts a bare host or an https origin in any case, and returns the origin', () => {
+    expect(issuerUrl({ AUTHKIT_DOMAIN: 'https://identity.example.test' })).toBe('https://identity.example.test')
+    expect(issuerUrl({ AUTHKIT_DOMAIN: 'identity.example.test' })).toBe('https://identity.example.test')
+    expect(issuerUrl({ AUTHKIT_DOMAIN: 'https://identity.example.test/' })).toBe('https://identity.example.test')
+    expect(issuerUrl({ AUTHKIT_DOMAIN: 'HTTPS://Identity.Example.Test' })).toBe('https://identity.example.test')
+  })
+
+  it('drops any path, query or fragment', () => {
+    expect(issuerUrl({ AUTHKIT_DOMAIN: 'https://identity.example.test/x/y?z=1#f' })).toBe(
+      'https://identity.example.test',
+    )
+  })
+
+  it('rejects anything that is not an https origin', () => {
+    for (const bad of [
+      'http://identity.example.test',
+      'javascript://identity.example.test',
+      'https://user:pass@identity.example.test',
+      'user@identity.example.test',
+      'https://',
+    ]) {
+      expect(() => issuerUrl({ AUTHKIT_DOMAIN: bad }), bad).toThrow(AUTHKIT_DOMAIN_MISSING)
+    }
+  })
+
+  it('an unusable value keeps auth ON and fails closed — /mcp is 401, never open', async () => {
+    const res = await get('/mcp', { AUTHKIT_DOMAIN: 'http://identity.example.test' })
+    expect(res.status).toBe(401)
+  })
+
+  it('binds iss to the normalised origin by exact match, never by prefix', async () => {
+    const { generateKeyPair, exportJWK } = await import('jose')
+    const { publicKey, privateKey } = await generateKeyPair('RS256')
+    const publicJwk = await exportJWK(publicKey)
+    const fetched: string[] = []
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input: RequestInfo | URL) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+      fetched.push(url)
+      return new Response(JSON.stringify({ keys: [{ ...publicJwk, kid: 'k1', alg: 'RS256', use: 'sig' }] }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    })
+    const sign = (iss: string) =>
+      new SignJWT({})
+        .setProtectedHeader({ alg: 'RS256', kid: 'k1' })
+        .setIssuedAt()
+        .setIssuer(iss)
+        .setAudience('aud-test')
+        .setSubject('user_123')
+        .setExpirationTime('5m')
+        .sign(privateKey)
+    // A host of its own: the JWKS set is cached per issuer for the isolate.
+    const env = { AUTHKIT_DOMAIN: 'HTTPS://Iss-Bind.Example.Test/some/path' }
+
+    expect(await verifyJwt(env, await sign('https://iss-bind.example.test'), 'aud-test')).toMatchObject({
+      sub: 'user_123',
+    })
+    expect(fetched).toEqual(['https://iss-bind.example.test/oauth2/jwks'])
+    for (const iss of [
+      'https://iss-bind.example.test.evil.test',
+      'https://iss-bind.example.test/',
+      'http://iss-bind.example.test',
+    ]) {
+      expect(await verifyJwt(env, await sign(iss), 'aud-test'), iss).toBeNull()
+    }
   })
 })

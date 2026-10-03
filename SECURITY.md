@@ -62,7 +62,7 @@ The web/MCP surface (`tools.nyuchi.com` / `tools.nyuchi.dev`, source in `mcp/src
 
 ### Authentication
 
-- **Site pages** sit behind a site-wide login gate: Authorization Code + PKCE against WorkOS AuthKit (`identity.nyuchi.com`), session held in an HMAC-signed cookie. The gate **fails closed** — a missing `SESSION_SECRET` means "no valid session", never "run open".
+- **Site pages** sit behind a site-wide login gate: Authorization Code + PKCE against WorkOS AuthKit (the `AUTHKIT_DOMAIN` and `WORKOS_CLIENT_ID` set per environment — never hardcoded), session held in an HMAC-signed cookie. The gate **fails closed** — a missing `SESSION_SECRET` means "no valid session", never "run open".
 - **`/mcp`** requires WorkOS-issued bearer JWTs (OAuth 2.1, dynamic client registration) whenever `AUTHKIT_DOMAIN` is set. Audience is pinned to the registered resource (`MCP_RESOURCE`).
 
 ### Secrets
