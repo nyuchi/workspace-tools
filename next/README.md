@@ -88,3 +88,33 @@ The layout picks a composition from the canvas and content: `top`
 (landscape with a landscape screenshot), `side` (a tall screenshot, or a very
 wide canvas), `stack` (portrait and square: headline, card, points, CTA; a
 text slide without a screenshot), `tile` (landscape, no screenshot), `icon`.
+
+## `crates/brands`: the one brand list
+
+`crates/brands/data/brands.toml` is the single Bundu-ecosystem brand list —
+the foundation, pillars, divisions and initiatives, each with its tagline,
+URL, email domains, Mzizi mineral and official socials. It replaces the three
+hand-synced copies in the live app (the TypeScript registry and the two Apps
+Script lists). Lookups by key, legacy alias (`techLeaders`) and email domain;
+the tests hold the taxonomy (divisions under pillars, initiatives under
+Bundu), unique keys and domains, valid minerals and `https://` links.
+
+## `crates/signature`: the email signature on Mzizi
+
+Owner decision 2 on #70 ended the byte-lock on the historical purple
+signature. The new one is built for email clients, not browsers:
+
+- tables and inline styles only — no `<style>`, classes, flex or grid;
+- the seven-mineral identity strip as table cells (`bgcolor` and
+  `background-color`), so it shows with images blocked;
+- no images by default: socials are text links; a profile photo and a
+  promo banner are opt-in and `https://` only;
+- Noto Serif / Noto Sans first, Georgia / Arial fallbacks;
+- link colours are the brand mineral's on-light hex where it reaches WCAG AA
+  on white, otherwise ink (copper falls back);
+- every value escaped, every URL checked against a scheme allow-list;
+- a plain-text version alongside.
+
+The brand comes from the key, or from the email's domain when no key is
+given. Samples (made-up people only) are in `samples/signatures/`:
+`cargo run -p nyuchi-signature --example samples`.

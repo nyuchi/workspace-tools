@@ -20,3 +20,7 @@ Regenerate:
 ```sh
 cd next && cargo run --release -- campaign ../samples/toddle-launch/campaign.toml
 ```
+
+`signatures/` holds the redesigned email signature for four brands (HTML,
+plain text, and `preview.png` of `index.html`). The person in them is made
+up; never commit a real staff member's details.
