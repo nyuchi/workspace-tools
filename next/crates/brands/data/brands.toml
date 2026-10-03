@@ -24,7 +24,7 @@
 # copper (the canon; the owner allows copper or terracotta); every Nyuchi
 # brand is gold; Mukoko, the super app, is tanzanite; Shamwari is sodalite.
 # Sub-apps vary across the minerals and heritage colours but never take
-# gold or tanzanite — except a Nyuchi division, which is Nyuchi and so gold.
+# gold or tanzanite — a Nyuchi division is Nyuchi, and so gold.
 # tests/brands.rs enforces this.
 #   socials    official accounts only
 #
@@ -77,22 +77,9 @@ mineral = "sodalite"
 socials = {}
 
 # ── Divisions ───────────────────────────────────────────────────────────
-# Nyuchi divisions are gold, like Nyuchi. Lingo follows the Mzizi canon
-# (cobalt), which lists it as a Mukoko mini-app at lingo.mukoko.com; this
-# list still has it as a Nyuchi division at lingo.nyuchi.com
-# (TODO(brand): settle Lingo's parent and domain). Mukoko News has no
-# canon colour; river (heritage) keeps it apart from every other app.
-
-[[brand]]
-key = "lingo"
-kind = "division"
-parent = "nyuchi"
-name = "Nyuchi Lingo"
-tagline = "Language Learning for Africa"
-url = "https://lingo.nyuchi.com"
-domains = ["lingo.nyuchi.com"]
-mineral = "cobalt"
-socials = { linkedin = "https://www.linkedin.com/company/nyuchi/", instagram = "https://instagram.com/nyuchi.africa" }
+# Nyuchi divisions are gold, like Nyuchi. Mukoko's sub-apps take their
+# own colours: Lingo cobalt (the Mzizi canon); Mukoko News has no canon
+# colour, and river (heritage) keeps it apart from every other app.
 
 [[brand]]
 key = "learning"
@@ -136,6 +123,17 @@ tagline = "Pan-African Journalism"
 url = "https://news.mukoko.com"
 domains = ["news.mukoko.com", "hararemetro.co.zw"]
 mineral = "river"
+socials = { facebook = "https://facebook.com/mukokoafrica", instagram = "https://instagram.com/mukoko.africa" }
+
+[[brand]]
+key = "lingo"
+kind = "division"
+parent = "mukoko"
+name = "Mukoko Lingo"
+tagline = "Language Learning for Africa"
+url = "https://lingo.mukoko.com"
+domains = ["lingo.mukoko.com"]
+mineral = "cobalt"
 socials = { facebook = "https://facebook.com/mukokoafrica", instagram = "https://instagram.com/mukoko.africa" }
 
 # ── Initiatives (Bundu Foundation projects, not brands) ─────────────────
