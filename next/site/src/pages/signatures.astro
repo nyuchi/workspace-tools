@@ -1,0 +1,103 @@
+---
+import Base from '../layouts/Base.astro'
+import Section from '@bundu/ui/Section.astro'
+import SectionHeader from '@bundu/ui/SectionHeader.astro'
+import { brands } from '../lib/data'
+
+const field = 'w-full rounded-[14px] border border-border bg-background px-4 py-3 text-body min-h-[48px] focus:outline-none focus:ring-2 focus:ring-gold'
+const label = 'block text-body-sm font-medium mb-2'
+const KIND = { foundation: 'Foundation', pillar: 'Pillars', division: 'Divisions', initiative: 'Initiatives' } as const
+---
+
+<Base title="Signatures" description="The email signature on Mzizi, for every Bundu-ecosystem brand.">
+  <Section>
+    <SectionHeader
+      eyebrow="Email"
+      title="Signatures"
+      description="The signature on Mzizi: built from tables and inline styles so it looks the same in Gmail, Outlook and Apple Mail, with no images unless you add a photo."
+      as="h1"
+      size="h1"
+    />
+    <div class="mt-10 grid gap-10 lg:grid-cols-[minmax(0,420px)_1fr]">
+      <form id="sig" class="space-y-5" novalidate>
+        <div>
+          <label class={label} for="brand">Brand</label>
+          <select class={field} id="brand" name="brand">
+            <option value="">From my email address</option>
+            {
+              (Object.keys(KIND) as (keyof typeof KIND)[]).map((k) => (
+                <optgroup label={KIND[k]}>
+                  {brands
+                    .filter((b) => b.kind === k)
+                    .map((b) => (
+                      <option value={b.key}>{b.name}</option>
+                    ))}
+                </optgroup>
+              ))
+            }
+          </select>
+        </div>
+        <div><label class={label} for="name">Name</label><input class={field} id="name" name="name" autocomplete="name" required /></div>
+        <div><label class={label} for="title">Role</label><input class={field} id="title" name="title" autocomplete="organization-title" /></div>
+        <div><label class={label} for="email">Email</label><input class={field} id="email" name="email" type="email" autocomplete="email" required /></div>
+        <div><label class={label} for="phone">Phone</label><input class={field} id="phone" name="phone" type="tel" autocomplete="tel" /></div>
+        <div><label class={label} for="whatsapp">WhatsApp</label><input class={field} id="whatsapp" name="whatsapp" type="tel" /></div>
+        <div><label class={label} for="linkedin">LinkedIn profile</label><input class={field} id="linkedin" name="linkedin" type="url" placeholder="https://www.linkedin.com/in/…" /></div>
+        <div><label class={label} for="photo">Photo URL <span class="text-muted-foreground font-normal">(optional, https)</span></label><input class={field} id="photo" name="photo" type="url" /></div>
+        <button type="submit" class="rounded-full bg-foreground text-background px-6 min-h-[48px] font-medium hover:opacity-90">Preview</button>
+        <p id="status" class="text-body-sm text-muted-foreground" role="status" aria-live="polite"></p>
+      </form>
+
+      <div class="space-y-4">
+        <div class="rounded-[14px] border border-border bg-white p-6">
+          <iframe id="preview" title="Signature preview" class="w-full h-64 border-0" sandbox=""></iframe>
+        </div>
+        <div class="flex flex-wrap gap-3">
+          <button type="button" id="copy-html" class="rounded-full border border-border px-6 min-h-[48px] font-medium hover:bg-muted" disabled>Copy for Gmail</button>
+          <button type="button" id="copy-text" class="rounded-full border border-border px-6 min-h-[48px] font-medium hover:bg-muted" disabled>Copy plain text</button>
+        </div>
+      </div>
+    </div>
+  </Section>
+</Base>
+
+<script>
+  const form = document.getElementById('sig') as HTMLFormElement
+  const status = document.getElementById('status')!
+  const preview = document.getElementById('preview') as HTMLIFrameElement
+  const copyHtml = document.getElementById('copy-html') as HTMLButtonElement
+  const copyText = document.getElementById('copy-text') as HTMLButtonElement
+  let current: { html: string; text: string } | null = null
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault()
+    const body = Object.fromEntries([...new FormData(form)].map(([k, v]) => [k, String(v).trim()]))
+    const res = await fetch('/api/signature', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
+    const out = await res.json()
+    if (!res.ok) {
+      status.textContent = out.error ?? 'Could not build the signature.'
+      return
+    }
+    current = out
+    // A sandboxed iframe: the preview cannot run anything.
+    preview.srcdoc = `<!doctype html><body style="margin:0;background:#fff">${out.html}</body>`
+    copyHtml.disabled = copyText.disabled = false
+    status.textContent = ''
+  })
+
+  copyHtml.addEventListener('click', async () => {
+    if (!current) return
+    await navigator.clipboard.write([
+      new ClipboardItem({
+        'text/html': new Blob([current.html], { type: 'text/html' }),
+        'text/plain': new Blob([current.text], { type: 'text/plain' }),
+      }),
+    ])
+    status.textContent = 'Copied. In Gmail: Settings → See all settings → Signature → paste.'
+  })
+  copyText.addEventListener('click', async () => {
+    if (!current) return
+    await navigator.clipboard.writeText(current.text)
+    status.textContent = 'Plain text copied.'
+  })
+</script>
