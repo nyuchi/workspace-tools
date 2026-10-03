@@ -53,7 +53,7 @@ comment in `../wrangler.toml` for why `/mcp` lives on a separate hostname):
 Every human-facing page sits behind a session cookie (`nyuchi_session`), a
 compact HS256 JWT signed with the `SESSION_SECRET` secret. The flow (see
 `site-auth.ts`) is Authorization Code + PKCE against the same WorkOS Connect
-app that already protects `/mcp` (`client_01KVTX0V2K1VM3PSC0DJ9VZWTV`,
+app that already protects `/mcp` (client ID = the configured `WORKOS_CLIENT_ID`,
 authorization server = the configured `AUTHKIT_DOMAIN`), used here as a public client
 (`token_endpoint_auth_method=none` — no client secret is ever sent):
 
@@ -62,8 +62,8 @@ authorization server = the configured `AUTHKIT_DOMAIN`), used here as a public c
   PKCE `state`/`code_verifier`/`code_challenge`, stashes them in a
   short-lived `nyuchi_oauth` cookie, and 302s to
   `<AUTHKIT_DOMAIN>/oauth2/authorize`. Returns 500 (fails closed) if
-  `SESSION_SECRET` isn't configured, and 503 (naming `AUTHKIT_DOMAIN`) if
-  the AuthKit domain isn't, rather than starting an OAuth round trip that
+  `SESSION_SECRET` isn't configured, and 503 (naming the missing setting) if
+  `AUTHKIT_DOMAIN` or `WORKOS_CLIENT_ID` isn't, rather than starting an OAuth round trip that
   could never succeed.
 - `GET /callback` — reads the `nyuchi_oauth` cookie, verifies `state`
   matches, exchanges `code` for an access token, verifies that token with
@@ -98,6 +98,11 @@ authorization server = the configured `AUTHKIT_DOMAIN`), used here as a public c
   (the owner script reads it from 1Password, `nyuchi/workos`). It is never
   committed — not in code, not in `wrangler.toml` `[vars]` — and there is no
   default.
+- **`WORKOS_CLIENT_ID` is required** too: the site login's public client ID,
+  set per environment as a Worker secret (the owner script reads it from
+  1Password, `nyuchi/workos`, field `WORKOS_INTERNAL_TOOLS_CLIENT_ID`). There
+  is no compiled-in client. For `wrangler dev`, copy `.dev.vars.example` at
+  the repo root to `.dev.vars`.
 
 ## Where things live
 

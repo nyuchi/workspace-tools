@@ -21,7 +21,8 @@ import {
   mintSessionCookie,
   OAUTH_COOKIE_NAME,
   SESSION_COOKIE_NAME,
-  SITE_CLIENT_ID,
+  siteClientId,
+  WORKOS_CLIENT_ID_MISSING,
   verifySessionCookie,
 } from '../src/site-auth'
 import {
@@ -57,8 +58,10 @@ const AUTH_ENV = { AUTHKIT_DOMAIN: 'x.authkit.app' }
 /** Site-wide login gate configured with a known, throwaway test secret. */
 const TEST_SESSION_SECRET = 'test-secret-do-not-use-in-prod'
 const SITE_ENV = { SESSION_SECRET: TEST_SESSION_SECRET }
-/** SITE_ENV plus an AuthKit domain — the login flow needs both (test fixture). */
-const LOGIN_ENV = { ...SITE_ENV, AUTHKIT_DOMAIN: 'identity.example.test' }
+/** Throwaway site client ID (test fixture) — the real one is configuration only. */
+const TEST_CLIENT_ID = 'client_test_site_login'
+/** SITE_ENV plus an AuthKit domain and client ID — the login flow needs all three (test fixture). */
+const LOGIN_ENV = { ...SITE_ENV, AUTHKIT_DOMAIN: 'identity.example.test', WORKOS_CLIENT_ID: TEST_CLIENT_ID }
 
 /** Stub ASSETS binding: the real one only exists in the real Workers
  * runtime, so tests that need a request to reach the post-auth catch-all
@@ -1339,6 +1342,21 @@ describe('GET /login', () => {
     expect(await res.text()).toContain('AUTHKIT_DOMAIN is not configured')
   })
 
+  it('returns 503 (fails closed) when WORKOS_CLIENT_ID is not configured — no compiled-in client', async () => {
+    for (const WORKOS_CLIENT_ID of [undefined, '', '   ']) {
+      const res = await get('/login', { ...LOGIN_ENV, WORKOS_CLIENT_ID })
+      expect(res.status).toBe(503)
+      expect(await res.text()).toContain('WORKOS_CLIENT_ID is not configured')
+      expect(res.headers.get('Set-Cookie')).toBeNull()
+    }
+  })
+
+  it('siteClientId reads only configuration and throws when it is unset', () => {
+    expect(siteClientId({ WORKOS_CLIENT_ID: '  client_abc  ' })).toBe('client_abc')
+    expect(() => siteClientId({})).toThrow(WORKOS_CLIENT_ID_MISSING)
+    expect(() => siteClientId({ WORKOS_CLIENT_ID: ' ' })).toThrow(WORKOS_CLIENT_ID_MISSING)
+  })
+
   it('sets the oauth cookie and redirects to the authorize endpoint with the right params', async () => {
     const res = await get('/login', LOGIN_ENV)
     expect(res.status).toBe(302)
@@ -1348,7 +1366,7 @@ describe('GET /login', () => {
     const url = new URL(location!)
     expect(url.origin + url.pathname).toBe('https://identity.example.test/oauth2/authorize')
     expect(url.searchParams.get('response_type')).toBe('code')
-    expect(url.searchParams.get('client_id')).toBe(SITE_CLIENT_ID)
+    expect(url.searchParams.get('client_id')).toBe(TEST_CLIENT_ID)
     expect(url.searchParams.get('redirect_uri')).toBe('https://tools.nyuchi.com/callback')
     expect(url.searchParams.get('code_challenge_method')).toBe('S256')
     expect(url.searchParams.get('scope')).toBe('openid profile email')
@@ -1437,8 +1455,26 @@ describe('GET /callback', () => {
     expect(res.headers.get('Location')).toBe('/login?error=1')
   })
 
+  it('redirects to /login without attempting the exchange when WORKOS_CLIENT_ID is unset', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch')
+    const oauthCookie = encodeOauthCookie({ state: 'expected-state', codeVerifier: 'verifier', returnTo: '/' })
+    const { WORKOS_CLIENT_ID: _omit, ...noClientEnv } = LOGIN_ENV
+    void _omit
+    const res = await get(`${CALLBACK_PATH}?code=abc&state=expected-state`, noClientEnv, {
+      Cookie: `${OAUTH_COOKIE_NAME}=${oauthCookie}`,
+    })
+    expect(res.status).toBe(302)
+    expect(res.headers.get('Location')).toBe('/login?error=1')
+    expect(fetchSpy).not.toHaveBeenCalled()
+    fetchSpy.mockRestore()
+  })
+
   describe('successful exchange (mocked token + JWKS endpoints)', () => {
-    const CALLBACK_ENV = { SESSION_SECRET: TEST_SESSION_SECRET, AUTHKIT_DOMAIN: 'identity.example.test' }
+    const CALLBACK_ENV = {
+      SESSION_SECRET: TEST_SESSION_SECRET,
+      AUTHKIT_DOMAIN: 'identity.example.test',
+      WORKOS_CLIENT_ID: TEST_CLIENT_ID,
+    }
 
     afterEach(() => {
       vi.restoreAllMocks()
@@ -1457,7 +1493,7 @@ describe('GET /callback', () => {
         .setProtectedHeader({ alg: 'RS256', kid })
         .setIssuedAt()
         .setIssuer('https://identity.example.test')
-        .setAudience(SITE_CLIENT_ID)
+        .setAudience(TEST_CLIENT_ID)
         .setSubject(claims.sub)
         .setExpirationTime('5m')
         .sign(privateKey)
@@ -1499,7 +1535,7 @@ describe('GET /callback', () => {
 
     it('denies login when the id_token audience is wrong (e.g. an access token used by mistake)', async () => {
       // Same as above, but sign the token with aud=resourceUrl (the /mcp
-      // resource indicator) instead of aud=SITE_CLIENT_ID — the exact bug
+      // resource indicator) instead of aud=WORKOS_CLIENT_ID — the exact bug
       // this test guards against regressing to.
       const { generateKeyPair, exportJWK, SignJWT } = await import('jose')
       const { publicKey, privateKey } = await generateKeyPair('RS256')
