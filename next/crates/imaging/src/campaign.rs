@@ -64,7 +64,9 @@ pub struct ContentSection {
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ImageSection {
-    /// Path relative to the campaign file.
+    /// Path relative to the campaign file (the CLI). A Worker request sends
+    /// the bytes instead and leaves this empty.
+    #[serde(default)]
     pub src: String,
     pub crop: Option<[u32; 4]>,
     #[serde(default)]
@@ -123,30 +125,57 @@ pub fn run(path: &Path, blocked_terms: Vec<String>) -> Result<Vec<ManifestEntry>
     let out_dir: PathBuf = base.join(&campaign.out);
     std::fs::create_dir_all(&out_dir).map_err(|e| e.to_string())?;
 
-    let theme =
-        theme::get(&campaign.theme).ok_or_else(|| format!("unknown theme {:?}", campaign.theme))?;
     let image = match &campaign.image {
         Some(sec) => {
             let file = base.join(&sec.src);
-            let data = std::fs::read(&file).map_err(|e| format!("{}: {e}", file.display()))?;
+            Some(std::fs::read(&file).map_err(|e| format!("{}: {e}", file.display()))?)
+        }
+        None => None,
+    };
+    let set = render_set(&campaign, image, blocked_terms)?;
+    let mut manifest = Vec::new();
+    for (entry, bytes) in set {
+        std::fs::write(out_dir.join(&entry.file), &bytes).map_err(|e| e.to_string())?;
+        manifest.push(entry);
+    }
+    let json = serde_json::to_string_pretty(&manifest).map_err(|e| e.to_string())?;
+    std::fs::write(out_dir.join("manifest.json"), json + "\n").map_err(|e| e.to_string())?;
+    Ok(manifest)
+}
+
+/// Render every entry in memory: the same pipeline as [`run`], with no
+/// filesystem — what a Worker calls. `image` is the screenshot's bytes when
+/// the campaign has an `[image]` section (its `src` is then ignored).
+pub fn render_set(
+    campaign: &Campaign,
+    image: Option<Vec<u8>>,
+    blocked_terms: Vec<String>,
+) -> Result<Vec<(ManifestEntry, Vec<u8>)>, String> {
+    let theme =
+        theme::get(&campaign.theme).ok_or_else(|| format!("unknown theme {:?}", campaign.theme))?;
+    let image = match (&campaign.image, image) {
+        (Some(sec), Some(data)) => {
             let mut img = SourceImage::from_bytes(data)?;
             img.crop = sec.crop;
             img.redact = sec.redact.clone();
             img.chrome = sec.chrome.clone();
             Some(img)
         }
-        None => None,
+        (Some(_), None) => {
+            return Err("the campaign has an [image] section but no image was given".into());
+        }
+        (None, _) => None,
     };
     let privacy = Privacy {
         fake_or_redacted: campaign.privacy.fake_or_redacted,
         blocked_terms,
     };
 
-    let mut manifest = Vec::new();
+    let mut out = Vec::new();
     for r in &campaign.renders {
         let preset =
             preset::get(&r.preset).ok_or_else(|| format!("unknown preset {:?}", r.preset))?;
-        let content = content_for(&campaign, r, image.as_ref());
+        let content = content_for(campaign, r, image.as_ref());
         let mode = r.mode.unwrap_or(campaign.mode);
         let rendered = render::render(&Request {
             preset,
@@ -161,8 +190,13 @@ pub fn run(path: &Path, blocked_terms: Vec<String>) -> Result<Vec<ManifestEntry>
             .file
             .clone()
             .unwrap_or_else(|| format!("{}.{}", preset.id, preset.format.extension()));
-        std::fs::write(out_dir.join(&file), &rendered.bytes).map_err(|e| e.to_string())?;
-        manifest.push(ManifestEntry {
+        if file.contains('/') || file.contains('\\') || file.starts_with('.') {
+            return Err(format!(
+                "{}: file name {file:?} must be a plain name",
+                r.preset
+            ));
+        }
+        let entry = ManifestEntry {
             file,
             preset: preset.id.clone(),
             platform: preset.platform.clone(),
@@ -173,11 +207,10 @@ pub fn run(path: &Path, blocked_terms: Vec<String>) -> Result<Vec<ManifestEntry>
             safe_area: preset.safe,
             guides: r.guides,
             alt: crate::alt::describe(&content, &theme.eyebrow),
-        });
+        };
+        out.push((entry, rendered.bytes));
     }
-    let json = serde_json::to_string_pretty(&manifest).map_err(|e| e.to_string())?;
-    std::fs::write(out_dir.join("manifest.json"), json + "\n").map_err(|e| e.to_string())?;
-    Ok(manifest)
+    Ok(out)
 }
 
 /// Shared content with one render's overrides applied.
