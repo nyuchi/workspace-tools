@@ -1,0 +1,178 @@
+# The Toddle Enhancement Extension launch set, rendered from one screenshot.
+#
+#   cargo run --release --manifest-path next/Cargo.toml -- campaign samples/toddle-launch/campaign.toml
+#
+# Source: the gradebook screenshot published on learning.nyuchi.com
+# (nyuchi/learning src/assets/screenshots/01-gradebook.jpg). Every name and
+# email in it is fake (student01@school.example …), and the assessment titles
+# are covered again below by redaction bars — belt and braces: the rule is
+# that no real student, staff or school data appears in any image.
+
+theme = "toddle-launch"
+mode = "light"
+out = "."
+
+[privacy]
+fake_or_redacted = true
+
+[content]
+eyebrow = "Toddle Enhancement Extension"
+headline = "Every criterion, in its own column."
+sub = "Every rubric criterion for every student, at once — right inside the Toddle gradebook."
+points = [
+  "Rubrics expanded into columns",
+  "Student flags hidden in one click, free",
+  "Results and submissions to CSV",
+]
+cta = "learning.nyuchi.com"
+
+[image]
+src = "source/gradebook-1280x800.jpg"
+# The screenshot inside the published frame's card.
+crop = [134, 211, 1029, 527]
+# Assessment titles, painted over as skeleton bars.
+redact = [
+  [304, 293, 160, 13],
+  [508, 293, 116, 13],
+  [712, 293, 160, 13],
+  [915, 293, 176, 13],
+  [1118, 293, 47, 13],
+]
+chrome = "web.toddleapp.com"
+alt = "Screenshot of the Toddle gradebook with each assessment expanded into one column per rubric criterion, showing fake students and their levels"
+
+# ── Stories (9:16) ───────────────────────────────────────────────────────
+[[render]]
+preset = "story"
+file = "story.png"
+
+[[render]]
+preset = "story"
+file = "story-dark.png"
+mode = "dark"
+
+[[render]]
+preset = "story"
+file = "story-guides.png"
+guides = true
+
+[[render]]
+preset = "reel-cover"
+file = "reel-cover.png"
+mode = "dark"
+headline = "Your gradebook, one column per criterion."
+show_cta = false
+points = []
+
+# ── Feed ─────────────────────────────────────────────────────────────────
+[[render]]
+preset = "portrait"
+file = "portrait-4x5.png"
+sub = "See every rubric criterion for every student at once."
+points = []
+
+[[render]]
+preset = "square"
+file = "square.png"
+sub = ""
+points = []
+
+[[render]]
+preset = "og"
+
+[[render]]
+preset = "linkedin"
+
+[[render]]
+preset = "x"
+
+[[render]]
+preset = "youtube-thumb"
+mode = "dark"
+show_cta = false
+
+# ── LinkedIn carousel: three slides ──────────────────────────────────────
+[[render]]
+preset = "linkedin-carousel"
+file = "carousel-1.png"
+image = false
+slide = [1, 3]
+headline = "Toddle's gradebook shows one mark per assessment."
+sub = "The rubric behind it is a click away — for every student, one at a time."
+points = []
+show_cta = false
+
+[[render]]
+preset = "linkedin-carousel"
+file = "carousel-2.png"
+slide = [2, 3]
+sub = ""
+points = []
+show_cta = false
+
+[[render]]
+preset = "linkedin-carousel"
+file = "carousel-3.png"
+image = false
+slide = [3, 3]
+mode = "dark"
+headline = "Free to try. Flags stay hidden."
+sub = "Hiding student flags is free. A licence adds the columns and the CSV export."
+
+# ── Chrome Web Store ─────────────────────────────────────────────────────
+[[render]]
+preset = "cws-screenshot"
+file = "cws-screenshot-1280x800.jpg"
+show_cta = false
+
+[[render]]
+preset = "cws-screenshot-small"
+file = "cws-screenshot-640x400.jpg"
+show_cta = false
+
+[[render]]
+preset = "cws-promo-marquee"
+file = "cws-promo-marquee-1400x560.jpg"
+image = false
+mode = "dark"
+eyebrow = "Nyuchi Learning"
+headline = "Toddle Enhancement Extension"
+sub = "Every rubric as columns. Student flags hidden in one click."
+
+[[render]]
+preset = "cws-promo-small"
+file = "cws-promo-small-440x280.jpg"
+image = false
+mode = "dark"
+eyebrow = "Nyuchi Learning"
+headline = "Toddle Enhancement Extension"
+sub = "Rubrics as columns. Flags hidden."
+
+# ── Store, email, icons ──────────────────────────────────────────────────
+[[render]]
+preset = "shopify-square"
+file = "shopify-individual-2048.jpg"
+image = false
+mode = "dark"
+eyebrow = "Nyuchi Learning"
+headline = "Toddle Enhancement Extension"
+sub = "Individual · US$5 per year"
+points = [
+  "One teacher",
+  "Every assessment tool expanded into per-criterion columns",
+  "CSV export of results and submission status",
+]
+show_cta = false
+
+[[render]]
+preset = "email-header"
+image = false
+eyebrow = "Nyuchi Learning"
+headline = "Every criterion, in its own column."
+sub = "The Toddle Enhancement Extension is out."
+
+[[render]]
+preset = "icon-512"
+
+[[render]]
+preset = "favicon-32"

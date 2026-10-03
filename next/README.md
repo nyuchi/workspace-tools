@@ -1,0 +1,90 @@
+# nyuchi-tools, next
+
+The rebuild of nyuchi-tools on the default stack: an **Astro** front end on
+Mzizi components, and **Rust** on Cloudflare Workers (workers-rs) behind it.
+The plan, phases and cut-over are in the rebuild issue on this repo. Until
+cut-over, the live app (`signature-generator/`, `mcp/`, `gmail-addon/`,
+`email-signature/`) is untouched, and nothing here is deployed.
+
+## Phase 1: `crates/imaging`
+
+The image system: a preset catalogue and a renderer, as a Rust library and a
+CLI (`nyuchi-img`). It replaces the Toddle extension's Playwright store renders
+and the Nyuchi Studio's fixed formats with one pipeline.
+
+```text
+content + screenshot ─▶ privacy gate ─▶ layout (pure geometry) ─▶ SVG ─▶ resvg ─▶ PNG / JPEG
+                         │                │
+                         │                └ preset: size, safe area, format, byte limit
+                         └ attestation, blocked terms, redaction bars
+```
+
+- **Presets are data.** `crates/imaging/data/presets.toml` lists every
+  output size with its platform's safe-area insets, format and upload limit.
+  Adding a platform is a data change.
+- **Themes are data, from Mzizi.** `crates/imaging/data/themes.toml`;
+  `toddle-launch` (the look the extension launched with) is the default.
+- **Safe areas are tested, not eyeballed.** The layout is pure geometry,
+  and the tests assert that every text block, card and pill lies inside the
+  preset's safe area and that no two overlap, for every preset and several
+  screenshot shapes. `--guides` draws the bands for a visual check.
+- **Privacy is a gate, not a reminder.** A render with a screenshot is refused
+  unless the screenshot is attested as fake or redacted; any text containing a
+  blocked term (`NYUCHI_BLOCKED_TERMS_FILE`, kept outside the repo) is
+  refused without echoing the term; redaction boxes are painted over the
+  screenshot in the image itself.
+- **Every image gets alt text**, in the campaign manifest.
+
+### Why Rust and resvg
+
+resvg (with tiny-skia) is a pure-Rust SVG renderer: no system libraries, no
+browser, the same output on every machine, and it compiles unchanged to
+`wasm32-unknown-unknown` — CI builds the library for that target. That makes
+it the renderer for a Worker as well as for the CLI. The old pipelines needed
+a headless Chromium (Playwright) for every render; Cloudflare Browser
+Rendering stays the right tool for **capturing** a live page (phase 2), not
+for composing an image from known parts.
+
+Text is wrapped by measuring with the same font files resvg draws with, so a
+measured line is the line drawn. The four faces (Noto Serif 700, Noto Sans
+400/600, JetBrains Mono 400) are embedded. All four are under the SIL Open
+Font Licence 1.1; the Noto copy of it is in `assets/fonts/OFL.txt`, and
+JetBrains Mono carries the same terms.
+
+### Use
+
+```sh
+cd next
+cargo run --release -- presets                       # the catalogue
+cargo run --release -- campaign ../samples/toddle-launch/campaign.toml
+cargo run --release -- render --preset story --headline "Every criterion, in its own column." \
+  --image shot.png --alt "The gradebook with fake students" --fake-or-redacted \
+  --crop 0,0,1200,620 --redact 10,40,180,16 --chrome learning.nyuchi.com --guides
+cargo test
+```
+
+### Presets
+
+| id                                                       | size      | format | safe area (t/r/b/l) |
+| -------------------------------------------------------- | --------- | ------ | ------------------- |
+| `story`                                                  | 1080×1920 | PNG    | 250/64/340/64       |
+| `reel-cover`                                             | 1080×1920 | PNG    | 240/140/420/64      |
+| `portrait`, `linkedin-carousel`                          | 1080×1350 | PNG    | —                   |
+| `square`                                                 | 1080×1080 | PNG    | —                   |
+| `og`                                                     | 1200×630  | PNG    | —                   |
+| `linkedin`                                               | 1200×627  | PNG    | —                   |
+| `x`, `header-16x9`                                       | 1600×900  | PNG    | —                   |
+| `youtube-thumb`                                          | 1280×720  | JPEG   | 0/0/72/0            |
+| `cws-screenshot`                                         | 1280×800  | JPEG   | —                   |
+| `cws-screenshot-small`                                   | 640×400   | JPEG   | —                   |
+| `cws-promo-small`                                        | 440×280   | JPEG   | —                   |
+| `cws-promo-marquee`                                      | 1400×560  | JPEG   | —                   |
+| `shopify-square`                                         | 2048×2048 | JPEG   | —                   |
+| `shopify-square-1600`                                    | 1600×1600 | JPEG   | —                   |
+| `email-header`                                           | 1200×400  | JPEG   | —                   |
+| `icon-512`, `icon-192`, `apple-touch-icon`, `favicon-32` | 512…32    | PNG    | 10% on PWA icons    |
+
+The layout picks a composition from the canvas and content: `top`
+(landscape with a landscape screenshot), `side` (a tall screenshot, or a very
+wide canvas), `stack` (portrait and square: headline, card, points, CTA; a
+text slide without a screenshot), `tile` (landscape, no screenshot), `icon`.
