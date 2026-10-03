@@ -65,7 +65,9 @@ import {
   SESSION_COOKIE_NAME,
   sessionCookieOptions,
   type SessionClaims,
-  SITE_CLIENT_ID,
+  siteClientConfigured,
+  siteClientId,
+  WORKOS_CLIENT_ID_MISSING,
   type SiteAuthEnv,
   verifySessionCookie,
 } from "./site-auth.js";
@@ -775,6 +777,10 @@ app.get("/login", async (c) => {
     // Fail CLOSED: the authorization server comes only from configuration.
     return c.text(`Service Unavailable: ${AUTHKIT_DOMAIN_MISSING}`, 503);
   }
+  if (!siteClientConfigured(c.env)) {
+    // Fail CLOSED: the client ID comes only from configuration too.
+    return c.text(`Service Unavailable: ${WORKOS_CLIENT_ID_MISSING}`, 503);
+  }
   const returnTo = sanitizeReturnTo(c.req.query("return_to"));
   const state = generateState();
   const codeVerifier = generateCodeVerifier();
@@ -802,9 +808,10 @@ app.get(CALLBACK_PATH, async (c) => {
   if (!oauthPayload || !code || !state || state !== oauthPayload.state) {
     return denyLogin();
   }
-  if (!c.env.SESSION_SECRET || !authConfigured(c.env)) {
+  if (!c.env.SESSION_SECRET || !authConfigured(c.env) || !siteClientConfigured(c.env)) {
     // Fail CLOSED: never mint a session without a configured secret, and
-    // never exchange a code without a configured authorization server.
+    // never exchange a code without a configured authorization server and
+    // client ID.
     return denyLogin();
   }
 
@@ -824,7 +831,7 @@ app.get(CALLBACK_PATH, async (c) => {
   // Verify the id_token, not the access_token: an id_token's `aud` is the
   // OAuth client_id per OIDC Core (§2), which has nothing to do with the
   // /mcp resource indicator `verifyJwt` defaults to for bearer-token calls.
-  const verified = await verifyJwt(c.env, idToken, SITE_CLIENT_ID);
+  const verified = await verifyJwt(c.env, idToken, siteClientId(c.env));
   if (!verified) {
     return denyLogin();
   }

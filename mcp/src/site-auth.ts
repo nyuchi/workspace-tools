@@ -9,8 +9,8 @@
  * that flow succeeds.
  *
  * This reuses the SAME WorkOS Connect app that already protects /mcp
- * (client_01KVTX0V2K1VM3PSC0DJ9VZWTV; authorization server = the configured
- * AUTHKIT_DOMAIN — see auth.ts) as a public client (PKCE,
+ * (client ID = the configured WORKOS_CLIENT_ID; authorization server = the
+ * configured AUTHKIT_DOMAIN — see auth.ts) as a public client (PKCE,
  * token_endpoint_auth_method=none, no client_secret). The access token
  * returned by the token exchange is verified with the exact same
  * JWKS/issuer/audience logic /mcp uses for bearer tokens (`verifyJwt` in
@@ -35,10 +35,32 @@ import { type AuthEnv, issuerUrl } from "./auth.js";
 
 export interface SiteAuthEnv extends AuthEnv {
   SESSION_SECRET?: string;
+  /**
+   * The WorkOS Connect public client ID for the site login (the "Nyuchi
+   * Internal Tools" app). Public, but environment-specific: set per
+   * environment as a Worker secret, never compiled in. Without it /login
+   * answers 503 and /callback denies.
+   */
+  WORKOS_CLIENT_ID?: string;
 }
 
-/** The public client already provisioned in WorkOS for tools.nyuchi.com. */
-export const SITE_CLIENT_ID = "client_01KVTX0V2K1VM3PSC0DJ9VZWTV";
+/** Message used whenever the login flow needs WORKOS_CLIENT_ID and it is unset. */
+export const WORKOS_CLIENT_ID_MISSING = "WORKOS_CLIENT_ID is not configured";
+
+/** True when WORKOS_CLIENT_ID is set to a non-blank value. */
+export function siteClientConfigured(env: SiteAuthEnv): boolean {
+  return typeof env.WORKOS_CLIENT_ID === "string" && env.WORKOS_CLIENT_ID.trim().length > 0;
+}
+
+/**
+ * The configured site client ID. Throws (fails closed) when WORKOS_CLIENT_ID
+ * is unset — there is no fallback client; callers check
+ * `siteClientConfigured` first.
+ */
+export function siteClientId(env: SiteAuthEnv): string {
+  if (!siteClientConfigured(env)) throw new Error(WORKOS_CLIENT_ID_MISSING);
+  return (env.WORKOS_CLIENT_ID as string).trim();
+}
 
 export const CALLBACK_PATH = "/callback";
 export const SESSION_COOKIE_NAME = "nyuchi_session";
@@ -153,7 +175,7 @@ export function buildAuthorizeUrl(
   void returnTo;
   const url = new URL(authorizeEndpoint(env));
   url.searchParams.set("response_type", "code");
-  url.searchParams.set("client_id", SITE_CLIENT_ID);
+  url.searchParams.set("client_id", siteClientId(env));
   url.searchParams.set("redirect_uri", REDIRECT_URI);
   url.searchParams.set("code_challenge", codeChallenge);
   url.searchParams.set("code_challenge_method", "S256");
@@ -178,7 +200,7 @@ export interface TokenResponse {
  * partial/fabricated token.
  */
 export async function exchangeCode(
-  env: AuthEnv,
+  env: SiteAuthEnv,
   code: string,
   codeVerifier: string,
 ): Promise<TokenResponse> {
@@ -186,7 +208,7 @@ export async function exchangeCode(
     grant_type: "authorization_code",
     code,
     redirect_uri: REDIRECT_URI,
-    client_id: SITE_CLIENT_ID,
+    client_id: siteClientId(env),
     code_verifier: codeVerifier,
   });
   const response = await fetch(tokenEndpoint(env), {

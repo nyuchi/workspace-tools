@@ -27,6 +27,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   copper and terracotta, signed with the published Bundu Foundation logo.
 ### Security
 
+- **The site login reads its WorkOS client ID from configuration.** `/login`
+  and `/callback` now use the `WORKOS_CLIENT_ID` Worker secret instead of a
+  compiled-in client ID. With it unset, `/login` answers `503`
+  "WORKOS_CLIENT_ID is not configured" and `/callback` denies without
+  attempting a token exchange; there is no fallback client.
 - **`/mcp` fails closed when `AUTHKIT_DOMAIN` is not configured.** It used to
   run without its bearer-token gate ("open mode"), so a missing secret served
   every tool unauthenticated. It now answers `503` "AUTHKIT_DOMAIN is not

@@ -62,8 +62,8 @@ custom_domain = true
 # longer the advertised resource — MCP_RESOURCE below is what discovery
 # metadata and audience checks use.
 MCP_RESOURCE = "https://tools.nyuchi.dev/mcp"
-# AUTHKIT_DOMAIN — the WorkOS Connect / AuthKit domain (Connect app
-# client_01KVTX0V2K1VM3PSC0DJ9VZWTV) — is deliberately NOT declared here. It is
+# AUTHKIT_DOMAIN — the WorkOS Connect / AuthKit domain — and WORKOS_CLIENT_ID —
+# the Connect app's public client ID — are deliberately NOT declared here. It is
 # REQUIRED and set per environment as a Worker secret (see the secrets note
 # below); it is never committed and there is no default in code. /mcp requires
 # bearer JWTs issued by this authorization server; MCP clients discover it via
@@ -95,6 +95,12 @@ GOOGLE_WORKSPACE_DOMAIN = "nyuchi.com"
 #     entry: a var of the same name wins on every deploy. Without it /login
 #     answers 503 "AUTHKIT_DOMAIN is not configured" and so does /mcp —
 #     it never serves tools unauthenticated. Set it before deploying.
+#   WORKOS_CLIENT_ID       — the WorkOS Connect public client ID for the
+#     site login ("Nyuchi Internal Tools"). Public but per environment;
+#     REQUIRED. Set by the owner script from 1Password (nyuchi/workos, field
+#     WORKOS_INTERNAL_TOOLS_CLIENT_ID). Never a [vars] entry and no default
+#     in code: without it /login answers 503 "WORKOS_CLIENT_ID is not
+#     configured" and /callback denies.
 #   ALLOW_UNAUTHENTICATED_DEV — NEVER set here or as a secret. Local
 #     development only (`.dev.vars`): "true" lets /mcp run without a bearer
 #     token when AUTHKIT_DOMAIN is unset and the request is to localhost.
