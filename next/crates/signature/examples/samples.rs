@@ -11,10 +11,38 @@ fn main() {
     let out = concat!(env!("CARGO_MANIFEST_DIR"), "/../../../samples/signatures");
     std::fs::create_dir_all(out).unwrap();
     let people = [
-        ("nyuchi", "Sample Person", "Partnerships", "hello@nyuchi.com", "+263 77 000 0000", ""),
-        ("learning", "Sample Person", "Programme Lead", "hello@learning.nyuchi.com", "", ""),
-        ("mukoko", "Sample Person", "Community", "hello@mukoko.com", "", "+263 77 000 0000"),
-        ("shamwari", "Sample Person", "Research", "hello@shamwari.ai", "", ""),
+        (
+            "nyuchi",
+            "Sample Person",
+            "Partnerships",
+            "hello@nyuchi.com",
+            "+263 77 000 0000",
+            "",
+        ),
+        (
+            "learning",
+            "Sample Person",
+            "Programme Lead",
+            "hello@learning.nyuchi.com",
+            "",
+            "",
+        ),
+        (
+            "mukoko",
+            "Sample Person",
+            "Community",
+            "hello@mukoko.com",
+            "",
+            "+263 77 000 0000",
+        ),
+        (
+            "shamwari",
+            "Sample Person",
+            "Research",
+            "hello@shamwari.ai",
+            "",
+            "",
+        ),
     ];
     let mut index = String::from(
         "<!doctype html><meta charset=\"utf-8\"><title>Signature samples</title>\
