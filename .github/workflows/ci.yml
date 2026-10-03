@@ -74,3 +74,24 @@ jobs:
       # The renderer must stay buildable for Workers.
       - name: Build for wasm32
         run: cargo build --lib --release --locked --target wasm32-unknown-unknown
+
+  # next/site: the Astro site for the rebuilt Worker (type check + build).
+  site:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: next/site
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: next/site/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Check and build
+        run: npm run build
