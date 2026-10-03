@@ -1,0 +1,82 @@
+# Themes for the nyuchi-tools renderer.
+#
+# Colour values come from Mzizi (mzizi_get_tokens: `minerals`, `backgrounds`)
+# — the design-system registry is the authority, and a value here that
+# disagrees with it is a bug in this file. Literal hex rather than CSS custom
+# properties because the output is a flat image: there is no page for a
+# variable to respond to.
+#
+# `toddle-launch` is the default: the look the Toddle Enhancement Extension
+# shipped with on the Chrome Web Store, learning.nyuchi.com and the launch
+# posts — the seven-mineral identity strip down the left edge, an eyebrow,
+# a Noto Serif headline, and the real screenshot lifted off the page in a
+# white card. What is new here is only what the old renders lacked: a soft
+# mineral mesh behind the card, a browser frame, a CTA pill, and dark mode
+# on Mzizi's current dark base (#0E0D0C; the old tiles used #1A1917).
+
+[[theme]]
+id = "toddle-launch"
+name = "Toddle launch"
+eyebrow = "Toddle Enhancement Extension"
+byline = "Nyuchi Learning"
+# The product mark: three columns of different heights.
+mark = ["cobalt", "malachite", "gold"]
+# Minerals used for the background mesh, strongest first.
+mesh = ["cobalt", "malachite", "tanzanite"]
+accent = "cobalt"
+
+[theme.light]
+bg = "#F3F3F1"      # Mzizi backgrounds.base (light)
+fg = "#0C0C0A"
+muted = "#4F4E4A"
+card = "#FFFFFF"
+edge = "#E5E4E1"    # Mzizi backgrounds.container (light)
+skeleton = "#E5E4E1"
+mesh_opacity = 0.16
+
+[theme.dark]
+bg = "#0E0D0C"      # Mzizi backgrounds.base (dark)
+fg = "#F0EFE9"
+muted = "#A8A6A0"
+card = "#FFFFFF"    # the screenshot is a white page either way
+edge = "#2E2C29"    # Mzizi backgrounds.raised (dark)
+skeleton = "#E5E4E1"
+mesh_opacity = 0.30
+
+[[theme]]
+id = "nyuchi"
+name = "Nyuchi"
+eyebrow = "Nyuchi Africa"
+byline = "Nyuchi Africa"
+mark = ["gold", "copper", "terracotta"]
+mesh = ["gold", "copper", "terracotta"]
+accent = "gold"
+
+[theme.light]
+bg = "#F3F3F1"
+fg = "#0C0C0A"
+muted = "#4F4E4A"
+card = "#FFFFFF"
+edge = "#E5E4E1"
+skeleton = "#E5E4E1"
+mesh_opacity = 0.16
+
+[theme.dark]
+bg = "#0E0D0C"
+fg = "#F0EFE9"
+muted = "#A8A6A0"
+card = "#FFFFFF"
+edge = "#2E2C29"
+skeleton = "#E5E4E1"
+mesh_opacity = 0.30
+
+# The seven Bundu minerals (Mzizi `minerals`). `dark` is the hex used on dark
+# surfaces and in the identity strip; `light` is the on-light text variant.
+[minerals]
+cobalt = { light = "#0047AB", dark = "#00B0FF" }
+tanzanite = { light = "#4B0082", dark = "#B388FF" }
+malachite = { light = "#004D40", dark = "#64FFDA" }
+gold = { light = "#5D4037", dark = "#FFD740" }
+terracotta = { light = "#A0522D", dark = "#E1B07E" }
+sodalite = { light = "#283593", dark = "#3D5AFE" }
+copper = { light = "#BF5A36", dark = "#FF8A65" }

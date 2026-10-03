@@ -28,3 +28,7 @@ profile/governance/
 *-lock.yaml
 package-lock.json
 pnpm-lock.yaml
+
+# Rust build output and generated campaign manifests (next/)
+next/target/
+samples/**/manifest.json

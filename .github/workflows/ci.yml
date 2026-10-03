@@ -47,3 +47,30 @@ jobs:
       # Runs both suites: signature-generator engines + Worker HTTP tests.
       - name: Test
         run: npm test
+
+  # next/: the Rust rebuild (crates/imaging). Self-contained, no Node.
+  imaging:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: next
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Rust toolchain
+        run: |
+          rustup toolchain install stable --profile minimal --component rustfmt,clippy --target wasm32-unknown-unknown
+          rustup default stable
+
+      - name: Format
+        run: cargo fmt --check
+
+      - name: Clippy
+        run: cargo clippy --all-targets --locked -- -D warnings
+
+      - name: Test
+        run: cargo test --locked
+
+      # The renderer must stay buildable for Workers.
+      - name: Build for wasm32
+        run: cargo build --lib --release --locked --target wasm32-unknown-unknown
