@@ -37,6 +37,19 @@ pub const MINERALS: [(&str, &str, &str); 7] = [
     ("copper", "#BF5A36", "#FF8A65"),
 ];
 
+/// The seven Mzizi heritage colours, `(name, on-light, vivid)` — brand
+/// colour families for sub-apps alongside the minerals. They never appear
+/// in the identity strip, which is always the seven minerals.
+pub const HERITAGE: [(&str, &str, &str); 7] = [
+    ("indigo", "#4527A0", "#7986CB"),
+    ("savanna", "#8D6E1A", "#E5C158"),
+    ("baobab", "#4E342E", "#A1887F"),
+    ("sunset", "#D84315", "#FF7043"),
+    ("river", "#006064", "#4DD0E1"),
+    ("hematite", "#546E7A", "#90A4AE"),
+    ("kalahari", "#C9B589", "#E8D9B5"),
+];
+
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Params {
@@ -166,11 +179,12 @@ pub fn contrast(a: &str, b: &str) -> f64 {
     (hi + 0.05) / (lo + 0.05)
 }
 
-/// The colour for links and the brand name: the mineral's on-light hex
+/// The colour for links and the brand name: the colour family's on-light hex
 /// when it reaches 4.5:1 on white, otherwise ink.
 pub fn accent(mineral: &str) -> &'static str {
     let light = MINERALS
         .iter()
+        .chain(HERITAGE.iter())
         .find(|(name, _, _)| *name == mineral)
         .map_or(INK, |(_, light, _)| light);
     if contrast(light, "#FFFFFF") >= 4.5 {
