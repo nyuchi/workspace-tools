@@ -17,7 +17,15 @@
 #   name, tagline, url
 #   domains    email domains whose staff sign as this brand (the first is
 #              the brand's own); a domain appears under exactly one brand
-#   mineral    the brand's Mzizi mineral (colour family)
+#   mineral    the brand's Mzizi colour family: one of the seven minerals
+#              or one of the seven heritage colours
+#
+# Colour rules (owner, #70; Mzizi ecosystem canon): Bundu Foundation is
+# copper (the canon; the owner allows copper or terracotta); every Nyuchi
+# brand is gold; Mukoko, the super app, is tanzanite; Shamwari is sodalite.
+# Sub-apps vary across the minerals and heritage colours but never take
+# gold or tanzanite — except a Nyuchi division, which is Nyuchi and so gold.
+# tests/brands.rs enforces this.
 #   socials    official accounts only
 #
 # Wording follows the canonical registry. Where the old signature copies
@@ -69,8 +77,11 @@ mineral = "sodalite"
 socials = {}
 
 # ── Divisions ───────────────────────────────────────────────────────────
-# Division minerals other than Learning's are proposals (TODO(brand):
-# confirm); the live app gave divisions no mineral of their own.
+# Nyuchi divisions are gold, like Nyuchi. Lingo follows the Mzizi canon
+# (cobalt), which lists it as a Mukoko mini-app at lingo.mukoko.com; this
+# list still has it as a Nyuchi division at lingo.nyuchi.com
+# (TODO(brand): settle Lingo's parent and domain). Mukoko News has no
+# canon colour; river (heritage) keeps it apart from every other app.
 
 [[brand]]
 key = "lingo"
@@ -80,7 +91,7 @@ name = "Nyuchi Lingo"
 tagline = "Language Learning for Africa"
 url = "https://lingo.nyuchi.com"
 domains = ["lingo.nyuchi.com"]
-mineral = "terracotta"
+mineral = "cobalt"
 socials = { linkedin = "https://www.linkedin.com/company/nyuchi/", instagram = "https://instagram.com/nyuchi.africa" }
 
 [[brand]]
@@ -91,7 +102,7 @@ name = "Nyuchi Learning"
 tagline = "Education for All"
 url = "https://learning.nyuchi.com"
 domains = ["learning.nyuchi.com"]
-mineral = "cobalt"
+mineral = "gold"
 socials = { linkedin = "https://www.linkedin.com/company/nyuchi/" }
 
 [[brand]]
@@ -102,7 +113,7 @@ name = "Nyuchi Development"
 tagline = "Building Digital Africa"
 url = "https://services.nyuchi.com"
 domains = ["services.nyuchi.com"]
-mineral = "sodalite"
+mineral = "gold"
 socials = { linkedin = "https://www.linkedin.com/company/nyuchi/" }
 
 [[brand]]
@@ -113,7 +124,7 @@ name = "Nyuchi Foundation"
 tagline = "Empowering Communities"
 url = "https://foundation.nyuchi.com"
 domains = ["foundation.nyuchi.com"]
-mineral = "malachite"
+mineral = "gold"
 socials = { linkedin = "https://www.linkedin.com/company/nyuchi/" }
 
 [[brand]]
@@ -124,7 +135,7 @@ name = "Mukoko News"
 tagline = "Pan-African Journalism"
 url = "https://news.mukoko.com"
 domains = ["news.mukoko.com", "hararemetro.co.zw"]
-mineral = "tanzanite"
+mineral = "river"
 socials = { facebook = "https://facebook.com/mukokoafrica", instagram = "https://instagram.com/mukoko.africa" }
 
 # ── Initiatives (Bundu Foundation projects, not brands) ─────────────────
@@ -149,7 +160,7 @@ short_name = "TELIA"
 tagline = "Leading African Innovation"
 url = "https://telia.bundu.org"
 domains = ["telia.bundu.org"]
-mineral = "sodalite"
+mineral = "indigo"
 socials = { linkedin = "https://www.linkedin.com/company/technology-leaders-africa/" }
 # The Gmail add-on still calls this `techLeaders`.
 aliases = ["techLeaders"]
@@ -162,5 +173,5 @@ name = "Bundu Education"
 # No tagline yet (TODO(brand)).
 url = "https://bundu.org"
 domains = []
-mineral = "cobalt"
+mineral = "savanna"
 socials = {}

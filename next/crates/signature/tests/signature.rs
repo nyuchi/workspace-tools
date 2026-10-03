@@ -1,4 +1,4 @@
-use nyuchi_signature::{Error, MINERALS, Params, accent, build, contrast, https_url};
+use nyuchi_signature::{Error, HERITAGE, MINERALS, Params, accent, build, contrast, https_url};
 
 fn sample() -> Params {
     Params {
@@ -170,8 +170,20 @@ fn brand_comes_from_the_email_domain_when_not_given() {
 
 #[test]
 fn link_colours_meet_aa_on_white() {
-    for (name, _, _) in MINERALS {
+    for (name, _, _) in MINERALS.iter().chain(HERITAGE.iter()) {
         assert!(contrast(accent(name), "#FFFFFF") >= 4.5, "{name}");
+    }
+    // Every brand's colour family is one the signature knows.
+    for b in nyuchi_brands::all() {
+        assert!(
+            MINERALS
+                .iter()
+                .chain(HERITAGE.iter())
+                .any(|(n, _, _)| *n == b.mineral),
+            "{}: {}",
+            b.key,
+            b.mineral
+        );
     }
     // Copper's on-light hex is just under AA, so it falls back to ink.
     assert_eq!(accent("copper"), "#141413");
