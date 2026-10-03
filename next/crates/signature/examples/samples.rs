@@ -36,6 +36,14 @@ fn main() {
             "+263 77 000 0000",
         ),
         (
+            "mukokoNews",
+            "Sample Person",
+            "Editor",
+            "hello@news.mukoko.com",
+            "",
+            "",
+        ),
+        (
             "shamwari",
             "Sample Person",
             "Research",
