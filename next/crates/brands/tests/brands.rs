@@ -1,7 +1,9 @@
 use nyuchi_brands::{Kind, all, for_email, get};
 use std::collections::HashSet;
 
-const MINERALS: [&str; 7] = [
+/// Mzizi colour families a brand may take: the seven minerals and the
+/// seven heritage colours (mzizi_get_tokens `minerals`, `heritage`).
+const FAMILIES: [&str; 14] = [
     "cobalt",
     "tanzanite",
     "malachite",
@@ -9,6 +11,13 @@ const MINERALS: [&str; 7] = [
     "terracotta",
     "sodalite",
     "copper",
+    "indigo",
+    "savanna",
+    "baobab",
+    "sunset",
+    "river",
+    "hematite",
+    "kalahari",
 ];
 
 #[test]
@@ -46,7 +55,7 @@ fn taxonomy_holds() {
 fn every_brand_has_a_mzizi_mineral_and_https_links() {
     for b in all() {
         assert!(
-            MINERALS.contains(&b.mineral.as_str()),
+            FAMILIES.contains(&b.mineral.as_str()),
             "{}: {}",
             b.key,
             b.mineral
@@ -73,4 +82,46 @@ fn lookups() {
     assert!(for_email("someone@example.com").is_none());
     assert!(for_email("not-an-email").is_none());
     assert_eq!(get("nyuchi").unwrap().website(), "nyuchi.com");
+}
+
+/// The owner's colour rules (#70) on top of the Mzizi ecosystem canon.
+#[test]
+fn colour_rules() {
+    let bundu = get("bundu").unwrap();
+    assert!(
+        ["copper", "terracotta"].contains(&bundu.mineral.as_str()),
+        "the Foundation is copper or terracotta"
+    );
+    assert_eq!(
+        get("mukoko").unwrap().mineral,
+        "tanzanite",
+        "Mukoko, the super app, is tanzanite"
+    );
+    assert_eq!(
+        get("shamwari").unwrap().mineral,
+        "sodalite",
+        "Shamwari is sodalite (canon)"
+    );
+    // Lingo follows the canon (cobalt, a Mukoko mini-app there) while this
+    // list still files it under Nyuchi — the one named exception.
+    const CANON_EXCEPTIONS: [&str; 1] = ["lingo"];
+    for b in all() {
+        let nyuchi = b.key == "nyuchi" || b.parent.as_deref() == Some("nyuchi");
+        if nyuchi && !CANON_EXCEPTIONS.contains(&b.key.as_str()) {
+            assert_eq!(b.mineral, "gold", "{} is a Nyuchi brand, so gold", b.key);
+        } else if !["bundu", "nyuchi", "mukoko"].contains(&b.key.as_str()) {
+            assert!(
+                b.mineral != "gold" && b.mineral != "tanzanite",
+                "{} is a sub-app: gold is Nyuchi's and tanzanite is Mukoko's",
+                b.key
+            );
+        }
+    }
+    // Sub-apps under Mukoko stay apart from the super app.
+    for b in all()
+        .iter()
+        .filter(|b| b.parent.as_deref() == Some("mukoko"))
+    {
+        assert_ne!(b.mineral, "tanzanite", "{}", b.key);
+    }
 }
