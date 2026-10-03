@@ -70,6 +70,8 @@ fn every_brand_has_a_mzizi_mineral_and_https_links() {
 #[test]
 fn lookups() {
     assert_eq!(get("techLeaders").unwrap().key, "telia");
+    assert_eq!(for_email("someone@lingo.mukoko.com").unwrap().key, "lingo");
+    assert!(for_email("someone@lingo.nyuchi.com").is_none());
     assert_eq!(
         for_email("someone@learning.nyuchi.com").unwrap().key,
         "learning"
@@ -102,12 +104,9 @@ fn colour_rules() {
         "sodalite",
         "Shamwari is sodalite (canon)"
     );
-    // Lingo follows the canon (cobalt, a Mukoko mini-app there) while this
-    // list still files it under Nyuchi — the one named exception.
-    const CANON_EXCEPTIONS: [&str; 1] = ["lingo"];
     for b in all() {
         let nyuchi = b.key == "nyuchi" || b.parent.as_deref() == Some("nyuchi");
-        if nyuchi && !CANON_EXCEPTIONS.contains(&b.key.as_str()) {
+        if nyuchi {
             assert_eq!(b.mineral, "gold", "{} is a Nyuchi brand, so gold", b.key);
         } else if !["bundu", "nyuchi", "mukoko"].contains(&b.key.as_str()) {
             assert!(
