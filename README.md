@@ -42,6 +42,13 @@ signature template and its historical brand copies live in
 `signature-generator/src/engines/signature/` — pure modules imported by both the
 web app and the Worker's MCP tools, so both emit identical signature HTML.
 
+**The rebuild.** `next/` holds the rebuild of nyuchi-tools on Astro + Rust
+(workers-rs), phase by phase; nothing in it is deployed yet, and the live app
+above is untouched until cut-over. Phase 1 is the image system
+([next/README.md](next/README.md)): a preset catalogue (stories with platform
+safe areas, feed, OG, store, email, icons) and a Rust renderer, with a sample
+launch set in [samples/](samples/).
+
 ## Quickstart
 
 ```bash

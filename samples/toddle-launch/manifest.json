@@ -1,0 +1,359 @@
+[
+  {
+    "file": "story.png",
+    "preset": "story",
+    "platform": "Instagram / Facebook / WhatsApp Status stories",
+    "width": 1080,
+    "height": 1920,
+    "format": "png",
+    "bytes": 322347,
+    "safe_area": [
+      250,
+      64,
+      340,
+      64
+    ],
+    "guides": false,
+    "alt": "Toddle Enhancement Extension: Every criterion, in its own column. Screenshot of the Toddle gradebook with each assessment expanded into one column per rubric criterion, showing fake students and their levels. Every rubric criterion for every student, at once — right inside the Toddle gradebook."
+  },
+  {
+    "file": "story-dark.png",
+    "preset": "story",
+    "platform": "Instagram / Facebook / WhatsApp Status stories",
+    "width": 1080,
+    "height": 1920,
+    "format": "png",
+    "bytes": 386460,
+    "safe_area": [
+      250,
+      64,
+      340,
+      64
+    ],
+    "guides": false,
+    "alt": "Toddle Enhancement Extension: Every criterion, in its own column. Screenshot of the Toddle gradebook with each assessment expanded into one column per rubric criterion, showing fake students and their levels. Every rubric criterion for every student, at once — right inside the Toddle gradebook."
+  },
+  {
+    "file": "story-guides.png",
+    "preset": "story",
+    "platform": "Instagram / Facebook / WhatsApp Status stories",
+    "width": 1080,
+    "height": 1920,
+    "format": "png",
+    "bytes": 330803,
+    "safe_area": [
+      250,
+      64,
+      340,
+      64
+    ],
+    "guides": true,
+    "alt": "Toddle Enhancement Extension: Every criterion, in its own column. Screenshot of the Toddle gradebook with each assessment expanded into one column per rubric criterion, showing fake students and their levels. Every rubric criterion for every student, at once — right inside the Toddle gradebook."
+  },
+  {
+    "file": "reel-cover.png",
+    "preset": "reel-cover",
+    "platform": "Instagram Reels, TikTok, YouTube Shorts",
+    "width": 1080,
+    "height": 1920,
+    "format": "png",
+    "bytes": 348847,
+    "safe_area": [
+      240,
+      140,
+      420,
+      64
+    ],
+    "guides": false,
+    "alt": "Toddle Enhancement Extension: Your gradebook, one column per criterion. Screenshot of the Toddle gradebook with each assessment expanded into one column per rubric criterion, showing fake students and their levels."
+  },
+  {
+    "file": "portrait-4x5.png",
+    "preset": "portrait",
+    "platform": "Instagram / Facebook / LinkedIn feed",
+    "width": 1080,
+    "height": 1350,
+    "format": "png",
+    "bytes": 270136,
+    "safe_area": [
+      0,
+      0,
+      0,
+      0
+    ],
+    "guides": false,
+    "alt": "Toddle Enhancement Extension: Every criterion, in its own column. Screenshot of the Toddle gradebook with each assessment expanded into one column per rubric criterion, showing fake students and their levels. See every rubric criterion for every student at once."
+  },
+  {
+    "file": "square.png",
+    "preset": "square",
+    "platform": "Instagram feed, WhatsApp, any square slot",
+    "width": 1080,
+    "height": 1080,
+    "format": "png",
+    "bytes": 246071,
+    "safe_area": [
+      0,
+      0,
+      0,
+      0
+    ],
+    "guides": false,
+    "alt": "Toddle Enhancement Extension: Every criterion, in its own column. Screenshot of the Toddle gradebook with each assessment expanded into one column per rubric criterion, showing fake students and their levels."
+  },
+  {
+    "file": "og.png",
+    "preset": "og",
+    "platform": "Link unfurls (Slack, X, iMessage, WhatsApp), blog headers",
+    "width": 1200,
+    "height": 630,
+    "format": "png",
+    "bytes": 179942,
+    "safe_area": [
+      0,
+      0,
+      0,
+      0
+    ],
+    "guides": false,
+    "alt": "Toddle Enhancement Extension: Every criterion, in its own column. Screenshot of the Toddle gradebook with each assessment expanded into one column per rubric criterion, showing fake students and their levels. Every rubric criterion for every student, at once — right inside the Toddle gradebook."
+  },
+  {
+    "file": "linkedin.png",
+    "preset": "linkedin",
+    "platform": "LinkedIn link and image posts",
+    "width": 1200,
+    "height": 627,
+    "format": "png",
+    "bytes": 178518,
+    "safe_area": [
+      0,
+      0,
+      0,
+      0
+    ],
+    "guides": false,
+    "alt": "Toddle Enhancement Extension: Every criterion, in its own column. Screenshot of the Toddle gradebook with each assessment expanded into one column per rubric criterion, showing fake students and their levels. Every rubric criterion for every student, at once — right inside the Toddle gradebook."
+  },
+  {
+    "file": "x.png",
+    "preset": "x",
+    "platform": "X (Twitter) in-feed image",
+    "width": 1600,
+    "height": 900,
+    "format": "png",
+    "bytes": 307388,
+    "safe_area": [
+      0,
+      0,
+      0,
+      0
+    ],
+    "guides": false,
+    "alt": "Toddle Enhancement Extension: Every criterion, in its own column. Screenshot of the Toddle gradebook with each assessment expanded into one column per rubric criterion, showing fake students and their levels. Every rubric criterion for every student, at once — right inside the Toddle gradebook."
+  },
+  {
+    "file": "youtube-thumb.jpg",
+    "preset": "youtube-thumb",
+    "platform": "YouTube video thumbnail",
+    "width": 1280,
+    "height": 720,
+    "format": "jpg",
+    "bytes": 114406,
+    "safe_area": [
+      0,
+      0,
+      72,
+      0
+    ],
+    "guides": false,
+    "alt": "Toddle Enhancement Extension: Every criterion, in its own column. Screenshot of the Toddle gradebook with each assessment expanded into one column per rubric criterion, showing fake students and their levels. Every rubric criterion for every student, at once — right inside the Toddle gradebook."
+  },
+  {
+    "file": "carousel-1.png",
+    "preset": "linkedin-carousel",
+    "platform": "LinkedIn document carousels (one image per slide)",
+    "width": 1080,
+    "height": 1350,
+    "format": "png",
+    "bytes": 121653,
+    "safe_area": [
+      0,
+      0,
+      0,
+      0
+    ],
+    "guides": false,
+    "alt": "Toddle Enhancement Extension: Toddle's gradebook shows one mark per assessment. The rubric behind it is a click away — for every student, one at a time."
+  },
+  {
+    "file": "carousel-2.png",
+    "preset": "linkedin-carousel",
+    "platform": "LinkedIn document carousels (one image per slide)",
+    "width": 1080,
+    "height": 1350,
+    "format": "png",
+    "bytes": 256307,
+    "safe_area": [
+      0,
+      0,
+      0,
+      0
+    ],
+    "guides": false,
+    "alt": "Toddle Enhancement Extension: Every criterion, in its own column. Screenshot of the Toddle gradebook with each assessment expanded into one column per rubric criterion, showing fake students and their levels."
+  },
+  {
+    "file": "carousel-3.png",
+    "preset": "linkedin-carousel",
+    "platform": "LinkedIn document carousels (one image per slide)",
+    "width": 1080,
+    "height": 1350,
+    "format": "png",
+    "bytes": 200302,
+    "safe_area": [
+      0,
+      0,
+      0,
+      0
+    ],
+    "guides": false,
+    "alt": "Toddle Enhancement Extension: Free to try. Flags stay hidden. Hiding student flags is free. A licence adds the columns and the CSV export. Rubrics expanded into columns; Student flags hidden in one click, free; Results and submissions to CSV."
+  },
+  {
+    "file": "cws-screenshot-1280x800.jpg",
+    "preset": "cws-screenshot",
+    "platform": "Chrome Web Store listing",
+    "width": 1280,
+    "height": 800,
+    "format": "jpg",
+    "bytes": 133663,
+    "safe_area": [
+      0,
+      0,
+      0,
+      0
+    ],
+    "guides": false,
+    "alt": "Toddle Enhancement Extension: Every criterion, in its own column. Screenshot of the Toddle gradebook with each assessment expanded into one column per rubric criterion, showing fake students and their levels. Every rubric criterion for every student, at once — right inside the Toddle gradebook."
+  },
+  {
+    "file": "cws-screenshot-640x400.jpg",
+    "preset": "cws-screenshot-small",
+    "platform": "Chrome Web Store listing (accepted, but upscaled — prefer 1280x800)",
+    "width": 640,
+    "height": 400,
+    "format": "jpg",
+    "bytes": 49816,
+    "safe_area": [
+      0,
+      0,
+      0,
+      0
+    ],
+    "guides": false,
+    "alt": "Toddle Enhancement Extension: Every criterion, in its own column. Screenshot of the Toddle gradebook with each assessment expanded into one column per rubric criterion, showing fake students and their levels. Every rubric criterion for every student, at once — right inside the Toddle gradebook."
+  },
+  {
+    "file": "cws-promo-marquee-1400x560.jpg",
+    "preset": "cws-promo-marquee",
+    "platform": "Chrome Web Store",
+    "width": 1400,
+    "height": 560,
+    "format": "jpg",
+    "bytes": 80363,
+    "safe_area": [
+      0,
+      0,
+      0,
+      0
+    ],
+    "guides": false,
+    "alt": "Nyuchi Learning: Toddle Enhancement Extension. Every rubric as columns. Student flags hidden in one click. Rubrics expanded into columns; Student flags hidden in one click, free; Results and submissions to CSV."
+  },
+  {
+    "file": "cws-promo-small-440x280.jpg",
+    "preset": "cws-promo-small",
+    "platform": "Chrome Web Store",
+    "width": 440,
+    "height": 280,
+    "format": "jpg",
+    "bytes": 24399,
+    "safe_area": [
+      0,
+      0,
+      0,
+      0
+    ],
+    "guides": false,
+    "alt": "Nyuchi Learning: Toddle Enhancement Extension. Rubrics as columns. Flags hidden. Rubrics expanded into columns; Student flags hidden in one click, free; Results and submissions to CSV."
+  },
+  {
+    "file": "shopify-individual-2048.jpg",
+    "preset": "shopify-square",
+    "platform": "Shopify product media (square survives collection and cart crops)",
+    "width": 2048,
+    "height": 2048,
+    "format": "jpg",
+    "bytes": 338053,
+    "safe_area": [
+      0,
+      0,
+      0,
+      0
+    ],
+    "guides": false,
+    "alt": "Nyuchi Learning: Toddle Enhancement Extension. Individual · US$5 per year. One teacher; Every assessment tool expanded into per-criterion columns; CSV export of results and submission status."
+  },
+  {
+    "file": "email-header.jpg",
+    "preset": "email-header",
+    "platform": "Newsletter and announcement headers (600px column at 2x)",
+    "width": 1200,
+    "height": 400,
+    "format": "jpg",
+    "bytes": 44606,
+    "safe_area": [
+      0,
+      0,
+      0,
+      0
+    ],
+    "guides": false,
+    "alt": "Nyuchi Learning: Every criterion, in its own column. The Toddle Enhancement Extension is out. Rubrics expanded into columns; Student flags hidden in one click, free; Results and submissions to CSV."
+  },
+  {
+    "file": "icon-512.png",
+    "preset": "icon-512",
+    "platform": "PWA manifest, store icons",
+    "width": 512,
+    "height": 512,
+    "format": "png",
+    "bytes": 4532,
+    "safe_area": [
+      51,
+      51,
+      51,
+      51
+    ],
+    "guides": false,
+    "alt": "Toddle Enhancement Extension: Every criterion, in its own column. Screenshot of the Toddle gradebook with each assessment expanded into one column per rubric criterion, showing fake students and their levels. Every rubric criterion for every student, at once — right inside the Toddle gradebook."
+  },
+  {
+    "file": "favicon-32.png",
+    "preset": "favicon-32",
+    "platform": "Browser tab",
+    "width": 32,
+    "height": 32,
+    "format": "png",
+    "bytes": 459,
+    "safe_area": [
+      0,
+      0,
+      0,
+      0
+    ],
+    "guides": false,
+    "alt": "Toddle Enhancement Extension: Every criterion, in its own column. Screenshot of the Toddle gradebook with each assessment expanded into one column per rubric criterion, showing fake students and their levels. Every rubric criterion for every student, at once — right inside the Toddle gradebook."
+  }
+]
