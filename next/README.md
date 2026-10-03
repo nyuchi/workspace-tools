@@ -118,3 +118,40 @@ signature. The new one is built for email clients, not browsers:
 The brand comes from the key, or from the email's domain when no key is
 given. Samples (made-up people only) are in `samples/signatures/`:
 `cargo run -p nyuchi-signature --example samples`.
+
+## `crates/worker` + `site/`: the Worker and the site
+
+One Worker (`next/wrangler.toml`, name `nyuchi-tools-next`), Rust on
+workers-rs, serving the Astro site as static assets and the API under
+`/api/`:
+
+| Route                 | Does                                           |
+| --------------------- | ---------------------------------------------- |
+| `GET /api/presets`    | the preset catalogue                           |
+| `GET /api/themes`     | the themes                                     |
+| `GET /api/brands`     | the one brand list                             |
+| `POST /api/render`    | one image (PNG/JPEG); alt text in `X-Alt-Text` |
+| `POST /api/campaign`  | a whole set as a ZIP with `manifest.json`      |
+| `POST /api/signature` | the email signature: `{html, text, brand}`     |
+| `GET /api/health`     | liveness                                       |
+
+The API is plain Rust (`crates/worker/src/api.rs`), tested natively with
+`cargo test`; `entry.rs` is the thin wasm fetch handler. The privacy gate
+runs on every render; the optional `BLOCKED_TERMS` secret supplies the
+blocked-terms list. The compiled Worker is about 2.3 MB gzipped (the four
+fonts are most of it); a story renders in about a second, cold.
+
+`site/` is Astro on `@bundu/ui` (Mzizi): Home, Studio (preview every size
+with its safe area, download the set), Presets (generated from
+`presets.toml` at build), Signatures (preview in a sandboxed frame, copy for
+Gmail). It reads the same TOML files the crates embed.
+
+**Not live.** The Worker has no route and no `workers.dev` URL: the API has
+no login yet. Phase 3 adds the WorkOS gate before it gets one.
+
+Run it locally (needs `worker-build`: `cargo install worker-build`):
+
+```sh
+cd next
+npx wrangler dev        # builds the site and the Worker, serves on :8787
+```

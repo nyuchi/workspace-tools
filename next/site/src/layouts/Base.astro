@@ -1,0 +1,103 @@
+---
+/**
+ * Base — the shell for every page: Mzizi tokens via @bundu/ui, the
+ * seven-mineral strip, a sticky nav, and the light/dark bootstrap
+ * (localStorage `nyuchi-theme`, default dark, set before first paint).
+ */
+import '../styles/global.css'
+import MineralStrip from '@bundu/ui/MineralStrip.astro'
+
+interface Props {
+  title: string
+  description?: string
+}
+
+const { title, description = 'Images, signatures and brand tools for Nyuchi Africa and the Bundu ecosystem.' } =
+  Astro.props
+
+const NAV = [
+  { name: 'Studio', href: '/studio' },
+  { name: 'Presets', href: '/presets' },
+  { name: 'Signatures', href: '/signatures' },
+]
+
+const path = Astro.url.pathname.replace(/\/index\.html$/, '/').replace(/\.html$/, '').replace(/\/+$/, '') || '/'
+const linkClass = (href: string) =>
+  [
+    'px-4 py-2 rounded-full text-body-sm font-medium transition-colors duration-200 ease-soft min-h-[44px] inline-flex items-center',
+    path.startsWith(href)
+      ? 'bg-gold-container text-gold-on-container'
+      : 'text-muted-foreground hover:text-foreground hover:bg-muted',
+  ].join(' ')
+---
+
+<html lang="en-GB" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{title === 'Nyuchi Tools' ? title : `${title} · Nyuchi Tools`}</title>
+    <meta name="description" content={description} />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600&family=Noto+Serif:ital,wght@0,600;0,700;1,400&family=JetBrains+Mono&display=swap"
+      rel="stylesheet"
+    />
+    <script is:inline>
+      ;(function () {
+        var t = 'dark'
+        try {
+          if (localStorage.getItem('nyuchi-theme') === 'light') t = 'light'
+        } catch (_) {}
+        document.documentElement.setAttribute('data-theme', t)
+      })()
+    </script>
+  </head>
+  <body class="min-h-dvh flex flex-col bg-background text-foreground font-sans antialiased">
+    <MineralStrip />
+    <header class="sticky top-0 z-40 h-16 bg-background/90 backdrop-blur border-b border-border">
+      <div class="container-custom h-full flex items-center justify-between gap-4">
+        <a href="/" class="flex flex-col leading-none" aria-label="Nyuchi Tools — home">
+          <span class="font-serif font-bold tracking-tight text-xl text-gold">nyuchi</span>
+          <span class="text-caption text-muted-foreground font-medium">tools</span>
+        </a>
+        <nav class="flex items-center gap-1" aria-label="Main">
+          {
+            NAV.map((item) => (
+              <a href={item.href} class={linkClass(item.href)} aria-current={path.startsWith(item.href) ? 'page' : undefined}>
+                {item.name}
+              </a>
+            ))
+          }
+          <button
+            type="button"
+            id="theme-toggle"
+            class="ml-1 inline-flex items-center justify-center w-11 h-11 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted"
+            aria-label="Switch light or dark"
+          >
+            ◐
+          </button>
+        </nav>
+      </div>
+    </header>
+    <main class="flex-1">
+      <slot />
+    </main>
+    <footer class="border-t border-border">
+      <div class="container-custom py-8 text-body-sm text-muted-foreground flex flex-wrap gap-x-6 gap-y-2">
+        <span>Nyuchi Africa · I am because we are</span>
+        <a class="hover:text-foreground" href="https://github.com/nyuchi/workspace-tools">Source</a>
+      </div>
+    </footer>
+    <script is:inline>
+      document.getElementById('theme-toggle')?.addEventListener('click', function () {
+        var next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark'
+        document.documentElement.setAttribute('data-theme', next)
+        try {
+          localStorage.setItem('nyuchi-theme', next)
+        } catch (_) {}
+      })
+    </script>
+  </body>
+</html>
