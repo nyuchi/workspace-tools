@@ -14,7 +14,7 @@
  *     for MCP clients and agents. See auth.ts.
  *   - `/login`, `/callback`, `/logout` — the site-wide login gate for human
  *     visitors, an Authorization Code + PKCE flow against the Hosted AuthKit
- *     UI at identity.nyuchi.com. See site-auth.ts.
+ *     UI on the configured AUTHKIT_DOMAIN. See site-auth.ts.
  *   - everything else — the built signature-generator Astro site, served as
  *     static assets via `c.env.ASSETS.fetch(...)`, but only once the
  *     site-wide login gate above has let the request through.
@@ -37,9 +37,11 @@ import { z } from "zod";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import {
   type AuthEnv,
+  AUTHKIT_DOMAIN_MISSING,
   authConfigured,
   issuerUrl,
   protectedResourceMetadata,
+  unauthenticatedDevAllowed,
   verifyBearer,
   verifyJwt,
   wwwAuthenticateHeader,
@@ -63,7 +65,9 @@ import {
   SESSION_COOKIE_NAME,
   sessionCookieOptions,
   type SessionClaims,
-  SITE_CLIENT_ID,
+  siteClientConfigured,
+  siteClientId,
+  WORKOS_CLIENT_ID_MISSING,
   type SiteAuthEnv,
   verifySessionCookie,
 } from "./site-auth.js";
@@ -664,7 +668,7 @@ function buildServer(env: Env): McpServer {
  * - Auth OFF (no AUTHKIT_DOMAIN): there is no authorization server to
  *   mirror, so this keeps returning the same JSON 404 as before.
  * - Auth ON: fetches (never fabricates) the real document from
- *   identity.nyuchi.com and passes it through; a fetch failure or a
+ *   the configured AUTHKIT_DOMAIN and passes it through; a fetch failure or a
  *   non-200 upstream response becomes a 502 — never fake metadata.
  */
 function authorizationServerMetadataHandler(wellKnownPath: "oauth-authorization-server" | "openid-configuration") {
@@ -678,7 +682,7 @@ function authorizationServerMetadataHandler(wellKnownPath: "oauth-authorization-
         404,
       );
     }
-    const upstream = `${issuerUrl(c.env)}/.well-known/${wellKnownPath}`;
+    const upstream = new URL(`/.well-known/${wellKnownPath}`, issuerUrl(c.env)).href;
     const result = await fetchMetadata(upstream);
     if (!result.ok) {
       return c.json({ error: "upstream_fetch_failed", detail: result.message }, 502);
@@ -769,6 +773,14 @@ app.get("/login", async (c) => {
     // the misconfiguration instead of silently granting or looping.
     return c.text("Site authentication is not configured.", 500);
   }
+  if (!authConfigured(c.env)) {
+    // Fail CLOSED: the authorization server comes only from configuration.
+    return c.text(`Service Unavailable: ${AUTHKIT_DOMAIN_MISSING}`, 503);
+  }
+  if (!siteClientConfigured(c.env)) {
+    // Fail CLOSED: the client ID comes only from configuration too.
+    return c.text(`Service Unavailable: ${WORKOS_CLIENT_ID_MISSING}`, 503);
+  }
   const returnTo = sanitizeReturnTo(c.req.query("return_to"));
   const state = generateState();
   const codeVerifier = generateCodeVerifier();
@@ -796,14 +808,16 @@ app.get(CALLBACK_PATH, async (c) => {
   if (!oauthPayload || !code || !state || state !== oauthPayload.state) {
     return denyLogin();
   }
-  if (!c.env.SESSION_SECRET) {
-    // Fail CLOSED: never mint a session without a configured secret.
+  if (!c.env.SESSION_SECRET || !authConfigured(c.env) || !siteClientConfigured(c.env)) {
+    // Fail CLOSED: never mint a session without a configured secret, and
+    // never exchange a code without a configured authorization server and
+    // client ID.
     return denyLogin();
   }
 
   let idToken: string | undefined;
   try {
-    const tokenResponse = await exchangeCode(code, oauthPayload.codeVerifier);
+    const tokenResponse = await exchangeCode(c.env, code, oauthPayload.codeVerifier);
     idToken = tokenResponse.id_token;
   } catch {
     return denyLogin();
@@ -817,7 +831,7 @@ app.get(CALLBACK_PATH, async (c) => {
   // Verify the id_token, not the access_token: an id_token's `aud` is the
   // OAuth client_id per OIDC Core (§2), which has nothing to do with the
   // /mcp resource indicator `verifyJwt` defaults to for bearer-token calls.
-  const verified = await verifyJwt(c.env, idToken, SITE_CLIENT_ID);
+  const verified = await verifyJwt(c.env, idToken, siteClientId(c.env));
   if (!verified) {
     return denyLogin();
   }
@@ -839,36 +853,40 @@ app.get("/logout", (c) => {
   return c.redirect("/", 302);
 });
 
-// OAuth surface. Behavior is driven by the AUTHKIT_DOMAIN Worker var:
+// OAuth surface. Behavior is driven by the AUTHKIT_DOMAIN Worker secret:
 //
-//   unset → the MCP server is OPEN. Discovery endpoints return JSON 404s so
-//     MCP clients (e.g. claude.ai connectors) conclude "no sign-in needed"
-//     instead of hitting the SPA fallback's 200 text/html and inventing a
-//     broken sign-in service.
+//   unset → FAIL CLOSED. `/mcp` answers 503 "AUTHKIT_DOMAIN is not
+//     configured" and the protected-resource metadata says the same, so no
+//     client is ever served tools unauthenticated. The one exception is the
+//     explicit local-development opt-out (`ALLOW_UNAUTHENTICATED_DEV=true`,
+//     only on localhost — see `unauthenticatedDevAllowed`), where discovery
+//     returns JSON 404s so a local MCP client concludes "no sign-in needed".
 //
 //   set → WorkOS Connect protects /mcp. The protected-resource metadata
 //     advertises the WorkOS authorization server; client registration and
 //     the actual OAuth flow happen on WorkOS, not here. The authorization
 //     server's own discovery documents (oauth-authorization-server,
-//     openid-configuration) are mirrored — fetched from identity.nyuchi.com
+//     openid-configuration) are mirrored — fetched from AUTHKIT_DOMAIN
 //     and passed through, never fabricated — onto this domain's
 //     `.well-known` paths so agents that only probe the resource server
 //     still find them.
 //
 // These paths reach the Worker via assets.run_worker_first in wrangler.toml.
-app.all("/.well-known/oauth-protected-resource", (c) => {
+function protectedResourceResponse(c: Context<{ Bindings: Env; Variables: Variables }>) {
   if (authConfigured(c.env)) return c.json(protectedResourceMetadata(c.env));
-  return c.json(
-    { error: "no_protected_resource_metadata", detail: "This MCP server does not require authentication." },
-    404,
-  );
+  if (unauthenticatedDevAllowed(c.env, c.req.url)) {
+    return c.json(
+      { error: "no_protected_resource_metadata", detail: "Local development: this MCP server does not require authentication." },
+      404,
+    );
+  }
+  return c.json({ error: "authorization_not_configured", detail: AUTHKIT_DOMAIN_MISSING }, 503);
+}
+app.all("/.well-known/oauth-protected-resource", (c) => {
+  return protectedResourceResponse(c);
 });
 app.all("/.well-known/oauth-protected-resource/*", (c) => {
-  if (authConfigured(c.env)) return c.json(protectedResourceMetadata(c.env));
-  return c.json(
-    { error: "no_protected_resource_metadata", detail: "This MCP server does not require authentication." },
-    404,
-  );
+  return protectedResourceResponse(c);
 });
 app.all("/.well-known/oauth-authorization-server", authorizationServerMetadataHandler("oauth-authorization-server"));
 app.all("/.well-known/oauth-authorization-server/*", authorizationServerMetadataHandler("oauth-authorization-server"));
@@ -887,9 +905,18 @@ app.get("/.well-known/mcp/server-card.json", (c) => c.json(buildServerCard(SERVE
 // wrangler.toml's assets.run_worker_first.
 app.get("/auth.md", (c) => c.text(authMd(c.env), 200, { "Content-Type": "text/markdown; charset=utf-8" }));
 
-// Bearer-token gate for /mcp — no-op until AUTHKIT_DOMAIN is configured.
+// Bearer-token gate for /mcp. Fails CLOSED: with AUTHKIT_DOMAIN unset, /mcp
+// answers 503 and never serves tools unauthenticated — except the explicit
+// localhost-only development opt-out (`unauthenticatedDevAllowed`). With it set
+// but unusable, bearer verification fails and every request is 401.
 app.use("/mcp", async (c, next) => {
-  if (!authConfigured(c.env)) return next();
+  if (!authConfigured(c.env)) {
+    if (unauthenticatedDevAllowed(c.env, c.req.url)) return next();
+    return c.json(
+      { error: "authorization_not_configured", detail: `Service Unavailable: ${AUTHKIT_DOMAIN_MISSING}` },
+      503,
+    );
+  }
   const verified = await verifyBearer(c.env, c.req.header("Authorization"));
   if (!verified) {
     return c.json(

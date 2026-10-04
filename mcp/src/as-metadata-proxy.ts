@@ -5,7 +5,7 @@
  * protected-resource metadata still find it.
  *
  * This proxies (fetches + passes through) the real upstream documents from
- * identity.nyuchi.com — it never fabricates metadata. Only wired up when
+ * the configured AUTHKIT_DOMAIN — it never fabricates metadata. Only wired up when
  * `authConfigured(env)` is true; see index.ts.
  */
 
