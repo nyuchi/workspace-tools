@@ -246,17 +246,30 @@ pub fn to_svg(layout: &Layout, content: &Content, theme: &Theme, opts: &SvgOptio
     }
 
     if let Some(m) = &layout.mark {
-        for (i, c) in m.columns.iter().enumerate() {
+        if let Some(logo) = theme.logo.as_deref().and_then(crate::logo::get) {
+            // The official logo, as a square centred in the mark's box. The
+            // box is the mark's own, so the safe-area tests hold unchanged.
+            let (x0, y0) = (
+                m.columns[0].x,
+                m.columns.iter().map(|c| c.y).fold(f32::MAX, f32::min),
+            );
+            let x1 = m.columns[2].right();
+            let y1 = m
+                .columns
+                .iter()
+                .map(|c| c.bottom())
+                .fold(f32::MIN, f32::max);
+            let side = (x1 - x0).min(y1 - y0);
+            let data = base64::engine::general_purpose::STANDARD.encode(logo.bytes);
             let _ = write!(
                 s,
-                r#"<rect x="{:.1}" y="{:.1}" width="{:.1}" height="{:.1}" rx="{:.1}" fill="{}"/>"#,
-                c.x,
-                c.y,
-                c.w,
-                c.h,
-                m.radius,
-                theme.vivid(&theme.mark[i % theme.mark.len()])
+                r#"<image class="logo" x="{:.1}" y="{:.1}" width="{side:.1}" height="{side:.1}" preserveAspectRatio="xMidYMid meet" xlink:href="data:{};base64,{data}"/>"#,
+                x0 + ((x1 - x0) - side) / 2.0,
+                y0 + ((y1 - y0) - side) / 2.0,
+                logo.mime,
             );
+        } else {
+            mark_columns(&mut s, m, theme);
         }
     }
 
@@ -295,6 +308,22 @@ pub fn to_svg(layout: &Layout, content: &Content, theme: &Theme, opts: &SvgOptio
     }
     s.push_str("</svg>");
     s
+}
+
+/// The three-column product mark, drawn in the theme's mark minerals.
+fn mark_columns(s: &mut String, m: &crate::layout::Mark, theme: &Theme) {
+    for (i, c) in m.columns.iter().enumerate() {
+        let _ = write!(
+            s,
+            r#"<rect x="{:.1}" y="{:.1}" width="{:.1}" height="{:.1}" rx="{:.1}" fill="{}"/>"#,
+            c.x,
+            c.y,
+            c.w,
+            c.h,
+            m.radius,
+            theme.vivid(&theme.mark[i % theme.mark.len()])
+        );
+    }
 }
 
 /// The safe-area overlay: platform-UI bands tinted, the safe area outlined,

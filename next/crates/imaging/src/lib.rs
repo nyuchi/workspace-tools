@@ -23,6 +23,7 @@
 pub mod alt;
 pub mod campaign;
 pub mod layout;
+pub mod logo;
 pub mod preset;
 pub mod privacy;
 pub mod render;

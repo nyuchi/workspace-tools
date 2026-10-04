@@ -45,6 +45,11 @@ pub struct Theme {
     pub mark: Vec<String>,
     pub mesh: Vec<String>,
     pub accent: String,
+    /// The brand's official logo, by id in [`crate::logo`]. When set, it is
+    /// drawn where the three-column product mark would go — the file as
+    /// published, never redrawn.
+    #[serde(default)]
+    pub logo: Option<String>,
     pub light: Surface,
     pub dark: Surface,
 }
