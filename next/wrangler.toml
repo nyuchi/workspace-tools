@@ -15,12 +15,12 @@ preview_urls = false
 [build]
 command = "npm --prefix site ci && npm --prefix site run build && cd crates/worker && (command -v worker-build >/dev/null || cargo install -q worker-build --locked) && worker-build --release"
 
-# /api/* runs the Worker; everything else is the static site.
+# /api/* and /mcp run the Worker; everything else is the static site.
 [assets]
 directory = "site/dist"
 binding = "ASSETS"
 not_found_handling = "404-page"
-run_worker_first = ["/api/*"]
+run_worker_first = ["/api/*", "/mcp"]
 
 # Secrets (optional, `wrangler secret put` — never committed):
 #   BLOCKED_TERMS — school, student and staff names that must never appear
