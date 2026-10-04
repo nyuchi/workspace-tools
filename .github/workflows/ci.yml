@@ -3,7 +3,7 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, staging]
 
 # CI only reads the repo; never expose write scopes to the GITHUB_TOKEN.
 permissions:
