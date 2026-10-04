@@ -1,3 +1,4 @@
+// TODO(mzizi): drop the 80%-ink workaround when light --muted-foreground reaches AAA (https://github.com/mzizi-dev/mzizi-registry/issues/399).
 /* Shared class strings for form controls, following the Mzizi component
    specs (mzizi_get_tokens componentSpecs): pill inputs and buttons, 48px
    minimum targets, 14px cards, 17px tabs, 7px checkboxes. Body copy uses
