@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ledger keeps re-runs idempotent. The `market-release` skill runs it.
 - **Bundu theme and official logos** in `nyuchi-imaging`: a `bundu` theme in
   copper and terracotta, signed with the published Bundu Foundation logo.
+
 ### Security
 
 - **The site login reads its WorkOS client ID from configuration.** `/login`
