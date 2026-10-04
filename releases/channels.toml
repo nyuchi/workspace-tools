@@ -1,0 +1,115 @@
+# Where a release's drafts go, per brand and per channel.
+#
+# Read by nyuchi-release (next/crates/release). Sanity ids and Postiz
+# integration ids are not secrets: they name a project and a connected
+# account, and nothing can be written with them alone.
+#
+# Sanity (from list_projects / the studios in bundu-labs/marketing):
+#   bundu   9owjvz5c "Bundu Articles"  production = /newsroom, research = /research/articles
+#   nyuchi  6o3cry1g "Nyuchi Blog"     production = nyuchi.com/blog
+#   mukoko  npzanja1 "Mukoko Blog"     production = www.mukoko.com/blog
+# A release announcement is a newsroom post: Bundu uses `production`, not
+# `research` (that dataset is for research-desk articles).
+#
+# Postiz (integrationList, 2026-10-04): the Bundu Foundation has a
+# LinkedIn page only; Nyuchi Africa has X, Facebook, LinkedIn and the Nyuchi
+# Instagram; Mukoko has LinkedIn and Instagram. Lengths are from
+# integrationSchema.
+
+[brand.bundu]
+theme = "bundu"
+[brand.bundu.sanity]
+project = "9owjvz5c"
+dataset = "production"
+author = "fd6c35fb-9cf0-4223-9efd-b9912126e4a1"
+studio = "https://bundu.sanity.studio/production"
+public_prefix = "https://www.bundu.org/newsroom/"
+audience = true
+
+[brand.nyuchi]
+theme = "nyuchi"
+[brand.nyuchi.sanity]
+project = "6o3cry1g"
+dataset = "production"
+author = "c161c063-946f-4595-b9be-ac679eb2df4b"
+studio = "https://nyuchi.sanity.studio"
+public_prefix = "https://nyuchi.com/blog/"
+
+# Mukoko: add a `mukoko` theme (tanzanite) and the official logo to
+# nyuchi-imaging before its first release; until then `check` refuses it.
+[brand.mukoko]
+theme = "mukoko"
+[brand.mukoko.sanity]
+project = "npzanja1"
+dataset = "production"
+author = "2ad656bb-95e5-4c5e-9ec3-91dc22ca3616"
+studio = "https://mukoko.sanity.studio"
+public_prefix = "https://www.mukoko.com/blog/"
+
+# ── Postiz channels ─────────────────────────────────────────────────────
+
+[[channel]]
+key = "bundu-linkedin"
+name = "Bundu Foundation"
+platform = "linkedin-page"
+integration = "cmtspvnxg00x2qk0y3wnaa10h"
+max = 3000
+settings = { post_as_images_carousel = false }
+
+[[channel]]
+key = "nyuchi-linkedin"
+name = "Nyuchi Africa"
+platform = "linkedin-page"
+integration = "cmtspv68p00wyqk0yb4zqu7wo"
+max = 3000
+settings = { post_as_images_carousel = false }
+
+[[channel]]
+key = "nyuchi-x"
+name = "Nyuchi Africa"
+platform = "x"
+integration = "cmuqdcxmf0lxiqw0yztplwubn"
+max = 280
+settings = { post_type = "post", who_can_reply_post = "everyone" }
+
+[[channel]]
+key = "nyuchi-facebook"
+name = "Nyuchi Africa"
+platform = "facebook"
+integration = "cmuqde0j40lxkqw0yoiqhnm0g"
+max = 63206
+settings = { post_type = "post" }
+
+[[channel]]
+key = "nyuchi-instagram"
+name = "Nyuchi"
+platform = "instagram"
+integration = "cmtspzorw00qulm0ylb2lna61"
+max = 2200
+needs_image = true
+settings = { post_type = "post" }
+
+[[channel]]
+key = "mukoko-linkedin"
+name = "Mukoko"
+platform = "linkedin-page"
+integration = "cmtspvxqa00polm0y72p68g2q"
+max = 3000
+settings = { post_as_images_carousel = false }
+
+[[channel]]
+key = "mukoko-instagram"
+name = "Mukoko - Africa's Super App"
+platform = "instagram"
+integration = "cmtsq0lol00z4qk0ygs4lyzvu"
+max = 2200
+needs_image = true
+settings = { post_type = "post" }
+
+[[channel]]
+key = "telia-linkedin"
+name = "Technology Leaders of Africa (telia)"
+platform = "linkedin-page"
+integration = "cmtspw9wm00xcqk0y51r56d0g"
+max = 3000
+settings = { post_as_images_carousel = false }

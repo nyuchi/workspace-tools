@@ -1,0 +1,116 @@
+{
+  "slug": "bags-1.0.0",
+  "brand": "bundu",
+  "tracking_issue": "nyuchi/workspace-tools#83",
+  "live": [
+    "https://www.bundu.org/research/standards/ai-guardrails",
+    "https://www.bundu.org/research/standards/ai-guardrails.json",
+    "https://vocab.bundu.org/",
+    "https://vocab.bundu.org/AIGuardrail",
+    "https://vocab.bundu.org/BAGS-01"
+  ],
+  "sanity": {
+    "project": "9owjvz5c",
+    "dataset": "production",
+    "document_id": "release-bags-1-0-0",
+    "studio_url": "https://bundu.sanity.studio/production/intent/edit/id=release-bags-1-0-0;type=post",
+    "public_url": "https://www.bundu.org/newsroom/introducing-the-bundu-ai-guardrails-standard",
+    "document": {
+      "_type": "post",
+      "audience": "foundation",
+      "author": {
+        "_ref": "fd6c35fb-9cf0-4223-9efd-b9912126e4a1",
+        "_type": "reference"
+      },
+      "body": "Today the Bundu Foundation publishes the **Bundu AI Guardrails Standard (BAGS) 1.0.0**: the twelve rules every AI surface in the Bundu ecosystem follows, written down in the open so anyone can read them, check us against them, and adopt them.\n\nRead the standard: [bundu.org/research/standards/ai-guardrails](https://www.bundu.org/research/standards/ai-guardrails)\n\n## What changed\n\nUntil now, the rules our assistants follow lived inside the products. BAGS puts them in one public place, with a version number, a licence and a machine-readable form.\n\n- **Twelve core rules**, each with a stable code (BAGS-01 to BAGS-12), a category, a severity, the intent behind it and a plain-language explanation.\n- **What the model is told.** Under every rule is the guidance the model is actually given, not a summary of it.\n- **Two tiers that only ever add.** Platform rules apply to every AI surface and only platform administrators can change them; core rules can never be deleted. An organisation, business or app may add rules of its own, but only restrictions or tone guidance, never anything that disables, overrides or contradicts a platform rule. Where two rules conflict, the stricter one wins.\n- **Open licence.** BAGS is published under CC BY 4.0 by the Bundu Foundation and maintained by Nyuchi Africa.\n\nThe twelve rules:\n\n1. BAGS-01 Child safety and minors\n2. BAGS-02 Self-harm and suicide\n3. BAGS-03 Violent extremism and terrorism\n4. BAGS-04 Hate and harassment\n5. BAGS-05 Sexual content\n6. BAGS-06 Weapons and illegal activity\n7. BAGS-07 Privacy and personal data\n8. BAGS-08 Prompt injection and jailbreak resistance\n9. BAGS-09 Impersonation and misinformation\n10. BAGS-10 Medical, legal and financial advice\n11. BAGS-11 Ubuntu, cultural respect and African-language dignity\n12. BAGS-12 Honest refusal\n\n## Why it matters\n\n*Umuntu ngumuntu ngabantu*: a person is a person through other people. That is the idea the Bundu ecosystem is built on, and it is the test we hold our AI to. An assistant exists to serve the person in front of it and the community around them. It does not get to harm them, belittle them, or quietly take from them.\n\nIn practice that means AI that is useful to people and communities, not just impressive; AI that treats African languages and cultures with the same respect as any other; AI that is private by default; and rules that are open, so anyone can see what our assistants will and will not do, and hold us to it.\n\nWe publish the rules as an open standard so the work is not ours alone. Any organisation building AI, in Africa or anywhere, may adopt them, adapt them and improve on them.\n\n## How to use it\n\n- **Read it.** Every rule, with its intent, its explanation and the model guidance, is on [the standard's page](https://www.bundu.org/research/standards/ai-guardrails). You can filter the catalogue by category.\n- **Build with it.** The whole standard is published as JSON-LD at [/research/standards/ai-guardrails.json](https://www.bundu.org/research/standards/ai-guardrails.json): the rules, the shared preamble on untrusted content, the refusal style and the changelog. Compile it into your own system prompts and policy checks.\n- **Adopt it.** CC BY 4.0 means you may use, adapt and redistribute BAGS, including commercially, with attribution to the Bundu Foundation.\n- **Hold us to it.** If one of our assistants falls short of a rule, use *Report a concern* on the standard's page.\n\n## Terms anyone can link to: vocab.bundu.org\n\nThe standard's machine-readable form points at terms in the Bundu vocabulary, and [vocab.bundu.org](https://vocab.bundu.org/) has grown to **38 terms** to carry it. The new AI guardrail terms (AIGuardrail, PlatformGuardrail, EntityGuardrail, GuardrailCategory, guardrailCategory, guardrailSeverity and a term for each rule from BAGS-01 to BAGS-12) are published with the status *pending* while the first edition beds in. They sit beside the vocabulary's identity, trust, informal-economy, news and open-data terms.\n\nEach term has one flat, permanent address, such as [vocab.bundu.org/AIGuardrail](https://vocab.bundu.org/AIGuardrail) or [vocab.bundu.org/BAGS-01](https://vocab.bundu.org/BAGS-01), and the vocabulary is dedicated to the public domain under CC0 1.0: take the terms and use them anywhere, no legal review needed. A term is only added where schema.org has no word for the idea.\n\n## Links\n\n- The standard: https://www.bundu.org/research/standards/ai-guardrails\n- Machine-readable JSON-LD: https://www.bundu.org/research/standards/ai-guardrails.json\n- The Bundu vocabulary: https://vocab.bundu.org/\n- Licences: [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) (the standard), [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) (the vocabulary)\n",
+      "description": "Twelve open rules every AI surface in the Bundu ecosystem follows, with the guidance each model is given. Published by the Bundu Foundation under CC BY 4.0, for anyone to adopt.",
+      "featured": false,
+      "pubDate": "2026-10-04T08:00:00.000Z",
+      "slug": {
+        "_type": "slug",
+        "current": "introducing-the-bundu-ai-guardrails-standard"
+      },
+      "tags": [
+        "standards",
+        "AI",
+        "guardrails",
+        "open standards",
+        "Ubuntu",
+        "BAGS",
+        "vocabulary",
+        "open data"
+      ],
+      "title": "Introducing the Bundu AI Guardrails Standard (BAGS) 1.0.0"
+    },
+    "hero_file": "og.png",
+    "hero_alt": "Bundu open standard · BAGS 1.0.0: Twelve open rules for AI that serves people. The Bundu AI Guardrails Standard. Open for anyone to adopt, under CC BY 4.0."
+  },
+  "posts": [
+    {
+      "channel": "bundu-linkedin",
+      "name": "Bundu Foundation",
+      "platform": "linkedin-page",
+      "integration": "cmtspvnxg00x2qk0y3wnaa10h",
+      "html": "<p>Today the Bundu Foundation publishes the Bundu AI Guardrails Standard (BAGS) 1.0.0: the twelve rules every AI surface in the Bundu ecosystem follows, written down in the open.</p><p>Umuntu ngumuntu ngabantu: a person is a person through other people. An assistant exists to serve the person in front of it and the community around them. It does not get to harm them, belittle them, or quietly take from them.</p><p>What is in the standard:</p><p>• Twelve core rules, from child safety and privacy to prompt-injection resistance, cultural respect and African-language dignity, and honest refusal</p><p>• Under every rule, the guidance the model is actually given</p><p>• Two tiers: platform rules apply everywhere and core rules can never be deleted; organisations may add rules of their own, but only ever stricter ones</p><p>• A machine-readable JSON-LD edition, with terms published at vocab.bundu.org (now 38 terms, CC0)</p><p>BAGS is published under CC BY 4.0 and maintained by Nyuchi Africa. Any organisation building AI, in Africa or anywhere, may adopt it, adapt it and improve on it.</p><p>Read the rules: https://www.bundu.org/research/standards/ai-guardrails</p><p>#AI #AIGovernance #ResponsibleAI #OpenStandards #Ubuntu #Africa</p>",
+      "settings": {
+        "__type": "linkedin-page",
+        "post_as_images_carousel": false
+      },
+      "image_file": "og.png",
+      "image_alt": "Bundu open standard · BAGS 1.0.0: Twelve open rules for AI that serves people. The Bundu AI Guardrails Standard. Open for anyone to adopt, under CC BY 4.0."
+    },
+    {
+      "channel": "nyuchi-linkedin",
+      "name": "Nyuchi Africa",
+      "platform": "linkedin-page",
+      "integration": "cmtspv68p00wyqk0yb4zqu7wo",
+      "html": "<p>The rules our AI follows are now an open standard.</p><p>The Bundu Foundation has published the Bundu AI Guardrails Standard (BAGS) 1.0.0, and Nyuchi Africa maintains it. It sets out the twelve rules every AI surface in the ecosystem follows, with the guidance each model is given, so anyone can see what our assistants will and will not do, and hold us to it.</p><p>For teams building AI products, three things are useful:</p><p>• Platform rules apply to every surface; an organisation can add its own, but only restrictions or tone guidance, and the stricter rule always wins</p><p>• The whole standard is published as JSON-LD, ready to compile into system prompts and policy checks</p><p>• It is licensed CC BY 4.0, so you can adopt it in your own products with attribution</p><p>Read it, use it, and tell us where it falls short: https://www.bundu.org/research/standards/ai-guardrails</p><p>#AI #ResponsibleAI #AIGovernance #OpenStandards #Africa</p>",
+      "settings": {
+        "__type": "linkedin-page",
+        "post_as_images_carousel": false
+      },
+      "image_file": "og.png",
+      "image_alt": "Bundu open standard · BAGS 1.0.0: Twelve open rules for AI that serves people. The Bundu AI Guardrails Standard. Open for anyone to adopt, under CC BY 4.0."
+    },
+    {
+      "channel": "nyuchi-x",
+      "name": "Nyuchi Africa",
+      "platform": "x",
+      "integration": "cmuqdcxmf0lxiqw0yztplwubn",
+      "html": "<p>The rules our AI follows are now an open standard: the Bundu AI Guardrails Standard (BAGS) 1.0.0. Twelve rules, the guidance each model is given, and a JSON-LD edition. CC BY 4.0, for anyone to adopt.</p><p>https://www.bundu.org/research/standards/ai-guardrails</p>",
+      "settings": {
+        "__type": "x",
+        "post_type": "post",
+        "who_can_reply_post": "everyone"
+      },
+      "image_file": "og.png",
+      "image_alt": "Bundu open standard · BAGS 1.0.0: Twelve open rules for AI that serves people. The Bundu AI Guardrails Standard. Open for anyone to adopt, under CC BY 4.0."
+    },
+    {
+      "channel": "nyuchi-facebook",
+      "name": "Nyuchi Africa",
+      "platform": "facebook",
+      "integration": "cmuqde0j40lxkqw0yoiqhnm0g",
+      "html": "<p>What should an AI assistant never do? We have written our answer down, in the open.</p><p>The Bundu Foundation has published the Bundu AI Guardrails Standard (BAGS) 1.0.0, maintained by Nyuchi Africa. It is the twelve rules every AI surface in the Bundu ecosystem follows: protecting children, keeping people who are struggling safe and connected to help, keeping your information private, resisting attempts to trick the AI into breaking its rules, treating African languages and cultures with respect, and saying no honestly when it has to.</p><p>Organisations can add rules of their own, but never relax these. And because the standard is open, under CC BY 4.0, anyone building AI can adopt it too.</p><p>I am because we are. Read the rules: https://www.bundu.org/research/standards/ai-guardrails</p>",
+      "settings": {
+        "__type": "facebook",
+        "post_type": "post"
+      },
+      "image_file": "og.png",
+      "image_alt": "Bundu open standard · BAGS 1.0.0: Twelve open rules for AI that serves people. The Bundu AI Guardrails Standard. Open for anyone to adopt, under CC BY 4.0."
+    },
+    {
+      "channel": "nyuchi-instagram",
+      "name": "Nyuchi",
+      "platform": "instagram",
+      "integration": "cmtspzorw00qulm0ylb2lna61",
+      "html": "<p>The rules our AI follows are now an open standard.</p><p>The Bundu AI Guardrails Standard (BAGS) 1.0.0 sets out twelve rules every AI surface in the Bundu ecosystem follows: protecting children, keeping people safe and connected to help, keeping information private, resisting attempts to trick the AI, respecting African languages and cultures, and refusing honestly.</p><p>Organisations can add rules of their own, but never relax these. Published by the Bundu Foundation under CC BY 4.0, for anyone to adopt.</p><p>Read the rules: bundu.org/research/standards</p><p>#AI #ResponsibleAI #OpenStandards #Ubuntu #Africa #Bundu #Nyuchi</p>",
+      "settings": {
+        "__type": "instagram",
+        "post_type": "post"
+      },
+      "image_file": "square.png",
+      "image_alt": "Bundu open standard · BAGS 1.0.0: Twelve open rules for AI that serves people. Open for anyone to adopt, under CC BY 4.0."
+    }
+  ]
+}
