@@ -1,0 +1,19 @@
+---
+/** A native select in the Mzizi pill style, with a chevron that does not
+    intercept clicks. Options are `[value, label]` pairs. */
+import { select } from '../lib/ui'
+interface Props {
+  id: string
+  name?: string
+  options: [string, string][]
+  value?: string
+}
+const { id, name = id, options, value } = Astro.props
+---
+
+<div class="relative">
+  <select id={id} name={name} class={select}>
+    {options.map(([v, l]) => <option value={v} selected={v === value}>{l}</option>)}
+  </select>
+  <svg class="pointer-events-none absolute right-5 top-1/2 h-4 w-4 -translate-y-1/2 text-foreground/80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 9l-7 7-7-7"></path></svg>
+</div>

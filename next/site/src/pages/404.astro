@@ -1,12 +1,11 @@
 ---
 import Base from '../layouts/Base.astro'
-import Section from '@bundu/ui/Section.astro'
-import SectionHeader from '@bundu/ui/SectionHeader.astro'
+import PageHeader from '../components/PageHeader.astro'
+import Glyph from '../components/Glyph.astro'
 ---
 
 <Base title="Not found">
-  <Section>
-    <SectionHeader eyebrow="404" title="Nothing here" description="That page does not exist. Try the Studio, the presets or the signatures." as="h1" size="h1" />
-    <p class="mt-6"><a class="underline" href="/">Back to the start</a></p>
-  </Section>
+  <PageHeader eyebrow="404" title="Nothing here" description="That page does not exist.">
+    <a slot="actions" href="/" class="btn-primary">Back to the start <Glyph name="arrow" /></a>
+  </PageHeader>
 </Base>

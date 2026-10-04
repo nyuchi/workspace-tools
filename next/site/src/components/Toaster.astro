@@ -1,0 +1,19 @@
+---
+/** Toasts (Mzizi `toast`/`sonner`): a polite live region; `window.toast()`
+    adds a message that leaves after a few seconds. */
+---
+
+<div id="toaster" class="pointer-events-none fixed inset-x-4 bottom-4 z-50 flex flex-col items-center gap-2 sm:inset-x-auto sm:right-6 sm:items-end" role="status" aria-live="polite"></div>
+<script is:inline>
+  window.toast = function (msg, kind) {
+    var el = document.createElement('div')
+    el.className =
+      'toast pointer-events-auto max-w-sm rounded-[14px] border px-4 py-3 text-body-sm shadow-lg ' +
+      (kind === 'error' ? 'border-destructive bg-card text-foreground' : 'border-border bg-card text-foreground')
+    el.textContent = msg
+    document.getElementById('toaster').appendChild(el)
+    setTimeout(function () {
+      el.remove()
+    }, 5000)
+  }
+</script>

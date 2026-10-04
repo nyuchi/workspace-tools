@@ -1,58 +1,61 @@
 ---
 import Base from '../layouts/Base.astro'
-import Section from '@bundu/ui/Section.astro'
-import SectionHeader from '@bundu/ui/SectionHeader.astro'
+import PageHeader from '../components/PageHeader.astro'
+import Segmented from '../components/Segmented.astro'
+import PresetThumb from '../components/PresetThumb.astro'
 import { presets, GROUPS, fmtBytes } from '../lib/data'
+import { card } from '../lib/ui'
 ---
 
 <Base title="Presets" description="Every image size nyuchi-tools renders, with platform safe areas.">
-  <Section>
-    <SectionHeader
+  <div class="rise space-y-8">
+    <PageHeader
       eyebrow="Reference"
       title="Presets"
-      description="Every size the tools render. Safe areas are the bands a platform covers with its own interface; text and screenshots are laid out inside them. Generated from the same file the renderer reads."
-      as="h1"
-      size="h1"
+      description="Every size the tools render, generated from the file the renderer reads. Shaded bands are the platform’s own interface — text and screenshots stay out of them."
     />
-    {
-      GROUPS.map((g) => (
-        <div class="mt-12">
-          <h2 class="font-serif text-h3">{g.label}</h2>
-          <div class="mt-4 overflow-x-auto rounded-[14px] border border-border">
-            <table class="w-full text-body-sm">
-              <thead class="bg-muted text-left text-muted-foreground">
-                <tr>
-                  <th class="p-3 font-medium">Preset</th>
-                  <th class="p-3 font-medium">Size</th>
-                  <th class="p-3 font-medium">Format</th>
-                  <th class="p-3 font-medium">Safe area (t/r/b/l)</th>
-                  <th class="p-3 font-medium">Limit</th>
-                  <th class="p-3 font-medium">Where</th>
-                </tr>
-              </thead>
-              <tbody>
-                {presets
-                  .filter((p) => p.group === g.id)
-                  .map((p) => (
-                    <tr class="border-t border-border align-top">
-                      <td class="p-3">
-                        <code class="font-mono">{p.id}</code>
-                        <div class="text-muted-foreground">{p.name}</div>
-                      </td>
-                      <td class="p-3 whitespace-nowrap font-mono">
-                        {p.width}×{p.height}
-                      </td>
-                      <td class="p-3 uppercase">{p.format}</td>
-                      <td class="p-3 font-mono">{p.safe.some((v) => v > 0) ? p.safe.join('/') : '—'}</td>
-                      <td class="p-3 whitespace-nowrap">{fmtBytes(p.max_bytes)}</td>
-                      <td class="p-3 text-muted-foreground">{p.platform}</td>
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      ))
-    }
-  </Section>
+
+    <Segmented name="group" legend="Show" hideLegend value="all" options={[['all', 'All'], ...GROUPS.map((g) => [g.id, g.label] as [string, string])]} />
+
+    <ul id="preset-list" class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      {
+        presets.map((p) => (
+          <li data-group={p.group} class={`${card} flex gap-4 p-4`}>
+            <span class="grid h-24 w-24 shrink-0 place-items-center rounded-[12px] bg-muted">
+              <PresetThumb width={p.width} height={p.height} safe={p.safe} box={72} />
+            </span>
+            <div class="min-w-0 flex-1">
+              <div class="flex flex-wrap items-center gap-2">
+                <h2 class="font-medium text-foreground">{p.name}</h2>
+                <span class="rounded-full border border-border px-2 py-0.5 font-mono text-caption uppercase text-foreground/80">{p.format}</span>
+              </div>
+              <p class="font-mono text-body-sm text-foreground">
+                {p.width}×{p.height} <span class="text-foreground/80">· {p.id}</span>
+              </p>
+              <p class="mt-1 text-body-sm text-foreground/80">{p.platform}</p>
+              <dl class="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-caption text-foreground/80">
+                <div class="flex gap-1">
+                  <dt>Safe area</dt>
+                  <dd class="font-mono text-foreground">{p.safe.some((v) => v > 0) ? p.safe.join('/') : 'full'}</dd>
+                </div>
+                <div class="flex gap-1">
+                  <dt>Limit</dt>
+                  <dd class="font-mono text-foreground">{fmtBytes(p.max_bytes)}</dd>
+                </div>
+              </dl>
+            </div>
+          </li>
+        ))
+      }
+    </ul>
+  </div>
 </Base>
+
+<script>
+  const list = document.getElementById('preset-list')!
+  document.querySelectorAll<HTMLInputElement>('input[name="group"]').forEach((r) =>
+    r.addEventListener('change', () => {
+      for (const li of list.querySelectorAll<HTMLElement>('li')) li.hidden = r.value !== 'all' && li.dataset.group !== r.value
+    }),
+  )
+</script>
