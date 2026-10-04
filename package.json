@@ -58,7 +58,7 @@
     "@braintree/sanitize-url": "^7.1.1",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@resvg/resvg-wasm": "^2.6.2",
-    "hono": "^4.12.31",
+    "hono": "^4.13.12",
     "jose": "^6.2.3",
     "zod": "^4.4.3"
   },
