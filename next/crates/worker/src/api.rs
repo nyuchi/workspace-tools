@@ -35,11 +35,27 @@ pub struct Config {
     pub blocked_terms: Vec<String>,
 }
 
+/// Every API route, `(method, path)`. The UI calls these, and the MCP
+/// server exposes each as a tool (`crate::mcp::TOOLS`); a test fails if the
+/// three ever disagree.
+pub const ROUTES: &[(&str, &str)] = &[
+    ("GET", "/api/health"),
+    ("GET", "/api/presets"),
+    ("GET", "/api/themes"),
+    ("GET", "/api/brands"),
+    ("POST", "/api/render"),
+    ("POST", "/api/campaign"),
+    ("POST", "/api/signature"),
+];
+
 #[derive(Debug)]
 pub struct Reply {
     pub status: u16,
     pub headers: Vec<(&'static str, String)>,
     pub body: Vec<u8>,
+    /// Structured data alongside the body for in-process callers (the MCP
+    /// server): the campaign manifest. Never sent over HTTP.
+    pub meta: Option<serde_json::Value>,
 }
 
 impl Reply {
@@ -51,6 +67,7 @@ impl Reply {
                 ("cache-control", "no-store".into()),
             ],
             body: serde_json::to_vec(value).unwrap_or_default(),
+            meta: None,
         }
     }
     fn error(status: u16, msg: impl std::fmt::Display) -> Self {
@@ -228,6 +245,7 @@ fn render_one(body: &[u8], cfg: &Config) -> Reply {
                 ("x-height", r.height.to_string()),
             ],
             body: r.bytes,
+            meta: None,
         },
         Err(e) => Reply::error(status_for(&e), e),
     }
@@ -277,6 +295,7 @@ fn render_campaign(body: &[u8], cfg: &Config) -> Reply {
             ("cache-control", "no-store".into()),
         ],
         body: crate::zip::store(&files),
+        meta: serde_json::to_value(&manifest).ok(),
     }
 }
 
