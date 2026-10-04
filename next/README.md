@@ -99,6 +99,16 @@ Script lists). Lookups by key, legacy alias (`techLeaders`) and email domain;
 the tests hold the taxonomy (divisions under pillars, initiatives under
 Bundu), unique keys and domains, valid minerals and `https://` links.
 
+## `crates/release`: the release marketing pipeline
+
+`nyuchi-release` turns a release that is live in production into drafts for
+the owner to approve: a Sanity post, one Postiz draft per channel, and an OG,
+square and story image rendered by `crates/imaging` in the brand's theme with
+its official logo (`assets/logos/`, drawn from the published file, never
+redrawn). It never publishes or schedules. The release files, the channel
+map and how to run it are in [`releases/README.md`](../releases/README.md);
+the `market-release` skill runs it in one step.
+
 ## `crates/signature`: the email signature on Mzizi
 
 Owner decision 2 on #70 ended the byte-lock on the historical purple
