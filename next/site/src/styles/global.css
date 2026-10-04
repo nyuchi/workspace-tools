@@ -1,6 +1,67 @@
-/* @bundu/ui (Mzizi) tokens and globals, then the Nyuchi brand overlay. No
-   local colour, radius or type values: change them in Mzizi first. */
-@import "tailwindcss";
-@import "@bundu/ui/styles/globals.css";
-@import "@bundu/ui/styles/brand-nyuchi.css";
+/* @bundu/ui (Mzizi) tokens and globals, then the Nyuchi brand overlay
+   (primary = gold). No local colour, radius or type values: change them in
+   Mzizi first. What follows is behaviour, not new values. */
+@import 'tailwindcss';
+@import '@bundu/ui/styles/globals.css';
+@import '@bundu/ui/styles/brand-nyuchi.css';
 @config "../../tailwind.config.mjs";
+
+/* Theme-dependent content (the theme switch's own label). */
+[data-theme='dark'] .light-only,
+[data-theme='light'] .dark-only {
+  display: none;
+}
+
+/* Off-canvas sidebar below lg. */
+.sidebar.is-open {
+  transform: none;
+}
+
+/* Motion: a short rise on entry, staggered in the nav — and none at all
+   for anyone who asks for less. */
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.nav-item {
+  animation: rise 320ms var(--ease-soft) both;
+  animation-delay: calc(var(--i, 0) * 40ms);
+}
+.rise {
+  animation: rise 360ms var(--ease-soft) both;
+}
+.toast {
+  animation: rise 240ms var(--ease-soft) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Checkerboard behind preview images, so a transparent icon reads as
+   transparent rather than as the page. */
+.canvas-bg {
+  background-color: var(--muted);
+  background-image:
+    linear-gradient(45deg, color-mix(in oklab, var(--foreground) 6%, transparent) 25%, transparent 25%),
+    linear-gradient(-45deg, color-mix(in oklab, var(--foreground) 6%, transparent) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, color-mix(in oklab, var(--foreground) 6%, transparent) 75%),
+    linear-gradient(-45deg, transparent 75%, color-mix(in oklab, var(--foreground) 6%, transparent) 75%);
+  background-size: 20px 20px;
+  background-position:
+    0 0,
+    0 10px,
+    10px -10px,
+    -10px 0;
+}

@@ -1,138 +1,238 @@
 ---
+/**
+ * The Studio workspace.
+ *
+ *   ≥1536  properties │ canvas + preset picker │ batch + recent
+ *   ≥1024  properties │ canvas, picker, batch, recent
+ *   <1024  canvas, properties, picker, batch, recent (one column)
+ *
+ * Server-rendered; one script drives the live preview, tabs, the picker
+ * and the batch. Every request goes to the same /api routes the MCP uses.
+ */
 import Base from '../layouts/Base.astro'
-import Section from '@bundu/ui/Section.astro'
-import SectionHeader from '@bundu/ui/SectionHeader.astro'
+import PageHeader from '../components/PageHeader.astro'
+import Segmented from '../components/Segmented.astro'
+import Select from '../components/Select.astro'
+import Glyph from '../components/Glyph.astro'
+import EmptyState from '../components/EmptyState.astro'
+import PresetThumb from '../components/PresetThumb.astro'
 import { presets, themes, GROUPS } from '../lib/data'
+import { card, input, textarea, label, hint, check } from '../lib/ui'
 
-const DEFAULTS = new Set(['story', 'square', 'og', 'cws-screenshot'])
-const field = 'w-full rounded-[14px] border border-border bg-background px-4 py-3 text-body min-h-[48px] focus:outline-none focus:ring-2 focus:ring-gold'
-const label = 'block text-body-sm font-medium mb-2'
+const SELECTED = new Set(['story', 'square', 'og', 'cws-screenshot'])
+const TABS = [
+  ['content', 'Content'],
+  ['image', 'Screenshot'],
+  ['style', 'Style'],
+] as const
 ---
 
-<Base title="Studio" description="One screenshot and a headline in; a whole launch set out.">
-  <Section>
-    <SectionHeader
-      eyebrow="Images"
-      title="Studio"
-      description="One screenshot and a headline in; a whole set out. Preview each size with its platform's safe area, then download the set with alt text for every image."
-      as="h1"
-      size="h1"
-    />
+<Base title="Studio" description="One headline and screenshot in; a whole launch set out." wide>
+  <div class="mx-auto max-w-[1800px] space-y-6">
+    <PageHeader eyebrow="Create" title="Studio" description="Write it once, preview every size with its platform’s safe area, and download the set with alt text for each image.">
+      <button slot="actions" type="button" id="download-top" class="btn-primary"><Glyph name="download" /> Download set</button>
+    </PageHeader>
 
-    <div class="mt-10 grid gap-10 lg:grid-cols-[minmax(0,420px)_1fr]">
-      <form id="studio" class="space-y-6" novalidate>
-        <div>
-          <label class={label} for="headline">Headline</label>
-          <input class={field} id="headline" name="headline" required value="Every criterion, in its own column." />
-        </div>
-        <div>
-          <label class={label} for="eyebrow">Eyebrow</label>
-          <input class={field} id="eyebrow" name="eyebrow" placeholder="The theme's default" />
-        </div>
-        <div>
-          <label class={label} for="sub">Supporting line</label>
-          <textarea class={field} id="sub" name="sub" rows="2"></textarea>
-        </div>
-        <div>
-          <label class={label} for="points">Points <span class="text-muted-foreground font-normal">(one per line; stories and square)</span></label>
-          <textarea class={field} id="points" name="points" rows="3"></textarea>
-        </div>
-        <div>
-          <label class={label} for="cta">Call to action</label>
-          <input class={field} id="cta" name="cta" placeholder="learning.nyuchi.com" />
-        </div>
-        <div class="grid grid-cols-2 gap-4">
-          <div>
-            <label class={label} for="theme">Theme</label>
-            <select class={field} id="theme" name="theme">
-              {themes.map((t) => <option value={t.id}>{t.name}</option>)}
-            </select>
+    <div class="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(320px,380px)_minmax(0,1fr)] 2xl:grid-cols-[minmax(320px,380px)_minmax(0,1fr)_320px]">
+      <!-- Canvas -->
+      <section class={`${card} min-w-0 lg:col-start-2 lg:row-start-1`} aria-labelledby="canvas-h">
+        <div class="flex flex-wrap items-center gap-3 border-b border-border p-3 sm:p-4">
+          <div class="min-w-0 flex-1 basis-full sm:basis-0">
+            <h2 id="canvas-h" class="truncate font-medium text-foreground"><span id="active-name">Story 9:16</span></h2>
+            <p class="font-mono text-caption text-foreground/80"><span id="active-size">1080×1920</span> · <span id="active-status">ready</span></p>
           </div>
-          <div>
-            <label class={label} for="mode">Mode</label>
-            <select class={field} id="mode" name="mode">
-              <option value="light">Light</option>
-              <option value="dark">Dark</option>
-            </select>
-          </div>
-        </div>
-
-        <fieldset class="rounded-[14px] border border-border p-4 space-y-4">
-          <legend class="px-2 text-body-sm font-medium">Screenshot (optional)</legend>
-          <input class="block w-full text-body-sm min-h-[44px]" type="file" id="image" name="image" accept="image/png,image/jpeg" />
-          <div>
-            <label class={label} for="alt">What it shows <span class="text-muted-foreground font-normal">(becomes the alt text)</span></label>
-            <input class={field} id="alt" name="alt" placeholder="The gradebook with fake students, one column per criterion" />
-          </div>
-          <div>
-            <label class={label} for="chrome">Browser frame address</label>
-            <input class={field} id="chrome" name="chrome" placeholder="Leave empty for a plain card" />
-          </div>
-          <label class="flex items-start gap-3 text-body-sm min-h-[44px]">
-            <input type="checkbox" id="attest" name="attest" class="mt-1 h-5 w-5" />
-            <span>
-              This screenshot shows only <strong>fake or redacted</strong> data: no real student, staff or school names, IDs,
-              emails or photos, and no school name.
-            </span>
+          <Segmented name="zoom" legend="Zoom" hideLegend size="sm" value="fit" options={[['fit', 'Fit'], ['0.5', '50%'], ['1', '100%']]} />
+          <label class="inline-flex min-h-12 cursor-pointer items-center gap-2 text-body-sm font-medium text-foreground">
+            <input type="checkbox" id="guides" class="peer sr-only" checked />
+            <span class="relative h-6 w-11 rounded-full bg-muted ring-1 ring-border transition-colors after:absolute after:left-0.5 after:top-0.5 after:h-5 after:w-5 after:rounded-full after:bg-foreground/80 after:transition-transform peer-checked:bg-primary peer-checked:after:translate-x-5 peer-checked:after:bg-primary-foreground peer-focus-visible:ring-2 peer-focus-visible:ring-ring" aria-hidden="true"></span>
+            Safe areas
           </label>
-        </fieldset>
+        </div>
+        <div id="canvas" class="canvas-bg relative grid min-h-[320px] place-items-center overflow-auto p-4 sm:min-h-[420px] sm:p-6" aria-live="polite" aria-busy="false">
+          <img id="canvas-img" alt="" class="hidden h-auto max-w-full rounded-[7px] shadow-xl" />
+          <div id="canvas-empty"><EmptyState icon="image" title="Preview loading" body="The active size renders here as you type." /></div>
+          <div id="canvas-spin" class="pointer-events-none absolute right-4 top-4 hidden rounded-full bg-card px-3 py-1 text-caption text-foreground shadow">Rendering…</div>
+        </div>
+        <p id="canvas-alt" class="border-t border-border px-4 py-3 text-caption text-foreground/80"><span class="font-medium text-foreground">Alt text:</span> <span id="alt-out">—</span></p>
+      </section>
 
-        <fieldset class="rounded-[14px] border border-border p-4">
-          <legend class="px-2 text-body-sm font-medium">Sizes</legend>
+      <!-- Properties -->
+      <section class={`${card} min-w-0 lg:col-start-1 lg:row-span-3 lg:row-start-1 lg:self-start lg:sticky lg:top-6`} aria-label="Properties">
+        <div role="tablist" aria-label="Properties" class="flex gap-1 border-b border-border p-2">
           {
-            GROUPS.map((g) => (
-              <div class="mt-2">
-                <p class="text-caption uppercase tracking-wider text-muted-foreground">{g.label}</p>
-                <div class="mt-1 grid grid-cols-1 sm:grid-cols-2 gap-x-4">
-                  {presets
-                    .filter((p) => p.group === g.id)
-                    .map((p) => (
-                      <label class="flex items-center gap-3 text-body-sm min-h-[44px]">
-                        <input type="checkbox" name="preset" value={p.id} checked={DEFAULTS.has(p.id)} class="h-5 w-5" />
-                        <span>
-                          {p.name} <span class="text-muted-foreground font-mono">{p.width}×{p.height}</span>
-                        </span>
-                      </label>
-                    ))}
-                </div>
-              </div>
+            TABS.map(([id, name], i) => (
+              <button
+                type="button"
+                role="tab"
+                id={`tab-${id}`}
+                aria-controls={`panel-${id}`}
+                aria-selected={i === 0 ? 'true' : 'false'}
+                tabindex={i === 0 ? 0 : -1}
+                class="min-h-12 flex-1 rounded-[17px] px-3 text-body-sm font-medium text-foreground/80 transition-colors hover:text-foreground aria-selected:bg-muted aria-selected:text-foreground"
+              >
+                {name}
+              </button>
             ))
           }
-          <label class="flex items-center gap-3 text-body-sm min-h-[44px] mt-3 border-t border-border pt-3">
-            <input type="checkbox" id="guides" class="h-5 w-5" />
-            <span>Show safe-area guides in the preview</span>
-          </label>
-        </fieldset>
-
-        <div class="flex flex-wrap gap-3">
-          <button type="submit" class="rounded-full bg-foreground text-background px-6 min-h-[48px] font-medium hover:opacity-90">Preview</button>
-          <button type="button" id="download" class="rounded-full border border-border px-6 min-h-[48px] font-medium hover:bg-muted">Download set (.zip)</button>
         </div>
-        <p id="status" class="text-body-sm text-muted-foreground" role="status" aria-live="polite"></p>
-      </form>
+        <form id="studio" class="p-4 sm:p-5" novalidate>
+          <div role="tabpanel" id="panel-content" aria-labelledby="tab-content" class="space-y-4">
+            <div>
+              <label class={label} for="headline">Headline</label>
+              <textarea class={textarea} id="headline" name="headline" rows="2" required>Every criterion, in its own column.</textarea>
+            </div>
+            <div>
+              <label class={label} for="eyebrow">Eyebrow</label>
+              <input class={input} id="eyebrow" name="eyebrow" placeholder="The theme’s default" />
+            </div>
+            <div>
+              <label class={label} for="sub">Supporting line</label>
+              <textarea class={textarea} id="sub" name="sub" rows="2"></textarea>
+            </div>
+            <div>
+              <label class={label} for="points">Points</label>
+              <textarea class={textarea} id="points" name="points" rows="3" aria-describedby="points-hint"></textarea>
+              <p id="points-hint" class={`${hint} mt-1.5`}>One per line. Shown on stories, 4:5 and square.</p>
+            </div>
+            <div>
+              <label class={label} for="cta">Call to action</label>
+              <input class={input} id="cta" name="cta" placeholder="learning.nyuchi.com" />
+            </div>
+          </div>
 
-      <div id="previews" class="grid gap-6 sm:grid-cols-2 xl:grid-cols-3 content-start" aria-label="Previews"></div>
+          <div role="tabpanel" id="panel-image" aria-labelledby="tab-image" class="space-y-4" hidden>
+            <label for="image" class="flex min-h-32 cursor-pointer flex-col items-center justify-center gap-2 rounded-[14px] border border-dashed border-border bg-muted/50 p-4 text-center transition-colors hover:border-primary/60">
+              <span class="text-2xl text-foreground/80"><Glyph name="upload" /></span>
+              <span class="text-body-sm font-medium text-foreground" id="image-name">Choose a PNG or JPEG</span>
+              <span class={hint}>Redact names, IDs, emails, photos and the school name in the page first.</span>
+              <input type="file" id="image" name="image" accept="image/png,image/jpeg" class="sr-only" />
+            </label>
+            <div>
+              <label class={label} for="alt">What it shows</label>
+              <input class={input} id="alt" name="alt" aria-describedby="alt-hint" placeholder="The gradebook with fake students" />
+              <p id="alt-hint" class={`${hint} mt-1.5`}>Becomes the alt text. Required with a screenshot.</p>
+            </div>
+            <div>
+              <label class={label} for="chrome">Browser frame address</label>
+              <input class={input} id="chrome" name="chrome" placeholder="Empty for a plain card" />
+            </div>
+            <label class="flex cursor-pointer items-start gap-3 rounded-[14px] border border-border p-3 text-body-sm text-foreground">
+              <input type="checkbox" id="attest" name="attest" class={`${check} mt-0.5`} />
+              <span><span class="inline-flex items-center gap-1 font-medium"><Glyph name="shield" /> Fake or redacted data only.</span> No real student, staff or school names, IDs, emails or photos, and no school name. Renders with a screenshot are refused without this.</span>
+            </label>
+          </div>
+
+          <div role="tabpanel" id="panel-style" aria-labelledby="tab-style" class="space-y-4" hidden>
+            <div>
+              <label class={label} for="theme">Theme</label>
+              <Select id="theme" options={themes.map((t) => [t.id, t.name] as [string, string])} />
+            </div>
+            <Segmented name="mode" legend="Mode" value="light" options={[['light', 'Light'], ['dark', 'Dark']]} />
+          </div>
+        </form>
+      </section>
+
+      <!-- Preset picker -->
+      <section class={`${card} min-w-0 p-4 sm:p-5 lg:col-start-2`} aria-labelledby="picker-h">
+        <div class="flex flex-wrap items-end justify-between gap-2">
+          <div>
+            <h2 id="picker-h" class="font-serif text-h4 text-foreground">Sizes</h2>
+            <p class={hint}>Select a size to preview it; tick it to include it in the set.</p>
+          </div>
+          <p class="text-body-sm text-foreground"><span id="sel-count">{SELECTED.size}</span> in the set</p>
+        </div>
+        {
+          GROUPS.map((g) => (
+            <div class="mt-5">
+              <h3 class="text-caption font-semibold uppercase tracking-[0.12em] text-foreground/80">{g.label}</h3>
+              <ul class="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3 2xl:grid-cols-4">
+                {presets
+                  .filter((p) => p.group === g.id)
+                  .map((p) => (
+                    <li class="preset relative rounded-[14px] border border-border bg-background transition-colors has-[[aria-pressed=true]]:border-primary has-[[aria-pressed=true]]:bg-primary/10" data-id={p.id}>
+                      <button
+                        type="button"
+                        class="pick flex min-h-28 w-full flex-col items-center gap-1.5 rounded-[14px] p-3 pr-10 text-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        aria-pressed={p.id === 'story' ? 'true' : 'false'}
+                        data-id={p.id}
+                        data-name={p.name}
+                        data-size={`${p.width}×${p.height}`}
+                      >
+                        <PresetThumb width={p.width} height={p.height} safe={p.safe} box={48} />
+                        <span class="text-body-sm font-medium leading-tight text-foreground">{p.name}</span>
+                        <span class="font-mono text-caption text-foreground/80">
+                          {p.width}×{p.height}
+                        </span>
+                      </button>
+                      <label class="absolute right-1 top-1 grid h-11 w-11 cursor-pointer place-items-center rounded-full hover:bg-muted">
+                        <input type="checkbox" class={`include ${check}`} value={p.id} checked={SELECTED.has(p.id)} aria-label={`Include ${p.name} in the set`} />
+                      </label>
+                    </li>
+                  ))}
+              </ul>
+            </div>
+          ))
+        }
+      </section>
+
+      <!-- Batch -->
+      <section class={`${card} min-w-0 p-4 sm:p-5 lg:col-start-2 2xl:col-start-3 2xl:row-start-1`} aria-labelledby="batch-h">
+        <h2 id="batch-h" class="font-serif text-h4 text-foreground">Set</h2>
+        <p class={hint}>Render every ticked size, or download them all as a ZIP with a manifest and alt text.</p>
+        <div class="mt-4 h-2 overflow-hidden rounded-full bg-muted" role="progressbar" aria-label="Set progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="progress">
+          <div id="progress-bar" class="h-full w-0 rounded-full bg-primary transition-[width] duration-300 ease-soft"></div>
+        </div>
+        <p id="progress-text" class="mt-2 text-caption text-foreground/80">Nothing rendered yet.</p>
+        <div class="mt-4 flex flex-wrap gap-2">
+          <button type="button" id="render-set" class="btn-secondary min-w-[9.5rem] flex-1 whitespace-nowrap"><Glyph name="layers" /> Render set</button>
+          <button type="button" id="download" class="btn-outline min-w-[9.5rem] flex-1 whitespace-nowrap"><Glyph name="download" /> Download all</button>
+        </div>
+      </section>
+
+      <!-- Recent -->
+      <section class={`${card} min-w-0 p-4 sm:p-5 lg:col-start-2 2xl:col-start-3 2xl:row-start-2`} aria-labelledby="recent-h">
+        <h2 id="recent-h" class="font-serif text-h4 text-foreground">Recent renders</h2>
+        <div id="recent-empty" class="mt-3"><EmptyState icon="history" title="Nothing yet" body="Renders from this session appear here, ready to download." /></div>
+        <ul id="recent" class="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-2"></ul>
+      </section>
     </div>
-  </Section>
+  </div>
 </Base>
 
 <script>
-  const form = document.getElementById('studio') as HTMLFormElement
-  const status = document.getElementById('status')!
-  const previews = document.getElementById('previews')!
-  const val = (id: string) => (document.getElementById(id) as HTMLInputElement).value.trim()
-  const checked = (id: string) => (document.getElementById(id) as HTMLInputElement).checked
+  type Toast = (m: string, k?: string) => void
+  const toast: Toast = (m, k) => (window as unknown as { toast: Toast }).toast(m, k)
+  const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T
+  const val = (id: string) => ($<HTMLInputElement>(id).value ?? '').trim()
+  const radio = (name: string) => (document.querySelector<HTMLInputElement>(`input[name="${name}"]:checked`)?.value ?? '')
 
-  const readImage = (): Promise<string | null> =>
-    new Promise((resolve, reject) => {
-      const file = (document.getElementById('image') as HTMLInputElement).files?.[0]
-      if (!file) return resolve(null)
-      const r = new FileReader()
-      r.onload = () => resolve(String(r.result))
-      r.onerror = () => reject(new Error('Could not read the screenshot.'))
-      r.readAsDataURL(file)
+  // ── Tabs (WAI-ARIA tabs: arrows move, Home/End jump) ─────────────────
+  const tabs = [...document.querySelectorAll<HTMLButtonElement>('[role="tab"]')]
+  const select = (t: HTMLButtonElement) => {
+    for (const x of tabs) {
+      const on = x === t
+      x.setAttribute('aria-selected', String(on))
+      x.tabIndex = on ? 0 : -1
+      $(x.getAttribute('aria-controls')!).hidden = !on
+    }
+    t.focus()
+  }
+  tabs.forEach((t, i) => {
+    t.addEventListener('click', () => select(t))
+    t.addEventListener('keydown', (e) => {
+      const n = e.key === 'ArrowRight' ? i + 1 : e.key === 'ArrowLeft' ? i - 1 : e.key === 'Home' ? 0 : e.key === 'End' ? tabs.length - 1 : -1
+      if (n < -1) return
+      if (e.key === 'ArrowRight' || e.key === 'ArrowLeft' || e.key === 'Home' || e.key === 'End') {
+        e.preventDefault()
+        select(tabs[(n + tabs.length) % tabs.length])
+      }
     })
+  })
 
+  // ── State ─────────────────────────────────────────────────────────────
+  let image: string | null = null
+  let active = 'story'
+  const included = () => [...document.querySelectorAll<HTMLInputElement>('.include:checked')].map((i) => i.value)
   const content = () => ({
     headline: val('headline'),
     eyebrow: val('eyebrow') || undefined,
@@ -140,10 +240,16 @@ const label = 'block text-body-sm font-medium mb-2'
     points: val('points').split('\n').map((s) => s.trim()).filter(Boolean),
     cta: val('cta') || undefined,
   })
-
-  const selected = () =>
-    [...form.querySelectorAll<HTMLInputElement>('input[name="preset"]:checked')].map((i) => i.value)
-
+  const imagePart = () => (image ? { image: { data: image, alt: val('alt'), chrome: val('chrome') || undefined } } : {})
+  const request = (preset: string, guides: boolean) => ({
+    preset,
+    theme: val('theme'),
+    mode: radio('mode'),
+    guides,
+    fake_or_redacted: $<HTMLInputElement>('attest').checked,
+    ...content(),
+    ...imagePart(),
+  })
   async function errorText(res: Response) {
     try {
       return (await res.json()).error ?? res.statusText
@@ -151,81 +257,176 @@ const label = 'block text-body-sm font-medium mb-2'
       return res.statusText
     }
   }
+  async function render(preset: string, guides: boolean) {
+    const res = await fetch('/api/render', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(request(preset, guides)) })
+    if (!res.ok) throw new Error(await errorText(res))
+    return {
+      blob: await res.blob(),
+      alt: decodeURIComponent(res.headers.get('x-alt-text') ?? ''),
+      size: `${res.headers.get('x-width')}×${res.headers.get('x-height')}`,
+      type: res.headers.get('content-type') ?? 'image/png',
+    }
+  }
 
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault()
-    const ids = selected()
-    if (!val('headline')) return void (status.textContent = 'Add a headline.')
-    if (!ids.length) return void (status.textContent = 'Pick at least one size.')
-    let data: string | null
+  // ── Live preview ──────────────────────────────────────────────────────
+  const img = $<HTMLImageElement>('canvas-img')
+  const canvas = $('canvas')
+  let seq = 0
+  let timer: number | undefined
+  function applyZoom() {
+    const z = radio('zoom')
+    if (z === 'fit') {
+      // Fit: whole image visible — no taller than the viewport allows, no
+      // wider than the canvas — at its own aspect ratio.
+      img.style.width = ''
+      img.style.maxHeight = 'min(68vh, 760px)'
+      img.classList.add('max-w-full')
+    } else {
+      img.style.maxHeight = 'none'
+      img.classList.remove('max-w-full')
+      img.style.width = `${img.naturalWidth * Number(z)}px`
+    }
+  }
+  async function refresh() {
+    if (!val('headline')) return
+    const mine = ++seq
+    canvas.setAttribute('aria-busy', 'true')
+    $('canvas-spin').classList.remove('hidden')
+    $('active-status').textContent = 'rendering'
     try {
-      data = await readImage()
+      const r = await render(active, $<HTMLInputElement>('guides').checked)
+      if (mine !== seq) return
+      const old = img.src
+      img.src = URL.createObjectURL(r.blob)
+      img.alt = r.alt
+      img.onload = applyZoom
+      if (old) URL.revokeObjectURL(old)
+      img.classList.remove('hidden')
+      $('canvas-empty').classList.add('hidden')
+      $('alt-out').textContent = r.alt
+      $('active-status').textContent = 'up to date'
     } catch (err) {
-      return void (status.textContent = (err as Error).message)
-    }
-    previews.replaceChildren()
-    status.textContent = `Rendering ${ids.length}…`
-    let done = 0
-    for (const id of ids) {
-      const body = {
-        preset: id,
-        theme: val('theme'),
-        mode: val('mode'),
-        guides: checked('guides'),
-        fake_or_redacted: checked('attest'),
-        ...content(),
-        ...(data ? { image: { data, alt: val('alt'), chrome: val('chrome') || undefined } } : {}),
+      if (mine !== seq) return
+      $('active-status').textContent = 'not rendered'
+      toast((err as Error).message, 'error')
+    } finally {
+      if (mine === seq) {
+        canvas.setAttribute('aria-busy', 'false')
+        $('canvas-spin').classList.add('hidden')
       }
-      const fig = document.createElement('figure')
-      fig.className = 'rounded-[14px] border border-border p-3 bg-card'
-      const cap = document.createElement('figcaption')
-      cap.className = 'text-caption text-muted-foreground mt-2'
-      const res = await fetch('/api/render', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
-      if (res.ok) {
-        const img = document.createElement('img')
-        img.src = URL.createObjectURL(await res.blob())
-        img.alt = decodeURIComponent(res.headers.get('x-alt-text') ?? '')
-        img.className = 'w-full h-auto rounded-[8px]'
-        cap.textContent = `${id} · ${res.headers.get('x-width')}×${res.headers.get('x-height')}`
-        fig.append(img, cap)
-      } else {
-        cap.textContent = `${id}: ${await errorText(res)}`
-        fig.append(cap)
-      }
-      previews.append(fig)
-      status.textContent = `Rendered ${++done} of ${ids.length}.`
     }
+  }
+  const schedule = () => {
+    clearTimeout(timer)
+    timer = window.setTimeout(refresh, 450)
+  }
+  $('studio').addEventListener('input', schedule)
+  $('studio').addEventListener('change', schedule)
+  $('guides').addEventListener('change', refresh)
+  document.querySelectorAll('input[name="zoom"]').forEach((r) => r.addEventListener('change', applyZoom))
+
+  $<HTMLInputElement>('image').addEventListener('change', (e) => {
+    const file = (e.target as HTMLInputElement).files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = () => {
+      image = String(reader.result)
+      $('image-name').textContent = file.name
+      if (!$<HTMLInputElement>('attest').checked) toast('Tick “Fake or redacted data only” to render with the screenshot.')
+      schedule()
+    }
+    reader.readAsDataURL(file)
   })
 
-  document.getElementById('download')!.addEventListener('click', async () => {
-    const ids = selected()
-    if (!ids.length || !val('headline')) return void (status.textContent = 'Add a headline and pick at least one size.')
-    let data: string | null
-    try {
-      data = await readImage()
-    } catch (err) {
-      return void (status.textContent = (err as Error).message)
+  // ── Picker ────────────────────────────────────────────────────────────
+  document.querySelectorAll<HTMLButtonElement>('.pick').forEach((b) =>
+    b.addEventListener('click', () => {
+      document.querySelectorAll('.pick').forEach((x) => x.setAttribute('aria-pressed', 'false'))
+      b.setAttribute('aria-pressed', 'true')
+      active = b.dataset.id!
+      $('active-name').textContent = b.dataset.name!
+      $('active-size').textContent = b.dataset.size!
+      refresh()
+    }),
+  )
+  document.querySelectorAll('.include').forEach((c) => c.addEventListener('change', () => ($('sel-count').textContent = String(included().length))))
+
+  // ── Batch + recent ────────────────────────────────────────────────────
+  const recent = $('recent')
+  function addRecent(id: string, r: { blob: Blob; alt: string; size: string; type: string }) {
+    $('recent-empty').classList.add('hidden')
+    const url = URL.createObjectURL(r.blob)
+    const li = document.createElement('li')
+    li.className = 'rise overflow-hidden rounded-[14px] border border-border bg-background'
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${id}.${r.type.includes('jpeg') ? 'jpg' : 'png'}`
+    a.className = 'block canvas-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+    a.setAttribute('aria-label', `Download ${id}, ${r.size}`)
+    const im = document.createElement('img')
+    im.src = url
+    im.alt = r.alt
+    im.className = 'mx-auto block max-h-40 w-auto object-contain'
+    a.append(im)
+    const cap = document.createElement('p')
+    cap.className = 'px-3 py-2 font-mono text-caption text-foreground/80'
+    cap.textContent = `${id} · ${r.size}`
+    li.append(a, cap)
+    recent.prepend(li)
+    while (recent.children.length > 24) recent.lastElementChild!.remove()
+  }
+  function progress(done: number, total: number, text: string) {
+    const pct = total ? Math.round((done / total) * 100) : 0
+    $('progress').setAttribute('aria-valuenow', String(pct))
+    $('progress-bar').style.width = `${pct}%`
+    $('progress-text').textContent = text
+  }
+  $('render-set').addEventListener('click', async () => {
+    const ids = included()
+    if (!ids.length) return toast('Tick at least one size.', 'error')
+    let done = 0
+    progress(0, ids.length, `Rendering 0 of ${ids.length}…`)
+    for (const id of ids) {
+      try {
+        addRecent(id, await render(id, false))
+      } catch (err) {
+        toast(`${id}: ${(err as Error).message}`, 'error')
+      }
+      progress(++done, ids.length, `Rendered ${done} of ${ids.length}.`)
     }
-    status.textContent = 'Building the set…'
+    toast('Set rendered. Check every image at full size before publishing.')
+  })
+  async function downloadAll() {
+    const ids = included()
+    if (!ids.length) return toast('Tick at least one size.', 'error')
+    progress(0, 1, 'Building the ZIP…')
     const c = content()
     const campaign = {
       theme: val('theme'),
-      mode: val('mode'),
-      privacy: { fake_or_redacted: checked('attest') },
-      content: { ...c, sub: c.sub ?? undefined },
-      ...(data ? { image: { alt: val('alt'), chrome: val('chrome') || undefined } } : {}),
+      mode: radio('mode'),
+      privacy: { fake_or_redacted: $<HTMLInputElement>('attest').checked },
+      content: c,
+      ...(image ? { image: { alt: val('alt'), chrome: val('chrome') || undefined } } : {}),
       render: ids.map((preset) => ({ preset })),
     }
     const res = await fetch('/api/campaign', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ campaign, image: data ?? undefined }),
+      body: JSON.stringify({ campaign, image: image ?? undefined }),
     })
-    if (!res.ok) return void (status.textContent = await errorText(res))
+    if (!res.ok) {
+      progress(0, 1, 'Not downloaded.')
+      return toast(await errorText(res), 'error')
+    }
     const a = document.createElement('a')
     a.href = URL.createObjectURL(await res.blob())
     a.download = 'campaign.zip'
     a.click()
-    status.textContent = 'Downloaded. Check every image at full size before publishing.'
-  })
+    progress(1, 1, `Downloaded ${ids.length} images with manifest.json.`)
+    toast('Downloaded. Check every image at full size before publishing.')
+  }
+  $('download').addEventListener('click', downloadAll)
+  $('download-top').addEventListener('click', downloadAll)
+
+  refresh()
 </script>

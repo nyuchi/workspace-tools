@@ -1,88 +1,110 @@
 ---
 import Base from '../layouts/Base.astro'
-import Section from '@bundu/ui/Section.astro'
-import SectionHeader from '@bundu/ui/SectionHeader.astro'
+import PageHeader from '../components/PageHeader.astro'
+import Select from '../components/Select.astro'
+import Glyph from '../components/Glyph.astro'
 import { brands } from '../lib/data'
+import { card, input, label, hint } from '../lib/ui'
 
-const field = 'w-full rounded-[14px] border border-border bg-background px-4 py-3 text-body min-h-[48px] focus:outline-none focus:ring-2 focus:ring-gold'
-const label = 'block text-body-sm font-medium mb-2'
-const KIND = { foundation: 'Foundation', pillar: 'Pillars', division: 'Divisions', initiative: 'Initiatives' } as const
+const KIND = { foundation: 'Foundation', pillar: 'Pillar', division: 'Division', initiative: 'Initiative' } as const
+const brandOptions: [string, string][] = [['', 'From my email address'], ...brands.map((b) => [b.key, `${b.name} — ${KIND[b.kind]}`] as [string, string])]
+const fields: { id: string; label: string; type?: 'text' | 'email' | 'tel' | 'url'; auto?: string; hint?: string; required?: boolean; ph?: string }[] = [
+  { id: 'name', label: 'Name', auto: 'name', required: true },
+  { id: 'title', label: 'Role', auto: 'organization-title' },
+  { id: 'email', label: 'Email', type: 'email', auto: 'email', required: true },
+  { id: 'phone', label: 'Phone', type: 'tel', auto: 'tel' },
+  { id: 'whatsapp', label: 'WhatsApp', type: 'tel', ph: '+263 …' },
+  { id: 'linkedin', label: 'LinkedIn profile', type: 'url', ph: 'https://www.linkedin.com/in/…' },
+  { id: 'photo', label: 'Photo', type: 'url', hint: 'Optional, an https:// link to a square photo.' },
+]
 ---
 
-<Base title="Signatures" description="The email signature on Mzizi, for every Bundu-ecosystem brand.">
-  <Section>
-    <SectionHeader
-      eyebrow="Email"
-      title="Signatures"
-      description="The signature on Mzizi: built from tables and inline styles so it looks the same in Gmail, Outlook and Apple Mail, with no images unless you add a photo."
-      as="h1"
-      size="h1"
+<Base title="Signatures" description="The email signature on Mzizi, for every Bundu-ecosystem brand." wide>
+  <div class="rise mx-auto max-w-[1600px] space-y-8">
+    <PageHeader
+      eyebrow="Create"
+      title="Email signature"
+      description="Built from tables and inline styles so it looks the same in Gmail, Outlook and Apple Mail — no images unless you add a photo."
     />
-    <div class="mt-10 grid gap-10 lg:grid-cols-[minmax(0,420px)_1fr]">
-      <form id="sig" class="space-y-5" novalidate>
+
+    <div class="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+      <form id="sig" class={`${card} space-y-5 p-5 sm:p-6`} novalidate>
         <div>
           <label class={label} for="brand">Brand</label>
-          <select class={field} id="brand" name="brand">
-            <option value="">From my email address</option>
-            {
-              (Object.keys(KIND) as (keyof typeof KIND)[]).map((k) => (
-                <optgroup label={KIND[k]}>
-                  {brands
-                    .filter((b) => b.kind === k)
-                    .map((b) => (
-                      <option value={b.key}>{b.name}</option>
-                    ))}
-                </optgroup>
-              ))
-            }
-          </select>
+          <Select id="brand" options={brandOptions} />
         </div>
-        <div><label class={label} for="name">Name</label><input class={field} id="name" name="name" autocomplete="name" required /></div>
-        <div><label class={label} for="title">Role</label><input class={field} id="title" name="title" autocomplete="organization-title" /></div>
-        <div><label class={label} for="email">Email</label><input class={field} id="email" name="email" type="email" autocomplete="email" required /></div>
-        <div><label class={label} for="phone">Phone</label><input class={field} id="phone" name="phone" type="tel" autocomplete="tel" /></div>
-        <div><label class={label} for="whatsapp">WhatsApp</label><input class={field} id="whatsapp" name="whatsapp" type="tel" /></div>
-        <div><label class={label} for="linkedin">LinkedIn profile</label><input class={field} id="linkedin" name="linkedin" type="url" placeholder="https://www.linkedin.com/in/…" /></div>
-        <div><label class={label} for="photo">Photo URL <span class="text-muted-foreground font-normal">(optional, https)</span></label><input class={field} id="photo" name="photo" type="url" /></div>
-        <button type="submit" class="rounded-full bg-foreground text-background px-6 min-h-[48px] font-medium hover:opacity-90">Preview</button>
-        <p id="status" class="text-body-sm text-muted-foreground" role="status" aria-live="polite"></p>
+        <div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
+          {
+            fields.map((f) => (
+              <div class={f.id === 'photo' || f.id === 'linkedin' ? 'sm:col-span-2' : ''}>
+                <label class={label} for={f.id}>
+                  {f.label}
+                  {f.required && <span class="text-foreground/80"> (required)</span>}
+                </label>
+                <input class={input} id={f.id} name={f.id} type={f.type ?? 'text'} autocomplete={f.auto} required={f.required} placeholder={f.ph} />
+                {f.hint && <p class={`${hint} mt-1.5`}>{f.hint}</p>}
+              </div>
+            ))
+          }
+        </div>
+        <button type="submit" class="btn-primary w-full sm:w-auto">
+          <Glyph name="sparkle" /> Preview signature
+        </button>
       </form>
 
-      <div class="space-y-4">
-        <div class="rounded-[14px] border border-border bg-white p-6">
-          <iframe id="preview" title="Signature preview" class="w-full h-64 border-0" sandbox=""></iframe>
+      <section class={`${card} p-5 sm:p-6 lg:sticky lg:top-6`} aria-labelledby="preview-h">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <h2 id="preview-h" class="font-serif text-h4 text-foreground">Preview</h2>
+          <div class="flex flex-wrap gap-2">
+            <button type="button" id="copy-html" class="btn-secondary" disabled><Glyph name="copy" /> Copy for Gmail</button>
+            <button type="button" id="copy-text" class="btn-outline" disabled>Plain text</button>
+          </div>
         </div>
-        <div class="flex flex-wrap gap-3">
-          <button type="button" id="copy-html" class="rounded-full border border-border px-6 min-h-[48px] font-medium hover:bg-muted" disabled>Copy for Gmail</button>
-          <button type="button" id="copy-text" class="rounded-full border border-border px-6 min-h-[48px] font-medium hover:bg-muted" disabled>Copy plain text</button>
+        <div class="mt-4 overflow-hidden rounded-[14px] border border-border">
+          <div class="space-y-1 border-b border-border bg-muted px-4 py-3 text-body-sm text-foreground/80" aria-hidden="true">
+            <p><span class="font-medium text-foreground">To:</span> a colleague</p>
+            <p><span class="font-medium text-foreground">Subject:</span> Following up</p>
+          </div>
+          <div class="bg-white p-4 sm:p-6">
+            <p class="mb-4 font-sans text-[15px] leading-relaxed text-[#1a1a17]" aria-hidden="true">Thanks for your time today — notes attached.</p>
+            <!-- The message body is white in every theme, like the email it
+                 stands for, so its placeholder uses email ink, not tokens. -->
+            <div id="sig-empty" class="rounded-[14px] border border-dashed border-[#c9c7c0] px-6 py-8 text-center">
+              <p class="font-medium text-[#1a1a17]">Your signature appears here</p>
+              <p class="mt-1 text-body-sm text-[#45453f]">Fill in your details and choose Preview. Nothing is saved.</p>
+            </div>
+            <iframe id="preview" title="Signature preview" class="hidden w-full border-0" sandbox=""></iframe>
+          </div>
         </div>
-      </div>
+      </section>
     </div>
-  </Section>
+  </div>
 </Base>
 
 <script>
   const form = document.getElementById('sig') as HTMLFormElement
-  const status = document.getElementById('status')!
   const preview = document.getElementById('preview') as HTMLIFrameElement
+  const empty = document.getElementById('sig-empty')!
   const copyHtml = document.getElementById('copy-html') as HTMLButtonElement
   const copyText = document.getElementById('copy-text') as HTMLButtonElement
+  const toast = (m: string, k?: string) => (window as unknown as { toast: (m: string, k?: string) => void }).toast(m, k)
   let current: { html: string; text: string } | null = null
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault()
     const body = Object.fromEntries([...new FormData(form)].map(([k, v]) => [k, String(v).trim()]))
     const res = await fetch('/api/signature', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
-    const out = await res.json()
-    if (!res.ok) {
-      status.textContent = out.error ?? 'Could not build the signature.'
-      return
-    }
+    const out = await res.json().catch(() => ({}))
+    if (!res.ok) return toast(out.error ?? 'Could not build the signature.', 'error')
     current = out
-    // A sandboxed iframe: the preview cannot run anything.
+    // Sandboxed: the preview can show the HTML but never run anything.
     preview.srcdoc = `<!doctype html><body style="margin:0;background:#fff">${out.html}</body>`
+    preview.onload = () => {
+      preview.style.height = `${(preview.contentDocument?.body.scrollHeight ?? 200) + 8}px`
+    }
+    preview.classList.remove('hidden')
+    empty.classList.add('hidden')
     copyHtml.disabled = copyText.disabled = false
-    status.textContent = ''
   })
 
   copyHtml.addEventListener('click', async () => {
@@ -93,11 +115,11 @@ const KIND = { foundation: 'Foundation', pillar: 'Pillars', division: 'Divisions
         'text/plain': new Blob([current.text], { type: 'text/plain' }),
       }),
     ])
-    status.textContent = 'Copied. In Gmail: Settings → See all settings → Signature → paste.'
+    toast('Copied. In Gmail: Settings → See all settings → Signature → paste.')
   })
   copyText.addEventListener('click', async () => {
     if (!current) return
     await navigator.clipboard.writeText(current.text)
-    status.textContent = 'Plain text copied.'
+    toast('Plain text copied.')
   })
 </script>
