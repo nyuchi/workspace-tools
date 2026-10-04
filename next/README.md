@@ -155,3 +155,39 @@ Run it locally (needs `worker-build`: `cargo install worker-build`):
 cd next
 npx wrangler dev        # builds the site and the Worker, serves on :8787
 ```
+
+## MCP: everything the UI can do
+
+Owner rule: _the nyuchi-tools MCP must have all the access the UI has._ The
+Rust Worker serves MCP itself at `POST /mcp` (streamable HTTP, stateless,
+JSON responses), and every tool **is** an API route: its input schema is the
+route's request body, and calling it runs the same `api::handle` — the same
+validation, privacy gate, blocked terms and (from phase 3) the same
+permission check, because `entry.rs` authorises `/api/*` and `/mcp` in one
+place. There is no second implementation to drift.
+
+| Tool                     | Route                 | Returns                                                     |
+| ------------------------ | --------------------- | ----------------------------------------------------------- |
+| `nyuchi_list_presets`    | `GET /api/presets`    | every preset with size, format, safe area, limit            |
+| `nyuchi_list_themes`     | `GET /api/themes`     | the themes                                                  |
+| `nyuchi_list_brands`     | `GET /api/brands`     | the one brand list                                          |
+| `nyuchi_render_image`    | `POST /api/render`    | image content (PNG/JPEG) + alt text; `guides` for safe area |
+| `nyuchi_render_campaign` | `POST /api/campaign`  | the ZIP as an embedded resource + the manifest (alt text)   |
+| `nyuchi_build_signature` | `POST /api/signature` | signature HTML, plain text and brand                        |
+| `nyuchi_health`          | `GET /api/health`     | liveness and version                                        |
+
+`crates/worker/tests/mcp.rs` enforces parity: every API route has exactly
+one tool and every tool one route; every `/api/` call in the site's source
+has a tool; and every tool declares how the UI offers it (a request, data
+rendered at build time, or ops only). Adding a UI action without a tool, or
+a tool without a route, fails CI. Live capture, R2 storage with signed review
+URLs and the Signature Console actions join as routes — and so as tools —
+when their bindings and the login exist.
+
+**The live MCP.** `tools.nyuchi.dev/mcp` is still the TypeScript Worker. Its
+tools are not wired to this backend yet: that needs a Service Binding in the
+root `wrangler.toml`, which open PR #68 edits, and this Worker deployed. The
+Rust Worker serves the MCP itself so nothing here touches that file; at
+cut-over `tools.nyuchi.dev` points at this Worker and the TypeScript MCP is
+retired (the phase 3 trial in #70 has, in effect, run: a stateless JSON-RPC
+handler on workers-rs is about 250 lines and passes the protocol tests).
