@@ -70,6 +70,36 @@ edge = "#2E2C29"
 skeleton = "#E5E4E1"
 mesh_opacity = 0.30
 
+# Mukoko Events: malachite, the Mzizi canon's mineral for events (owner
+# decision, 2026-10-04, mukoko-dev/nhimbe#155). No official logo yet, so the
+# three-column product mark carries it.
+[[theme]]
+id = "mukoko-events"
+name = "Mukoko Events"
+eyebrow = "Mukoko Events"
+byline = "Mukoko"
+mark = ["malachite", "tanzanite", "malachite"]
+mesh = ["malachite", "tanzanite", "cobalt"]
+accent = "malachite"
+
+[theme.light]
+bg = "#F3F3F1"
+fg = "#0C0C0A"
+muted = "#4F4E4A"
+card = "#FFFFFF"
+edge = "#E5E4E1"
+skeleton = "#E5E4E1"
+mesh_opacity = 0.16
+
+[theme.dark]
+bg = "#0E0D0C"
+fg = "#F0EFE9"
+muted = "#A8A6A0"
+card = "#FFFFFF"
+edge = "#2E2C29"
+skeleton = "#E5E4E1"
+mesh_opacity = 0.30
+
 # Bundu Foundation: copper, with terracotta (owner: either is canon; the
 # brand list keeps copper). Signed with the official Bundu logo, drawn from
 # the published file, in place of the product mark.

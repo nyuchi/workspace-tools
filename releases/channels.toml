@@ -46,6 +46,19 @@ author = "2ad656bb-95e5-4c5e-9ec3-91dc22ca3616"
 studio = "https://mukoko.sanity.studio"
 public_prefix = "https://www.mukoko.com/blog/"
 
+# Mukoko Events (once branded nhimbe; mukoko-dev/nhimbe#155): a Mukoko
+# division, so its posts go to the Mukoko Blog and its socials to the Mukoko
+# channels below. It has no Postiz accounts of its own. Its theme is
+# malachite.
+[brand.mukokoEvents]
+theme = "mukoko-events"
+[brand.mukokoEvents.sanity]
+project = "npzanja1"
+dataset = "production"
+author = "2ad656bb-95e5-4c5e-9ec3-91dc22ca3616"
+studio = "https://mukoko.sanity.studio"
+public_prefix = "https://www.mukoko.com/blog/"
+
 # ── Postiz channels ─────────────────────────────────────────────────────
 
 [[channel]]
