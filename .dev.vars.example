@@ -1,0 +1,19 @@
+# Local development settings for `wrangler dev`. Copy to `.dev.vars` (which is
+# git-ignored) and fill in. Deployed environments set these as Worker secrets
+# instead — never as [vars] in wrangler.toml.
+
+# WorkOS AuthKit domain (bare host or https origin). 1Password: nyuchi/workos,
+# field WORKOS_AUTHKIT_DOMAIN. Leave unset to use the localhost-only opt-out
+# below.
+AUTHKIT_DOMAIN=
+
+# WorkOS Connect public client ID for the site login. 1Password:
+# nyuchi/workos, field WORKOS_INTERNAL_TOOLS_CLIENT_ID.
+WORKOS_CLIENT_ID=
+
+# Signs the site session cookie. Any long random string locally.
+SESSION_SECRET=
+
+# Local development only: lets /mcp run without a bearer token when
+# AUTHKIT_DOMAIN is unset and the request is to localhost. Never deployed.
+ALLOW_UNAUTHENTICATED_DEV=true

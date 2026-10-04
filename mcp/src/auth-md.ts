@@ -3,7 +3,7 @@
  * architecture, served at GET /auth.md (see index.ts). This is descriptive
  * documentation, not protocol metadata: the machine-readable metadata lives
  * at /.well-known/oauth-protected-resource (this resource server) and at
- * identity.nyuchi.com's own /.well-known/oauth-authorization-server (the
+ * the configured AUTHKIT_DOMAIN's own /.well-known/oauth-authorization-server (the
  * WorkOS Connect authorization server, mirrored read-only at the same path
  * on this domain — see auth.ts / index.ts).
  *
@@ -14,15 +14,25 @@
  * whichever hostname actually served the request.
  */
 
-import { type AuthEnv, resourceOrigin, resourceUrl } from "./auth";
-
-// Fixed, not derived from env.AUTHKIT_DOMAIN: this describes the canonical
-// architecture (which authorization server this resource server trusts)
-// even in open mode, when AUTHKIT_DOMAIN is unset — see "When auth is not
-// required" below. Only the resource-server side (this domain) varies.
-const ISSUER = "https://identity.nyuchi.com";
+import { type AuthEnv, authConfigured, issuerUrl, resourceOrigin, resourceUrl } from "./auth";
 
 export function authMd(env: AuthEnv): string {
+  // The issuer comes only from configuration (AUTHKIT_DOMAIN) — never a
+  // compiled-in host. When it is unset this page says so rather than naming one.
+  // An unusable value is described as such, never echoed.
+  let issuer: string | null = null;
+  let unsetReason = "AUTHKIT_DOMAIN is unset";
+  if (authConfigured(env)) {
+    try {
+      issuer = issuerUrl(env);
+    } catch {
+      unsetReason = "AUTHKIT_DOMAIN is not an https origin";
+    }
+  }
+  const issuerLabel = issuer ?? `not configured (${unsetReason})`;
+  const issuerMetadata = issuer
+    ? new URL("/.well-known/oauth-authorization-server", issuer).href
+    : `not available (${unsetReason})`;
   const resource = resourceUrl(env);
   const origin = resourceOrigin(env);
   const host = new URL(origin).hostname;
@@ -35,7 +45,7 @@ ${resource}.
 
 ${host} is a resource server only — it verifies bearer tokens but
 never issues them and runs no authorization flow itself. The authorization
-server is identity.nyuchi.com (WorkOS Connect), outside this repo; this page
+server is WorkOS Connect (${issuerLabel}), outside this repo; this page
 describes our side of the handshake only and does not restate or invent
 authorization-server metadata on its behalf.
 
@@ -46,8 +56,8 @@ authorization-server metadata on its behalf.
 
 ## Authorization server
 
-- Issuer: ${ISSUER} (WorkOS Connect)
-- Metadata: ${ISSUER}/.well-known/oauth-authorization-server
+- Issuer: ${issuerLabel} (WorkOS Connect)
+- Metadata: ${issuerMetadata}
   (mirrored at /.well-known/oauth-authorization-server on this domain)
 - Flow: OAuth 2.1 Authorization Code + PKCE
 - Client registration: Dynamic Client Registration (RFC 7591) at the
@@ -62,11 +72,11 @@ Send the access token as \`Authorization: Bearer <token>\` on requests to
 \`/mcp\`. Unauthenticated requests receive \`401\` with a \`WWW-Authenticate\`
 header pointing back at the protected-resource metadata.
 
-## When auth is not required
+## When auth is not configured
 
-This server can run in an open mode (no \`AUTHKIT_DOMAIN\` configured) for
-local development; the protected-resource metadata endpoint returns \`404\`
-in that mode to signal no authorization is needed, and \`/mcp\` accepts
-requests without a bearer token.
+\`/mcp\` fails closed: if \`AUTHKIT_DOMAIN\` is not configured it answers
+\`503\` and serves no tools. The only exception is local development, with
+\`ALLOW_UNAUTHENTICATED_DEV=true\` set explicitly and requests addressed to
+\`localhost\`; that setting is never present in a deployed environment.
 `;
 }
