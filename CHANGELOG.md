@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Release marketing pipeline** (#83). `next/crates/release`
+  (`nyuchi-release`) and `releases/`: a release that is live in production
+  becomes a Sanity draft, one Postiz draft per channel and three images (OG,
+  square, story), with a review comment on the tracking issue. Drafts only;
+  checks for the live gate, privacy, British spelling and channel limits; a
+  ledger keeps re-runs idempotent. The `market-release` skill runs it.
+- **Bundu theme and official logos** in `nyuchi-imaging`: a `bundu` theme in
+  copper and terracotta, signed with the published Bundu Foundation logo.
+
 ### Changed
 
 - **Vite+ for the root checks and Worker tests** (tooling only). `vite-plus`

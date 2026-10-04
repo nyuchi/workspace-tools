@@ -70,6 +70,37 @@ edge = "#2E2C29"
 skeleton = "#E5E4E1"
 mesh_opacity = 0.30
 
+# Bundu Foundation: copper, with terracotta (owner: either is canon; the
+# brand list keeps copper). Signed with the official Bundu logo, drawn from
+# the published file, in place of the product mark.
+[[theme]]
+id = "bundu"
+name = "Bundu Foundation"
+eyebrow = "Bundu Foundation"
+byline = "Bundu Foundation"
+mark = ["copper", "terracotta", "copper"]
+mesh = ["copper", "terracotta", "gold"]
+accent = "copper"
+logo = "bundu"
+
+[theme.light]
+bg = "#F3F3F1"
+fg = "#0C0C0A"
+muted = "#4F4E4A"
+card = "#FFFFFF"
+edge = "#E5E4E1"
+skeleton = "#E5E4E1"
+mesh_opacity = 0.18
+
+[theme.dark]
+bg = "#0E0D0C"
+fg = "#F0EFE9"
+muted = "#A8A6A0"
+card = "#FFFFFF"
+edge = "#2E2C29"
+skeleton = "#E5E4E1"
+mesh_opacity = 0.32
+
 # The seven Bundu minerals (Mzizi `minerals`). `dark` is the hex used on dark
 # surfaces and in the identity strip; `light` is the on-light text variant.
 [minerals]

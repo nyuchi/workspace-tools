@@ -32,3 +32,7 @@ pnpm-lock.yaml
 # Rust build output and generated campaign manifests (next/)
 next/target/
 samples/**/manifest.json
+
+# Release marketing build output and ledgers are generated (next/crates/release)
+releases/*/out/
+releases/*/ledger.json

@@ -1,0 +1,124 @@
+# Bundu AI Guardrails Standard (BAGS) 1.0.0, with the vocab.bundu.org
+# expansion folded in (the vocabulary carries the standard's terms).
+#
+#   cargo run --release --manifest-path next/Cargo.toml --bin nyuchi-release -- build releases/bags-1.0.0/release.toml
+
+slug = "bags-1.0.0"
+brand = "bundu"
+tracking_issue = "nyuchi/workspace-tools#83"
+live = [
+  "https://www.bundu.org/research/standards/ai-guardrails",
+  "https://www.bundu.org/research/standards/ai-guardrails.json",
+  "https://vocab.bundu.org/",
+  "https://vocab.bundu.org/AIGuardrail",
+  "https://vocab.bundu.org/BAGS-01",
+]
+sources = [
+  "https://www.bundu.org/research/standards/ai-guardrails (page, 2026-10-04)",
+  "https://www.bundu.org/research/standards/ai-guardrails.json (version 1.0.0, changelog)",
+  "https://vocab.bundu.org/ (termCount 38; guardrail terms status pending)",
+  "bundu-labs/vocab README and LICENSE-VOCAB (CC0 1.0)",
+]
+
+[post]
+title = "Introducing the Bundu AI Guardrails Standard (BAGS) 1.0.0"
+description = "Twelve open rules every AI surface in the Bundu ecosystem follows, with the guidance each model is given. Published by the Bundu Foundation under CC BY 4.0, for anyone to adopt."
+slug = "introducing-the-bundu-ai-guardrails-standard"
+date = "2026-10-04"
+tags = ["standards", "AI", "guardrails", "open standards", "Ubuntu", "BAGS", "vocabulary", "open data"]
+body = "post.md"
+audience = "foundation"
+
+[images]
+eyebrow = "Bundu open standard · BAGS 1.0.0"
+headline = "Twelve open rules for AI that serves people."
+sub = "The Bundu AI Guardrails Standard. Open for anyone to adopt, under CC BY 4.0."
+points = [
+  "Twelve core rules, each with the guidance the model is given",
+  "Organisations may add rules, never relax them",
+  "Machine-readable, with terms at vocab.bundu.org",
+]
+cta = "bundu.org/research/standards"
+
+[images.og]
+points = []
+
+[images.square]
+sub = "Open for anyone to adopt, under CC BY 4.0."
+points = []
+
+[[social]]
+channel = "bundu-linkedin"
+image = "og"
+text = """
+Today the Bundu Foundation publishes the Bundu AI Guardrails Standard (BAGS) 1.0.0: the twelve rules every AI surface in the Bundu ecosystem follows, written down in the open.
+
+Umuntu ngumuntu ngabantu: a person is a person through other people. An assistant exists to serve the person in front of it and the community around them. It does not get to harm them, belittle them, or quietly take from them.
+
+What is in the standard:
+• Twelve core rules, from child safety and privacy to prompt-injection resistance, cultural respect and African-language dignity, and honest refusal
+• Under every rule, the guidance the model is actually given
+• Two tiers: platform rules apply everywhere and core rules can never be deleted; organisations may add rules of their own, but only ever stricter ones
+• A machine-readable JSON-LD edition, with terms published at vocab.bundu.org (now 38 terms, CC0)
+
+BAGS is published under CC BY 4.0 and maintained by Nyuchi Africa. Any organisation building AI, in Africa or anywhere, may adopt it, adapt it and improve on it.
+
+Read the rules: https://www.bundu.org/research/standards/ai-guardrails
+
+#AI #AIGovernance #ResponsibleAI #OpenStandards #Ubuntu #Africa
+"""
+
+[[social]]
+channel = "nyuchi-linkedin"
+image = "og"
+text = """
+The rules our AI follows are now an open standard.
+
+The Bundu Foundation has published the Bundu AI Guardrails Standard (BAGS) 1.0.0, and Nyuchi Africa maintains it. It sets out the twelve rules every AI surface in the ecosystem follows, with the guidance each model is given, so anyone can see what our assistants will and will not do, and hold us to it.
+
+For teams building AI products, three things are useful:
+• Platform rules apply to every surface; an organisation can add its own, but only restrictions or tone guidance, and the stricter rule always wins
+• The whole standard is published as JSON-LD, ready to compile into system prompts and policy checks
+• It is licensed CC BY 4.0, so you can adopt it in your own products with attribution
+
+Read it, use it, and tell us where it falls short: https://www.bundu.org/research/standards/ai-guardrails
+
+#AI #ResponsibleAI #AIGovernance #OpenStandards #Africa
+"""
+
+[[social]]
+channel = "nyuchi-x"
+image = "og"
+text = """
+The rules our AI follows are now an open standard: the Bundu AI Guardrails Standard (BAGS) 1.0.0. Twelve rules, the guidance each model is given, and a JSON-LD edition. CC BY 4.0, for anyone to adopt.
+
+https://www.bundu.org/research/standards/ai-guardrails
+"""
+
+[[social]]
+channel = "nyuchi-facebook"
+image = "og"
+text = """
+What should an AI assistant never do? We have written our answer down, in the open.
+
+The Bundu Foundation has published the Bundu AI Guardrails Standard (BAGS) 1.0.0, maintained by Nyuchi Africa. It is the twelve rules every AI surface in the Bundu ecosystem follows: protecting children, keeping people who are struggling safe and connected to help, keeping your information private, resisting attempts to trick the AI into breaking its rules, treating African languages and cultures with respect, and saying no honestly when it has to.
+
+Organisations can add rules of their own, but never relax these. And because the standard is open, under CC BY 4.0, anyone building AI can adopt it too.
+
+I am because we are. Read the rules: https://www.bundu.org/research/standards/ai-guardrails
+"""
+
+[[social]]
+channel = "nyuchi-instagram"
+image = "square"
+text = """
+The rules our AI follows are now an open standard.
+
+The Bundu AI Guardrails Standard (BAGS) 1.0.0 sets out twelve rules every AI surface in the Bundu ecosystem follows: protecting children, keeping people safe and connected to help, keeping information private, resisting attempts to trick the AI, respecting African languages and cultures, and refusing honestly.
+
+Organisations can add rules of their own, but never relax these. Published by the Bundu Foundation under CC BY 4.0, for anyone to adopt.
+
+Read the rules: bundu.org/research/standards
+
+#AI #ResponsibleAI #OpenStandards #Ubuntu #Africa #Bundu #Nyuchi
+"""

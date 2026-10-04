@@ -1,0 +1,40 @@
+{
+  "sanity": {
+    "project": "9owjvz5c",
+    "dataset": "production",
+    "document_id": "release-bags-1-0-0",
+    "assets": {
+      "og": "image-814db72882e75ef78573aab36adb29c9f6d1facc-1200x630-png",
+      "square": "image-d4d86c3b6993ec26eadeac02bef48b06ab0dd4a1-1080x1080-png",
+      "story": "image-ae18c3128910b600fac1038c08a055111cbc594c-1080x1920-png"
+    },
+    "asset_urls": {
+      "og": "https://cdn.sanity.io/images/9owjvz5c/production/814db72882e75ef78573aab36adb29c9f6d1facc-1200x630.png",
+      "square": "https://cdn.sanity.io/images/9owjvz5c/production/d4d86c3b6993ec26eadeac02bef48b06ab0dd4a1-1080x1080.png",
+      "story": "https://cdn.sanity.io/images/9owjvz5c/production/ae18c3128910b600fac1038c08a055111cbc594c-1080x1920.png"
+    }
+  },
+  "postiz": {
+    "bundu-linkedin": {
+      "post_id": "cmutjabzd00als50ywx6niz28",
+      "preview": "https://platform.postiz.com/p/cmutjabzd00als50ywx6niz28?share=true"
+    },
+    "nyuchi-facebook": {
+      "post_id": "cmutjac5600aos50yjd7rnvn1",
+      "preview": "https://platform.postiz.com/p/cmutjac5600aos50yjd7rnvn1?share=true"
+    },
+    "nyuchi-instagram": {
+      "post_id": "cmutjac7p00aps50y089m676a",
+      "preview": "https://platform.postiz.com/p/cmutjac7p00aps50y089m676a?share=true"
+    },
+    "nyuchi-linkedin": {
+      "post_id": "cmutjac1h00ams50y719yy4bl",
+      "preview": "https://platform.postiz.com/p/cmutjac1h00ams50y719yy4bl?share=true"
+    },
+    "nyuchi-x": {
+      "post_id": "cmutjac3v00ans50yib6584ky",
+      "preview": "https://platform.postiz.com/p/cmutjac3v00ans50yib6584ky?share=true"
+    }
+  },
+  "comment": "https://github.com/nyuchi/workspace-tools/issues/83#issuecomment-5977954076"
+}

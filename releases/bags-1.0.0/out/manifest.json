@@ -1,0 +1,53 @@
+[
+  {
+    "file": "og.png",
+    "preset": "og",
+    "platform": "Link unfurls (Slack, X, iMessage, WhatsApp), blog headers",
+    "width": 1200,
+    "height": 630,
+    "format": "png",
+    "bytes": 118149,
+    "safe_area": [
+      0,
+      0,
+      0,
+      0
+    ],
+    "guides": false,
+    "alt": "Bundu open standard · BAGS 1.0.0: Twelve open rules for AI that serves people. The Bundu AI Guardrails Standard. Open for anyone to adopt, under CC BY 4.0."
+  },
+  {
+    "file": "square.png",
+    "preset": "square",
+    "platform": "Instagram feed, WhatsApp, any square slot",
+    "width": 1080,
+    "height": 1080,
+    "format": "png",
+    "bytes": 111979,
+    "safe_area": [
+      0,
+      0,
+      0,
+      0
+    ],
+    "guides": false,
+    "alt": "Bundu open standard · BAGS 1.0.0: Twelve open rules for AI that serves people. Open for anyone to adopt, under CC BY 4.0."
+  },
+  {
+    "file": "story.png",
+    "preset": "story",
+    "platform": "Instagram / Facebook / WhatsApp Status stories",
+    "width": 1080,
+    "height": 1920,
+    "format": "png",
+    "bytes": 194994,
+    "safe_area": [
+      250,
+      64,
+      340,
+      64
+    ],
+    "guides": false,
+    "alt": "Bundu open standard · BAGS 1.0.0: Twelve open rules for AI that serves people. The Bundu AI Guardrails Standard. Open for anyone to adopt, under CC BY 4.0."
+  }
+]

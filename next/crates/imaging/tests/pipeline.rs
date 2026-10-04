@@ -461,3 +461,31 @@ image = false
     assert!(dir.join("out/manifest.json").exists());
     std::fs::remove_dir_all(&dir).ok();
 }
+
+#[test]
+fn bundu_theme_signs_with_the_official_logo_not_a_drawn_mark() {
+    use nyuchi_imaging::{layout::Content, logo, preset, privacy::Privacy, render};
+    let theme = theme::get("bundu").expect("bundu theme");
+    assert_eq!(theme.logo.as_deref(), Some("bundu"));
+    let l = logo::get("bundu").expect("bundu logo");
+    // The published file, byte for byte: a PNG, 512 square.
+    assert_eq!(&l.bytes[..8], b"\x89PNG\r\n\x1a\n");
+    for id in ["og", "square", "story"] {
+        let content = Content {
+            headline: "An open standard.".into(),
+            ..Default::default()
+        };
+        let (_, svg) = render::build_svg(&render::Request {
+            preset: preset::get(id).unwrap(),
+            theme,
+            mode: Mode::Light,
+            content: &content,
+            privacy: &Privacy::default(),
+            guides: false,
+        })
+        .unwrap();
+        assert!(svg.contains(r#"class="logo""#), "{id}: no logo");
+        // Copper is the brand mineral: it is in the mesh.
+        assert!(svg.contains(theme.vivid("copper")), "{id}: no copper");
+    }
+}
