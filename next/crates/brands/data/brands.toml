@@ -136,6 +136,22 @@ domains = ["lingo.mukoko.com"]
 mineral = "cobalt"
 socials = { facebook = "https://facebook.com/mukokoafrica", instagram = "https://instagram.com/mukoko.africa" }
 
+# Mukoko Events (owner decision, 2026-10-04, mukoko-dev/nhimbe#155): the
+# events platform once branded nhimbe. The nhimbe brand is retired; the alias
+# keeps old lookups working. Malachite, as the Mzizi canon says.
+[[brand]]
+key = "mukokoEvents"
+kind = "division"
+parent = "mukoko"
+name = "Mukoko Events"
+short_name = "Events"
+aliases = ["events", "nhimbe"]
+tagline = "Community Events and Gatherings"
+url = "https://events.mukoko.com"
+domains = ["events.mukoko.com"]
+mineral = "malachite"
+socials = { facebook = "https://facebook.com/mukokoafrica", instagram = "https://instagram.com/mukoko.africa" }
+
 # ── Initiatives (Bundu Foundation projects, not brands) ─────────────────
 
 [[brand]]
