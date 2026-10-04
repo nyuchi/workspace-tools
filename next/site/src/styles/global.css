@@ -1,0 +1,6 @@
+/* @bundu/ui (Mzizi) tokens and globals, then the Nyuchi brand overlay. No
+   local colour, radius or type values: change them in Mzizi first. */
+@import "tailwindcss";
+@import "@bundu/ui/styles/globals.css";
+@import "@bundu/ui/styles/brand-nyuchi.css";
+@config "../../tailwind.config.mjs";

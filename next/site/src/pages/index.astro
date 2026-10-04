@@ -1,0 +1,54 @@
+---
+import Base from '../layouts/Base.astro'
+import Hero from '@bundu/ui/Hero.astro'
+import Section from '@bundu/ui/Section.astro'
+import SectionHeader from '@bundu/ui/SectionHeader.astro'
+import { presets, brands } from '../lib/data'
+
+const tools = [
+  {
+    href: '/studio',
+    eyebrow: 'Images',
+    title: 'Studio',
+    body: 'One screenshot and a headline in; a whole launch set out — stories with safe areas, feed posts, OG, store screenshots and tiles, email headers, icons — each with alt text.',
+  },
+  {
+    href: '/presets',
+    eyebrow: 'Reference',
+    title: `${presets.length} presets`,
+    body: 'Every size the tools render, with the area each platform covers with its own UI and the upload limits that apply.',
+  },
+  {
+    href: '/signatures',
+    eyebrow: 'Email',
+    title: 'Signatures',
+    body: `The email signature on Mzizi, for all ${brands.length} brands from one list — tables and inline styles, readable with images blocked.`,
+  },
+]
+---
+
+<Base title="Nyuchi Tools">
+  <Hero
+    title="Nyuchi Tools"
+    subtitle="Images, signatures and brand tools for Nyuchi Africa and the Bundu ecosystem."
+    description="Rebuilt on Astro and Rust. Everything here renders from the same data the API and the MCP use."
+    variant="showcase"
+    badge="Preview · not yet live"
+    primaryCTA={{ text: 'Open the Studio', href: '/studio' }}
+    secondaryCTA={{ text: 'Browse presets', href: '/presets' }}
+  />
+  <Section>
+    <SectionHeader eyebrow="Tools" title="What is here" as="h2" />
+    <div class="grid gap-6 md:grid-cols-3 mt-8">
+      {
+        tools.map((t) => (
+          <a href={t.href} class="block rounded-[14px] border border-border bg-card p-6 hover:border-foreground/30 transition-colors">
+            <p class="text-caption uppercase tracking-wider text-muted-foreground">{t.eyebrow}</p>
+            <h3 class="font-serif text-h3 mt-2">{t.title}</h3>
+            <p class="text-body-sm text-muted-foreground mt-3">{t.body}</p>
+          </a>
+        ))
+      }
+    </div>
+  </Section>
+</Base>

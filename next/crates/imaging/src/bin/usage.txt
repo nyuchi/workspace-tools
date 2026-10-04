@@ -1,0 +1,13 @@
+nyuchi-img — render nyuchi-tools images from the preset catalogue
+
+  nyuchi-img presets [--json]          list every preset (size, format, safe area)
+  nyuchi-img campaign <campaign.toml>  render a whole set plus manifest.json
+  nyuchi-img render --preset <id> --headline <text> [options]
+
+render options:
+  --eyebrow <text>  --sub <text>  --cta <text>  --point <text> (repeatable)
+  --image <png|jpg> --alt <what it shows> --fake-or-redacted
+      --crop x,y,w,h  --redact x,y,w,h (repeatable)  --chrome <address-bar text>
+  --theme <id>  --dark  --guides (safe-area overlay)  --svg  --out <file>
+
+Blocked terms: NYUCHI_BLOCKED_TERMS_FILE=<file outside the repo>, one per line.

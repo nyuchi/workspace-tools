@@ -1,0 +1,27 @@
+{
+  "name": "nyuchi-tools-site",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "The nyuchi-tools site on Astro and Mzizi (@bundu/ui), served by the Rust Worker in next/crates/worker.",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro check && astro build",
+    "preview": "astro preview"
+  },
+  "dependencies": {
+    "@astrojs/react": "^6.0.1",
+    "@bundu/ui": "^0.2.0",
+    "@tailwindcss/vite": "^4.3.3",
+    "astro": "^7.3.5",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "smol-toml": "^1.9.0",
+    "tailwindcss": "^4.1.18"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.10",
+    "typescript": "^5.9.3"
+  },
+  "packageManager": "npm@11.12.1"
+}

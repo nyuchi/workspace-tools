@@ -1,0 +1,13 @@
+[workspace]
+resolver = "3"
+members = ["crates/brands", "crates/imaging", "crates/signature", "crates/worker"]
+
+[workspace.package]
+edition = "2024"
+license = "UNLICENSED"
+repository = "https://github.com/nyuchi/workspace-tools"
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
