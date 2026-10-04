@@ -1,54 +1,104 @@
 ---
 import Base from '../layouts/Base.astro'
-import Hero from '@bundu/ui/Hero.astro'
-import Section from '@bundu/ui/Section.astro'
-import SectionHeader from '@bundu/ui/SectionHeader.astro'
-import { presets, brands } from '../lib/data'
+import PageHeader from '../components/PageHeader.astro'
+import Glyph from '../components/Glyph.astro'
+import PresetThumb from '../components/PresetThumb.astro'
+import { presets, brands, themes } from '../lib/data'
+import { card } from '../lib/ui'
 
+const stats = [
+  { label: 'Presets', value: presets.length, note: 'stories, feed, store, email, icons' },
+  { label: 'Brands', value: brands.length, note: 'from one list' },
+  { label: 'Themes', value: themes.length, note: 'light and dark' },
+]
 const tools = [
   {
     href: '/studio',
-    eyebrow: 'Images',
+    icon: 'image' as const,
     title: 'Studio',
-    body: 'One screenshot and a headline in; a whole launch set out — stories with safe areas, feed posts, OG, store screenshots and tiles, email headers, icons — each with alt text.',
-  },
-  {
-    href: '/presets',
-    eyebrow: 'Reference',
-    title: `${presets.length} presets`,
-    body: 'Every size the tools render, with the area each platform covers with its own UI and the upload limits that apply.',
+    body: 'A headline and a screenshot in; a whole launch set out — every size previewed with its platform’s safe area, downloaded with alt text.',
+    cta: 'Open the Studio',
   },
   {
     href: '/signatures',
-    eyebrow: 'Email',
+    icon: 'mail' as const,
     title: 'Signatures',
-    body: `The email signature on Mzizi, for all ${brands.length} brands from one list — tables and inline styles, readable with images blocked.`,
+    body: 'The email signature on Mzizi for every brand: tables and inline styles, readable with images blocked. Copy straight into Gmail.',
+    cta: 'Make a signature',
+  },
+  {
+    href: '/presets',
+    icon: 'grid' as const,
+    title: 'Presets',
+    body: 'Every size the tools render, the bands each platform covers with its own interface, and the upload limits.',
+    cta: 'Browse presets',
   },
 ]
+const featured = ['story', 'portrait', 'square', 'og', 'cws-screenshot', 'youtube-thumb'].map((id) => presets.find((p) => p.id === id)!)
 ---
 
 <Base title="Nyuchi Tools">
-  <Hero
-    title="Nyuchi Tools"
-    subtitle="Images, signatures and brand tools for Nyuchi Africa and the Bundu ecosystem."
-    description="Rebuilt on Astro and Rust. Everything here renders from the same data the API and the MCP use."
-    variant="showcase"
-    badge="Preview · not yet live"
-    primaryCTA={{ text: 'Open the Studio', href: '/studio' }}
-    secondaryCTA={{ text: 'Browse presets', href: '/presets' }}
-  />
-  <Section>
-    <SectionHeader eyebrow="Tools" title="What is here" as="h2" />
-    <div class="grid gap-6 md:grid-cols-3 mt-8">
+  <div class="rise space-y-10">
+    <PageHeader eyebrow="Nyuchi Tools" title="Make the set, not just the image." description="Images, signatures and brand assets for Nyuchi Africa and the Bundu ecosystem — rendered from the same data the API and the MCP use.">
+      <a slot="actions" href="/studio" class="btn-primary">Open the Studio <Glyph name="arrow" /></a>
+    </PageHeader>
+
+    <dl class="grid grid-cols-1 gap-3 sm:grid-cols-3">
       {
-        tools.map((t) => (
-          <a href={t.href} class="block rounded-[14px] border border-border bg-card p-6 hover:border-foreground/30 transition-colors">
-            <p class="text-caption uppercase tracking-wider text-muted-foreground">{t.eyebrow}</p>
-            <h3 class="font-serif text-h3 mt-2">{t.title}</h3>
-            <p class="text-body-sm text-muted-foreground mt-3">{t.body}</p>
-          </a>
+        stats.map((s) => (
+          <div class={`${card} p-5`}>
+            <dt class="text-body-sm font-medium text-foreground/80">{s.label}</dt>
+            <dd class="mt-1 font-serif text-h2 text-foreground">{s.value}</dd>
+            <dd class="text-caption text-foreground/80">{s.note}</dd>
+          </div>
         ))
       }
-    </div>
-  </Section>
+    </dl>
+
+    <section aria-labelledby="tools-h">
+      <h2 id="tools-h" class="font-serif text-h3 text-foreground">Tools</h2>
+      <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
+        {
+          tools.map((t) => (
+            <a href={t.href} class={`${card} group flex flex-col gap-3 p-6 transition-all duration-200 ease-soft hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-md`}>
+              <span class="grid h-12 w-12 place-items-center rounded-full bg-primary/15 text-2xl text-primary">
+                <Glyph name={t.icon} />
+              </span>
+              <h3 class="font-serif text-h4 text-foreground">{t.title}</h3>
+              <p class="flex-1 text-body-sm text-foreground/80">{t.body}</p>
+              <span class="inline-flex min-h-12 items-center gap-2 text-body-sm font-semibold text-foreground">
+                {t.cta}
+                <span class="transition-transform duration-200 ease-soft group-hover:translate-x-1">
+                  <Glyph name="arrow" />
+                </span>
+              </span>
+            </a>
+          ))
+        }
+      </div>
+    </section>
+
+    <section aria-labelledby="shapes-h" class={`${card} p-6`}>
+      <div class="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h2 id="shapes-h" class="font-serif text-h4 text-foreground">Shapes the Studio knows</h2>
+          <p class="text-body-sm text-foreground/80">Shaded bands are where the platform puts its own interface; the Studio keeps text out of them.</p>
+        </div>
+        <a href="/presets" class="btn-ghost h-12">All {presets.length} presets <Glyph name="arrow" /></a>
+      </div>
+      <ul class="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        {
+          featured.map((p) => (
+            <li class="flex flex-col items-center gap-2 rounded-[14px] bg-muted p-4 text-center">
+              <PresetThumb width={p.width} height={p.height} safe={p.safe} box={72} />
+              <span class="text-body-sm font-medium text-foreground">{p.name}</span>
+              <span class="font-mono text-caption text-foreground/80">
+                {p.width}×{p.height}
+              </span>
+            </li>
+          ))
+        }
+      </ul>
+    </section>
+  </div>
 </Base>

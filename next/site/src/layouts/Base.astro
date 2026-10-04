@@ -1,34 +1,45 @@
 ---
 /**
- * Base — the shell for every page: Mzizi tokens via @bundu/ui, the
- * seven-mineral strip, a sticky nav, and the light/dark bootstrap
- * (localStorage `nyuchi-theme`, default dark, set before first paint).
+ * The app shell (Mzizi `mzizi-sidebar` + `mzizi-header` pattern), server
+ * rendered:
+ *
+ * - lg and up: a fixed sidebar — brand, sectioned navigation with the gold
+ *   active state, theme switch in the footer — and the page beside it.
+ * - below lg: a sticky top bar with a menu button; the same sidebar slides
+ *   in over a scrim (Escape or the scrim closes it, focus moves into it).
+ * - the seven-mineral strip on the left edge, as on every Mzizi surface.
+ *
+ * Light/dark: localStorage `nyuchi-theme`, else the system preference, set
+ * before first paint. Motion respects prefers-reduced-motion (global.css).
  */
 import '../styles/global.css'
 import MineralStrip from '@bundu/ui/MineralStrip.astro'
+import Glyph from '../components/Glyph.astro'
+import Toaster from '../components/Toaster.astro'
 
 interface Props {
   title: string
   description?: string
+  /** Full-bleed workspace pages manage their own width. */
+  wide?: boolean
 }
 
-const { title, description = 'Images, signatures and brand tools for Nyuchi Africa and the Bundu ecosystem.' } =
-  Astro.props
+const { title, description = 'Images, signatures and brand tools for Nyuchi Africa and the Bundu ecosystem.', wide = false } = Astro.props
 
-const NAV = [
-  { name: 'Studio', href: '/studio' },
-  { name: 'Presets', href: '/presets' },
-  { name: 'Signatures', href: '/signatures' },
+const SECTIONS = [
+  { label: 'Overview', items: [{ name: 'Home', href: '/', icon: 'home' as const }] },
+  {
+    label: 'Create',
+    items: [
+      { name: 'Studio', href: '/studio', icon: 'image' as const },
+      { name: 'Signatures', href: '/signatures', icon: 'mail' as const },
+    ],
+  },
+  { label: 'Reference', items: [{ name: 'Presets', href: '/presets', icon: 'grid' as const }] },
 ]
 
 const path = Astro.url.pathname.replace(/\/index\.html$/, '/').replace(/\.html$/, '').replace(/\/+$/, '') || '/'
-const linkClass = (href: string) =>
-  [
-    'px-4 py-2 rounded-full text-body-sm font-medium transition-colors duration-200 ease-soft min-h-[44px] inline-flex items-center',
-    path.startsWith(href)
-      ? 'bg-gold-container text-gold-on-container'
-      : 'text-muted-foreground hover:text-foreground hover:bg-muted',
-  ].join(' ')
+const active = (href: string) => (href === '/' ? path === '/' : path.startsWith(href))
 ---
 
 <html lang="en-GB" data-theme="dark">
@@ -46,58 +57,137 @@ const linkClass = (href: string) =>
     />
     <script is:inline>
       ;(function () {
-        var t = 'dark'
+        var t
         try {
-          if (localStorage.getItem('nyuchi-theme') === 'light') t = 'light'
+          t = localStorage.getItem('nyuchi-theme')
         } catch (_) {}
+        if (t !== 'light' && t !== 'dark') t = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'
         document.documentElement.setAttribute('data-theme', t)
       })()
     </script>
   </head>
-  <body class="min-h-dvh flex flex-col bg-background text-foreground font-sans antialiased">
+  <body class="min-h-dvh bg-background text-foreground font-sans antialiased">
+    <a href="#main" class="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[60] btn-primary">Skip to content</a>
     <MineralStrip />
-    <header class="sticky top-0 z-40 h-16 bg-background/90 backdrop-blur border-b border-border">
-      <div class="container-custom h-full flex items-center justify-between gap-4">
-        <a href="/" class="flex flex-col leading-none" aria-label="Nyuchi Tools — home">
-          <span class="font-serif font-bold tracking-tight text-xl text-gold">nyuchi</span>
-          <span class="text-caption text-muted-foreground font-medium">tools</span>
-        </a>
-        <nav class="flex items-center gap-1" aria-label="Main">
-          {
-            NAV.map((item) => (
-              <a href={item.href} class={linkClass(item.href)} aria-current={path.startsWith(item.href) ? 'page' : undefined}>
-                {item.name}
-              </a>
-            ))
-          }
-          <button
-            type="button"
-            id="theme-toggle"
-            class="ml-1 inline-flex items-center justify-center w-11 h-11 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted"
-            aria-label="Switch light or dark"
-          >
-            ◐
-          </button>
-        </nav>
-      </div>
+
+    <!-- Top bar, below lg -->
+    <header class="sticky top-0 z-30 flex h-16 items-center justify-between gap-3 border-b border-border bg-background/90 pl-5 pr-3 backdrop-blur lg:hidden">
+      <a href="/" class="flex min-h-12 items-center gap-2" aria-label="Nyuchi Tools — home">
+        <span class="font-serif text-xl font-bold tracking-tight text-primary">nyuchi</span>
+        <span class="text-body-sm font-medium text-foreground/80">tools</span>
+      </a>
+      <button type="button" id="nav-open" class="btn-ghost h-12 w-12 px-0 text-xl" aria-controls="sidebar" aria-expanded="false">
+        <Glyph name="menu" title="Open navigation" />
+      </button>
     </header>
-    <main class="flex-1">
-      <slot />
-    </main>
-    <footer class="border-t border-border">
-      <div class="container-custom py-8 text-body-sm text-muted-foreground flex flex-wrap gap-x-6 gap-y-2">
-        <span>Nyuchi Africa · I am because we are</span>
-        <a class="hover:text-foreground" href="https://github.com/nyuchi/workspace-tools">Source</a>
+
+    <div id="scrim" class="fixed inset-0 z-40 hidden bg-black/50 lg:hidden" aria-hidden="true"></div>
+
+    <aside
+      id="sidebar"
+      class="sidebar fixed inset-y-0 left-1.5 z-50 flex w-72 max-w-[85vw] -translate-x-[110%] flex-col border-r border-border bg-card transition-transform duration-300 ease-soft lg:z-20 lg:w-64 lg:translate-x-0"
+      aria-label="Main"
+    >
+      <div class="flex h-16 items-center justify-between gap-2 px-5">
+        <a href="/" class="flex min-h-12 items-center gap-2 rounded-[7px]" aria-label="Nyuchi Tools — home">
+          <svg viewBox="0 0 32 32" class="h-7 w-7" aria-hidden="true"
+            ><rect width="32" height="32" rx="8" class="fill-foreground"></rect><rect x="6" y="13.5" width="5.5" height="12.5" rx="1.7" fill="#00B0FF"></rect><rect x="13.25" y="6" width="5.5" height="20" rx="1.7" fill="#64FFDA"></rect><rect x="20.5" y="17.5" width="5.5" height="8.5" rx="1.7" fill="#FFD740"></rect></svg
+          >
+          <span class="flex flex-col leading-none">
+            <span class="font-serif text-lg font-bold tracking-tight text-primary">nyuchi</span>
+            <span class="text-caption font-medium text-foreground/80">tools</span>
+          </span>
+        </a>
+        <button type="button" id="nav-close" class="btn-ghost h-12 w-12 px-0 text-xl lg:hidden"><Glyph name="close" title="Close navigation" /></button>
       </div>
-    </footer>
+      <nav class="flex-1 overflow-y-auto px-3 py-2" aria-label="Main">
+        {
+          SECTIONS.map((s, si) => (
+            <div class="mb-5">
+              <p class="px-3 pb-1 text-caption font-semibold uppercase tracking-[0.12em] text-foreground/80">{s.label}</p>
+              <ul class="space-y-1">
+                {s.items.map((it, ii) => (
+                  <li class="nav-item" style={`--i:${si * 3 + ii}`}>
+                    <a
+                      href={it.href}
+                      aria-current={active(it.href) ? 'page' : undefined}
+                      class={[
+                        'flex min-h-12 items-center gap-3 rounded-full px-4 text-body-sm font-medium transition-colors duration-200 ease-soft',
+                        active(it.href) ? 'bg-primary/15 text-foreground' : 'text-foreground/80 hover:bg-muted hover:text-foreground',
+                      ].join(' ')}
+                    >
+                      <span class={`text-lg ${active(it.href) ? 'text-primary' : ''}`}>
+                        <Glyph name={it.icon} />
+                      </span>
+                      {it.name}
+                      {active(it.href) && <span class="ml-auto h-1.5 w-1.5 rounded-full bg-primary" aria-hidden="true" />}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))
+        }
+      </nav>
+      <div class="flex items-center justify-between gap-2 border-t border-border px-5 py-3">
+        <button type="button" id="theme-toggle" class="btn-ghost h-12 gap-2 px-3 text-body-sm">
+          <span class="text-lg dark-only"><Glyph name="sun" /></span>
+          <span class="text-lg light-only"><Glyph name="moon" /></span>
+          <span class="dark-only">Light mode</span><span class="light-only">Dark mode</span>
+        </button>
+        <span class="font-mono text-caption text-foreground/80">preview</span>
+      </div>
+    </aside>
+
+    <main id="main" class="min-w-0 lg:pl-[17.5rem]">
+      <div class={wide ? 'px-4 py-6 sm:px-6 lg:px-8 lg:py-8' : 'mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-10 lg:py-10'}>
+        <slot />
+      </div>
+    </main>
+
+    <Toaster />
+
     <script is:inline>
-      document.getElementById('theme-toggle')?.addEventListener('click', function () {
-        var next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark'
-        document.documentElement.setAttribute('data-theme', next)
-        try {
-          localStorage.setItem('nyuchi-theme', next)
-        } catch (_) {}
-      })
+      ;(function () {
+        var root = document.documentElement
+        document.getElementById('theme-toggle').addEventListener('click', function () {
+          var next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark'
+          root.setAttribute('data-theme', next)
+          try {
+            localStorage.setItem('nyuchi-theme', next)
+          } catch (_) {}
+        })
+        var side = document.getElementById('sidebar')
+        var scrim = document.getElementById('scrim')
+        var openBtn = document.getElementById('nav-open')
+        var wide = matchMedia('(min-width: 1024px)')
+        // Off-canvas and closed: out of the tab order and the a11y tree.
+        function syncInert() {
+          side.inert = !wide.matches && !side.classList.contains('is-open')
+        }
+        wide.addEventListener('change', syncInert)
+        syncInert()
+        function setOpen(open) {
+          side.classList.toggle('is-open', open)
+          syncInert()
+          scrim.classList.toggle('hidden', !open)
+          openBtn.setAttribute('aria-expanded', String(open))
+          if (open) side.querySelector('a, button').focus()
+          else openBtn.focus()
+        }
+        openBtn.addEventListener('click', function () {
+          setOpen(true)
+        })
+        document.getElementById('nav-close').addEventListener('click', function () {
+          setOpen(false)
+        })
+        scrim.addEventListener('click', function () {
+          setOpen(false)
+        })
+        document.addEventListener('keydown', function (e) {
+          if (e.key === 'Escape' && side.classList.contains('is-open')) setOpen(false)
+        })
+      })()
     </script>
   </body>
 </html>
