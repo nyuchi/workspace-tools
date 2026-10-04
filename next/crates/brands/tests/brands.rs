@@ -84,6 +84,14 @@ fn lookups() {
     assert!(for_email("someone@example.com").is_none());
     assert!(for_email("not-an-email").is_none());
     assert_eq!(get("nyuchi").unwrap().website(), "nyuchi.com");
+    // Mukoko Events, once branded nhimbe (mukoko-dev/nhimbe#155).
+    assert_eq!(get("nhimbe").unwrap().key, "mukokoEvents");
+    assert_eq!(get("events").unwrap().key, "mukokoEvents");
+    assert_eq!(get("mukokoEvents").unwrap().mineral, "malachite");
+    assert_eq!(
+        for_email("someone@events.mukoko.com").unwrap().key,
+        "mukokoEvents"
+    );
 }
 
 /// The owner's colour rules (#70) on top of the Mzizi ecosystem canon.

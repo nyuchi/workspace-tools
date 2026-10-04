@@ -65,6 +65,12 @@ fn channel_map_is_consistent() {
         assert!(!c.integration.is_empty(), "{}", c.key);
     }
     assert!(nyuchi_imaging::theme::get(&ch.brand["bundu"].theme).is_some());
+    // Mukoko Events (once nhimbe, mukoko-dev/nhimbe#155) releases through the
+    // Mukoko Blog in its malachite theme.
+    let events = &ch.brand["mukokoEvents"];
+    assert_eq!(events.sanity.project, ch.brand["mukoko"].sanity.project);
+    let theme = nyuchi_imaging::theme::get(&events.theme).expect("mukoko-events theme");
+    assert_eq!(theme.accent, "malachite");
 }
 
 #[test]
