@@ -1,0 +1,24 @@
+---
+/** A preset's shape at thumbnail size: the canvas at its true aspect ratio,
+    with the platform-UI bands shaded where it has a safe area. */
+interface Props {
+  width: number
+  height: number
+  safe: [number, number, number, number]
+  box?: number
+}
+const { width, height, safe, box = 56 } = Astro.props
+const scale = box / Math.max(width, height)
+const w = Math.max(6, Math.round(width * scale))
+const h = Math.max(6, Math.round(height * scale))
+const [t, r, b, l] = safe.map((v, i) => ((i % 2 === 0 ? v / height : v / width) * 100).toFixed(2))
+---
+
+<span class="grid shrink-0 place-items-center" style={`width:${box}px;height:${box}px`} aria-hidden="true">
+  <span class="relative block overflow-hidden rounded-[4px] border border-foreground/40 bg-muted" style={`width:${w}px;height:${h}px`}>
+    {Number(t) > 0 && <span class="absolute inset-x-0 top-0 bg-primary/30" style={`height:${t}%`} />}
+    {Number(b) > 0 && <span class="absolute inset-x-0 bottom-0 bg-primary/30" style={`height:${b}%`} />}
+    {Number(l) > 0 && <span class="absolute inset-y-0 left-0 bg-primary/20" style={`width:${l}%`} />}
+    {Number(r) > 0 && <span class="absolute inset-y-0 right-0 bg-primary/20" style={`width:${r}%`} />}
+  </span>
+</span>

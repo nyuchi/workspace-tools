@@ -1,0 +1,18 @@
+---
+/** Empty state (Mzizi `mzizi-empty-state`): a quiet icon, a line of what
+    is missing, and what to do about it. */
+import Glyph from './Glyph.astro'
+interface Props {
+  icon: 'image' | 'mail' | 'history' | 'layers'
+  title: string
+  body?: string
+  id?: string
+}
+const { icon, title, body, id } = Astro.props
+---
+
+<div id={id} class="flex flex-col items-center justify-center gap-2 rounded-[14px] border border-dashed border-border px-6 py-10 text-center">
+  <span class="grid h-12 w-12 place-items-center rounded-full bg-muted text-xl text-foreground/80"><Glyph name={icon} /></span>
+  <p class="font-medium text-foreground">{title}</p>
+  {body && <p class="max-w-sm text-body-sm text-foreground/80">{body}</p>}
+</div>
