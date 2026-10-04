@@ -191,3 +191,26 @@ Rust Worker serves the MCP itself so nothing here touches that file; at
 cut-over `tools.nyuchi.dev` points at this Worker and the TypeScript MCP is
 retired (the phase 3 trial in #70 has, in effect, run: a stateless JSON-RPC
 handler on workers-rs is about 250 lines and passes the protocol tests).
+
+## Mzizi components
+
+Owner rule: anything built here because Mzizi lacked it goes into Mzizi, and
+this site then consumes it from the package. Each local copy carries a
+`TODO(mzizi)` naming its upstream PR:
+
+| Local (`next/site/src`)          | Upstream                                                                                  |
+| -------------------------------- | ----------------------------------------------------------------------------------------- |
+| `layouts/Base.astro` (shell)     | `@bundu/ui` `AppShell` — mzizi-dev/packages-npm#18                                        |
+| `components/PageHeader.astro`    | `@bundu/ui` `PageHeader` — packages-npm#18                                                |
+| `components/Segmented.astro`     | `@bundu/ui` `SegmentedControl` — packages-npm#18                                          |
+| `components/EmptyState.astro`    | `@bundu/ui` `EmptyState` — packages-npm#18                                                |
+| `components/Toaster.astro`       | `@bundu/ui` `Toaster` — packages-npm#18                                                   |
+| `components/Select.astro`        | `@bundu/ui` `NativeSelect` — packages-npm#18                                              |
+| `components/Glyph.astro`         | `@bundu/ui` `Icon` glyphs — packages-npm#18                                               |
+| `components/PresetThumb.astro`   | `safe-area-frame`: React + Rust in mzizi-dev/mzizi-registry#398, Astro in packages-npm#18 |
+| Studio canvas and size picker    | `preview-canvas`, `preset-picker` — mzizi-registry#398 (Astro ports to follow)            |
+| Signatures preview frame         | `mzizi-email-preview` — mzizi-registry#398 (Astro port to follow)                         |
+| `lib/ui.ts` body text at 80% ink | light `--muted-foreground` is AA, not AAA — mzizi-registry#399                            |
+
+The Rust crates here — `crates/imaging` and `crates/brands` — are proposed as
+a Mzizi server crate and as canon data in mzizi-dev/mzizi-registry#400.
