@@ -25,5 +25,8 @@ cd next && cargo run --release -- campaign ../samples/toddle-launch/campaign.tom
 plain text, and `preview.png` of `index.html`). The person in them is made
 up; never commit a real staff member's details.
 
-`site/` has screenshots of the rebuilt site (`next/site`) running under
-`wrangler dev`: home, Studio and presets.
+`site/` has screenshots of the rebuilt site (`next/site`) under `wrangler dev`:
+`before/` the first skeleton and `after/` the workspace redesign, each page at
+375, 768, 1280 and 1920px (dark), plus `after/*-1280-light.png`. Taken with
+`next/site/scripts/shoot.mjs`, which also fails on horizontal overflow at
+320px.
