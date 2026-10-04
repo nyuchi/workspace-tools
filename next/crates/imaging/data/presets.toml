@@ -1,0 +1,301 @@
+# The nyuchi-tools preset catalogue.
+#
+# Every output size the tools render is a row here, not a constant in code:
+# adding a platform is a data change. Each preset is:
+#
+#   id          stable key used by the CLI, the campaign files and (later) the
+#               MCP tools — never rename one, add a new id instead
+#   name        human label
+#   platform    where the image is used
+#   group       social | store | web | email | icon
+#   width/height  exact output pixels
+#   format      "jpeg" (opaque, no alpha possible) or "png"
+#   safe        [top, right, bottom, left] insets in pixels that platform UI
+#               covers (story chrome, caption bars, timestamps). Text and the
+#               screenshot card are laid out inside them; the background
+#               still bleeds to the edge.
+#   max_bytes   the platform's upload ceiling, checked after encoding
+#   alpha       false where the platform rejects transparency
+#   legacy      the old name this replaces, when carried over
+#
+# Sources: the Chrome Web Store image rules (1280x800 / 640x400 screenshots,
+# 440x280 / 1400x560 tiles, no alpha), the Toddle extension's store renders
+# (store/src in nyuchi/toddle-enhancement-extension), the Nyuchi Studio
+# FORMATS table (signature-generator/src/engines/nyuchi), and each platform's
+# 2026 creative specs. Safe areas follow Meta's 9:16 guidance (keep the top
+# ~250px and bottom ~340px clear of text) and TikTok/Reels' right-hand action
+# rail.
+
+# ── Social ──────────────────────────────────────────────────────────────
+
+[[preset]]
+id = "story"
+name = "Story 9:16"
+platform = "Instagram / Facebook / WhatsApp Status stories"
+group = "social"
+width = 1080
+height = 1920
+format = "png"
+safe = [250, 64, 340, 64]
+max_bytes = 30_000_000
+alpha = false
+legacy = "studio:story (no safe areas)"
+
+[[preset]]
+id = "reel-cover"
+name = "Reel / TikTok cover 9:16"
+platform = "Instagram Reels, TikTok, YouTube Shorts"
+group = "social"
+width = 1080
+height = 1920
+format = "png"
+# The profile grid shows the centre 3:4 (1080x1440) of a reel cover, and the
+# player overlays a caption bar and an action rail on the right.
+safe = [240, 140, 420, 64]
+max_bytes = 30_000_000
+alpha = false
+
+[[preset]]
+id = "portrait"
+name = "Portrait 4:5"
+platform = "Instagram / Facebook / LinkedIn feed"
+group = "social"
+width = 1080
+height = 1350
+format = "png"
+safe = [0, 0, 0, 0]
+max_bytes = 30_000_000
+alpha = false
+
+[[preset]]
+id = "square"
+name = "Square 1:1"
+platform = "Instagram feed, WhatsApp, any square slot"
+group = "social"
+width = 1080
+height = 1080
+format = "png"
+safe = [0, 0, 0, 0]
+max_bytes = 30_000_000
+alpha = false
+legacy = "studio:ig, extension social square"
+
+[[preset]]
+id = "linkedin"
+name = "LinkedIn share"
+platform = "LinkedIn link and image posts"
+group = "social"
+width = 1200
+height = 627
+format = "png"
+safe = [0, 0, 0, 0]
+max_bytes = 5_000_000
+alpha = false
+legacy = "studio:li"
+
+[[preset]]
+id = "linkedin-carousel"
+name = "LinkedIn carousel slide 4:5"
+platform = "LinkedIn document carousels (one image per slide)"
+group = "social"
+width = 1080
+height = 1350
+format = "png"
+safe = [0, 0, 0, 0]
+max_bytes = 5_000_000
+alpha = false
+
+[[preset]]
+id = "x"
+name = "X post 16:9"
+platform = "X (Twitter) in-feed image"
+group = "social"
+width = 1600
+height = 900
+format = "png"
+safe = [0, 0, 0, 0]
+max_bytes = 5_000_000
+alpha = false
+
+[[preset]]
+id = "youtube-thumb"
+name = "YouTube thumbnail"
+platform = "YouTube video thumbnail"
+group = "social"
+width = 1280
+height = 720
+format = "jpeg"
+# The duration badge sits in the bottom-right corner.
+safe = [0, 0, 72, 0]
+max_bytes = 2_000_000
+alpha = false
+
+# ── Web ─────────────────────────────────────────────────────────────────
+
+[[preset]]
+id = "og"
+name = "Open Graph / blog header"
+platform = "Link unfurls (Slack, X, iMessage, WhatsApp), blog headers"
+group = "web"
+width = 1200
+height = 630
+format = "png"
+safe = [0, 0, 0, 0]
+max_bytes = 5_000_000
+alpha = false
+legacy = "studio:og, extension frame --size 1200x630"
+
+[[preset]]
+id = "header-16x9"
+name = "16:9 header"
+platform = "Article and page hero images"
+group = "web"
+width = 1600
+height = 900
+format = "png"
+safe = [0, 0, 0, 0]
+max_bytes = 10_000_000
+alpha = false
+legacy = "studio:16x9"
+
+# ── Stores ──────────────────────────────────────────────────────────────
+
+[[preset]]
+id = "cws-screenshot"
+name = "Chrome Web Store screenshot"
+platform = "Chrome Web Store listing"
+group = "store"
+width = 1280
+height = 800
+format = "jpeg"
+safe = [0, 0, 0, 0]
+max_bytes = 5_000_000
+alpha = false
+legacy = "extension store/src/frame.mjs"
+
+[[preset]]
+id = "cws-screenshot-small"
+name = "Chrome Web Store screenshot (small)"
+platform = "Chrome Web Store listing (accepted, but upscaled — prefer 1280x800)"
+group = "store"
+width = 640
+height = 400
+format = "jpeg"
+safe = [0, 0, 0, 0]
+max_bytes = 5_000_000
+alpha = false
+
+[[preset]]
+id = "cws-promo-small"
+name = "Chrome Web Store small promo tile"
+platform = "Chrome Web Store"
+group = "store"
+width = 440
+height = 280
+format = "jpeg"
+safe = [0, 0, 0, 0]
+max_bytes = 5_000_000
+alpha = false
+legacy = "extension store/src/render.mjs"
+
+[[preset]]
+id = "cws-promo-marquee"
+name = "Chrome Web Store marquee tile"
+platform = "Chrome Web Store"
+group = "store"
+width = 1400
+height = 560
+format = "jpeg"
+safe = [0, 0, 0, 0]
+max_bytes = 5_000_000
+alpha = false
+legacy = "extension store/src/render.mjs"
+
+[[preset]]
+id = "shopify-square"
+name = "Shopify product image"
+platform = "Shopify product media (square survives collection and cart crops)"
+group = "store"
+width = 2048
+height = 2048
+format = "jpeg"
+safe = [0, 0, 0, 0]
+max_bytes = 20_000_000
+alpha = false
+
+[[preset]]
+id = "shopify-square-1600"
+name = "Shopify product image (1600)"
+platform = "Shopify product media — the size the Toddle products shipped at"
+group = "store"
+width = 1600
+height = 1600
+format = "jpeg"
+safe = [0, 0, 0, 0]
+max_bytes = 20_000_000
+alpha = false
+legacy = "extension store/src/render-shopify.mjs"
+
+# ── Email ───────────────────────────────────────────────────────────────
+
+[[preset]]
+id = "email-header"
+name = "Email header"
+platform = "Newsletter and announcement headers (600px column at 2x)"
+group = "email"
+width = 1200
+height = 400
+format = "jpeg"
+safe = [0, 0, 0, 0]
+max_bytes = 1_000_000
+alpha = false
+
+# ── Icons ───────────────────────────────────────────────────────────────
+
+[[preset]]
+id = "icon-512"
+name = "App icon 512"
+platform = "PWA manifest, store icons"
+group = "icon"
+width = 512
+height = 512
+format = "png"
+safe = [51, 51, 51, 51]
+max_bytes = 1_000_000
+alpha = true
+
+[[preset]]
+id = "icon-192"
+name = "App icon 192"
+platform = "PWA manifest"
+group = "icon"
+width = 192
+height = 192
+format = "png"
+safe = [19, 19, 19, 19]
+max_bytes = 1_000_000
+alpha = true
+
+[[preset]]
+id = "apple-touch-icon"
+name = "Apple touch icon"
+platform = "iOS home screen"
+group = "icon"
+width = 180
+height = 180
+format = "png"
+safe = [0, 0, 0, 0]
+max_bytes = 1_000_000
+alpha = false
+
+[[preset]]
+id = "favicon-32"
+name = "Favicon 32"
+platform = "Browser tab"
+group = "icon"
+width = 32
+height = 32
+format = "png"
+safe = [0, 0, 0, 0]
+max_bytes = 100_000
+alpha = true

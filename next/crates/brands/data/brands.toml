@@ -1,0 +1,175 @@
+# The one Bundu-ecosystem brand list.
+#
+# Replaces the three hand-synced copies in the live app (the TypeScript
+# registry in signature-generator/src/engines/brands, the slug-keyed BRANDS
+# in gmail-addon/Code.js, and the domain-keyed CONFIG.divisions in
+# email-signature/Code.js). Signatures, the Studio, the site and the MCP all
+# read this file; nothing keeps a copy.
+#
+# Taxonomy (bundu.org): Bundu Foundation is the parent; Nyuchi Africa,
+# Mukoko and Shamwari AI are its pillars; divisions sit under a pillar;
+# initiatives are Bundu Foundation projects, not brands.
+#
+# Fields:
+#   key        stable slug — never rename, add a new key instead
+#   kind       foundation | pillar | division | initiative
+#   parent     key of the parent (absent for bundu)
+#   name, tagline, url
+#   domains    email domains whose staff sign as this brand (the first is
+#              the brand's own); a domain appears under exactly one brand
+#   mineral    the brand's Mzizi colour family: one of the seven minerals
+#              or one of the seven heritage colours
+#
+# Colour rules (owner, #70; Mzizi ecosystem canon): Bundu Foundation is
+# copper (the canon; the owner allows copper or terracotta); every Nyuchi
+# brand is gold; Mukoko, the super app, is tanzanite; Shamwari is sodalite.
+# Sub-apps vary across the minerals and heritage colours but never take
+# gold or tanzanite — a Nyuchi division is Nyuchi, and so gold.
+# tests/brands.rs enforces this.
+#   socials    official accounts only
+#
+# Wording follows the canonical registry. Where the old signature copies
+# differed (Mukoko's "Your Digital Twin Ecosystem", Learning's "Education
+# for Africa's Future"), the registry wins — decision 2 on #70 ended the
+# byte-lock on the historical signature.
+
+[[brand]]
+key = "bundu"
+kind = "foundation"
+name = "Bundu Foundation"
+tagline = "The wilderness holds the hive"
+url = "https://bundu.org"
+domains = ["bundu.org"]
+mineral = "copper"
+socials = {}
+
+[[brand]]
+key = "nyuchi"
+kind = "pillar"
+parent = "bundu"
+name = "Nyuchi Africa"
+tagline = "I am because we are"
+url = "https://nyuchi.com"
+domains = ["nyuchi.com"]
+mineral = "gold"
+socials = { linkedin = "https://www.linkedin.com/company/nyuchi/", facebook = "https://facebook.com/nyuchigroup", instagram = "https://instagram.com/nyuchi.africa" }
+
+[[brand]]
+key = "mukoko"
+kind = "pillar"
+parent = "bundu"
+name = "Mukoko"
+tagline = "Africa's privacy-first social super-app"
+url = "https://mukoko.com"
+domains = ["mukoko.com"]
+mineral = "tanzanite"
+socials = { facebook = "https://facebook.com/mukokoafrica", instagram = "https://instagram.com/mukoko.africa" }
+
+[[brand]]
+key = "shamwari"
+kind = "pillar"
+parent = "bundu"
+name = "Shamwari AI"
+tagline = "AI that actually works for Africa"
+url = "https://shamwari.ai"
+domains = ["shamwari.ai"]
+mineral = "sodalite"
+socials = {}
+
+# ── Divisions ───────────────────────────────────────────────────────────
+# Nyuchi divisions are gold, like Nyuchi. Mukoko's sub-apps take their
+# own colours: Lingo cobalt (the Mzizi canon); Mukoko News has no canon
+# colour, and river (heritage) keeps it apart from every other app.
+
+[[brand]]
+key = "learning"
+kind = "division"
+parent = "nyuchi"
+name = "Nyuchi Learning"
+tagline = "Education for All"
+url = "https://learning.nyuchi.com"
+domains = ["learning.nyuchi.com"]
+mineral = "gold"
+socials = { linkedin = "https://www.linkedin.com/company/nyuchi/" }
+
+[[brand]]
+key = "development"
+kind = "division"
+parent = "nyuchi"
+name = "Nyuchi Development"
+tagline = "Building Digital Africa"
+url = "https://services.nyuchi.com"
+domains = ["services.nyuchi.com"]
+mineral = "gold"
+socials = { linkedin = "https://www.linkedin.com/company/nyuchi/" }
+
+[[brand]]
+key = "foundation"
+kind = "division"
+parent = "nyuchi"
+name = "Nyuchi Foundation"
+tagline = "Empowering Communities"
+url = "https://foundation.nyuchi.com"
+domains = ["foundation.nyuchi.com"]
+mineral = "gold"
+socials = { linkedin = "https://www.linkedin.com/company/nyuchi/" }
+
+[[brand]]
+key = "mukokoNews"
+kind = "division"
+parent = "mukoko"
+name = "Mukoko News"
+tagline = "Pan-African Journalism"
+url = "https://news.mukoko.com"
+domains = ["news.mukoko.com", "hararemetro.co.zw"]
+mineral = "river"
+socials = { facebook = "https://facebook.com/mukokoafrica", instagram = "https://instagram.com/mukoko.africa" }
+
+[[brand]]
+key = "lingo"
+kind = "division"
+parent = "mukoko"
+name = "Mukoko Lingo"
+tagline = "Language Learning for Africa"
+url = "https://lingo.mukoko.com"
+domains = ["lingo.mukoko.com"]
+mineral = "cobalt"
+socials = { facebook = "https://facebook.com/mukokoafrica", instagram = "https://instagram.com/mukoko.africa" }
+
+# ── Initiatives (Bundu Foundation projects, not brands) ─────────────────
+
+[[brand]]
+key = "travel"
+kind = "initiative"
+parent = "bundu"
+name = "Zimbabwe Information Platform"
+tagline = "Discover the Heart of Africa"
+url = "https://travel-info.co.zw"
+domains = ["travel-info.co.zw"]
+mineral = "malachite"
+socials = { x = "https://x.com/zimbabwetravel", instagram = "https://instagram.com/zimbabwe.travel" }
+
+[[brand]]
+key = "telia"
+kind = "initiative"
+parent = "bundu"
+name = "TELIA — Technology Leaders in Africa"
+short_name = "TELIA"
+tagline = "Leading African Innovation"
+url = "https://telia.bundu.org"
+domains = ["telia.bundu.org"]
+mineral = "indigo"
+socials = { linkedin = "https://www.linkedin.com/company/technology-leaders-africa/" }
+# The Gmail add-on still calls this `techLeaders`.
+aliases = ["techLeaders"]
+
+[[brand]]
+key = "education"
+kind = "initiative"
+parent = "bundu"
+name = "Bundu Education"
+# No tagline yet (TODO(brand)).
+url = "https://bundu.org"
+domains = []
+mineral = "savanna"
+socials = {}

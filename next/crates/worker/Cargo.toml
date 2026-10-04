@@ -1,0 +1,25 @@
+[package]
+name = "nyuchi-tools-worker"
+version = "0.1.0"
+description = "The nyuchi-tools Worker on workers-rs: the image and signature API, serving the Astro site."
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+nyuchi-imaging = { path = "../imaging" }
+nyuchi-signature = { path = "../signature" }
+nyuchi-brands = { path = "../brands" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+base64 = "0.22"
+crc32fast = "1"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+worker = "0.8"
+
+[dev-dependencies]
+png = "0.18"
