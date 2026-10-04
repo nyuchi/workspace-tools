@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Mukoko Events in the brand list and the release pipeline**
+  ([mukoko-dev/nhimbe#155](https://github.com/mukoko-dev/nhimbe/issues/155)).
+  Owner decision, 2026-10-04: the nhimbe brand is retired, and the events
+  platform is Mukoko Events at events.mukoko.com, in malachite.
+  `brands.toml` gains the `mukokoEvents` division under Mukoko, with
+  `events` and `nhimbe` as aliases. `nyuchi-imaging` gains a malachite
+  `mukoko-events` theme. `releases/channels.toml` maps `mukokoEvents` to the
+  Mukoko Blog, so an events release posts through the Mukoko channels.
 - **Release marketing pipeline** (#83). `next/crates/release`
   (`nyuchi-release`) and `releases/`: a release that is live in production
   becomes a Sanity draft, one Postiz draft per channel and three images (OG,
