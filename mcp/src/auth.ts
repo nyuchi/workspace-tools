@@ -1,9 +1,11 @@
 /**
  * Optional WorkOS Connect (OAuth 2.1) protection for the MCP endpoint.
  *
- * Config comes from Worker vars (wrangler.toml [vars] or dashboard secrets):
+ * Config comes from the Worker's settings — never from committed config:
  *   AUTHKIT_DOMAIN — the WorkOS AuthKit/Connect domain for the environment,
- *                    e.g. "your-workspace.authkit.app". When UNSET, the MCP
+ *                    a bare host or an https origin. Set per environment as a
+ *                    Worker secret (never a wrangler.toml [vars] entry, and
+ *                    there is no default in code). When UNSET, the MCP
  *                    server runs open (no auth) and OAuth discovery endpoints
  *                    return 404s that tell clients no sign-in is needed.
  *   MCP_RESOURCE   — this server's canonical resource URL
@@ -15,7 +17,7 @@
  *   - Unauthenticated /mcp requests get 401 + WWW-Authenticate pointing at
  *     that metadata, which is how MCP clients discover the OAuth flow.
  *   - Bearer tokens are JWTs verified against the WorkOS JWKS
- *     (https://<AUTHKIT_DOMAIN>/oauth2/jwks) with issuer + audience checks.
+ *     (<AUTHKIT_DOMAIN>/oauth2/jwks) with issuer + audience checks.
  *
  * Client registration (CIMD / dynamic client registration) is handled by
  * WorkOS itself — enable it in the WorkOS dashboard under
@@ -27,22 +29,85 @@ import { createRemoteJWKSet, jwtVerify } from "jose";
 export interface AuthEnv {
   AUTHKIT_DOMAIN?: string;
   MCP_RESOURCE?: string;
+  /**
+   * Local development only: `"true"` lets `/mcp` run without a bearer token
+   * when AUTHKIT_DOMAIN is unset AND the request is to localhost. Never set in
+   * any deployed environment (it is not in wrangler.toml); put it in
+   * `.dev.vars` for `wrangler dev`.
+   */
+  ALLOW_UNAUTHENTICATED_DEV?: string;
 }
 
 // Must match the "AuthKit OAuth resource" registered in the WorkOS dashboard
 // for this integration — see the MCP_RESOURCE comment in wrangler.toml.
 export const DEFAULT_RESOURCE = "https://tools.nyuchi.dev/mcp";
 
+/** Message used whenever a flow needs AUTHKIT_DOMAIN and it is unset. */
+export const AUTHKIT_DOMAIN_MISSING = "AUTHKIT_DOMAIN is not configured";
+
+/**
+ * True when AUTHKIT_DOMAIN is set at all. Deliberately presence-only: this
+ * switches auth ON, and an unusable value must not switch it OFF (that would
+ * fail open). With auth on and an invalid value, `issuerUrl` throws, so bearer
+ * verification returns null (401) and the OAuth surfaces error — fail closed.
+ */
 export function authConfigured(env: AuthEnv): boolean {
-  return typeof env.AUTHKIT_DOMAIN === "string" && env.AUTHKIT_DOMAIN.length > 0;
+  return typeof env.AUTHKIT_DOMAIN === "string" && env.AUTHKIT_DOMAIN.trim().length > 0;
+}
+
+const LOCAL_HOSTNAMES = new Set(["localhost", "127.0.0.1", "[::1]"]);
+
+/**
+ * True only for the explicit local-development opt-out: AUTHKIT_DOMAIN unset,
+ * `ALLOW_UNAUTHENTICATED_DEV` exactly `"true"`, and the request addressed to
+ * localhost. Everywhere else an unset AUTHKIT_DOMAIN fails closed — `/mcp`
+ * never serves tools unauthenticated by default.
+ */
+export function unauthenticatedDevAllowed(env: AuthEnv, requestUrl: string): boolean {
+  if (authConfigured(env)) return false;
+  if (env.ALLOW_UNAUTHENTICATED_DEV !== "true") return false;
+  try {
+    return LOCAL_HOSTNAMES.has(new URL(requestUrl).hostname);
+  } catch {
+    return false;
+  }
 }
 
 export function resourceUrl(env: AuthEnv): string {
   return env.MCP_RESOURCE || DEFAULT_RESOURCE;
 }
 
+/**
+ * Parse — never concatenate — a configured AuthKit domain into an https origin.
+ *
+ * Accepts a bare host or an https origin, in any case. Any path, query or
+ * fragment is dropped. A blank value, `http:`, any other scheme, embedded
+ * credentials and anything `URL` cannot parse all throw an error whose message
+ * starts with `AUTHKIT_DOMAIN_MISSING`. The result is `URL.origin`.
+ */
+export function normaliseAuthkitDomain(value: string | undefined): string {
+  const raw = value?.trim();
+  if (!raw) throw new Error(AUTHKIT_DOMAIN_MISSING);
+  let url: URL;
+  try {
+    url = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(raw) ? raw : `https://${raw}`);
+  } catch {
+    throw new Error(`${AUTHKIT_DOMAIN_MISSING} (not a valid host or URL)`);
+  }
+  if (url.protocol !== "https:" || url.username || url.password) {
+    throw new Error(`${AUTHKIT_DOMAIN_MISSING} (must be an https origin)`);
+  }
+  return url.origin;
+}
+
+/**
+ * The AuthKit issuer origin, from configuration only, parsed by
+ * `normaliseAuthkitDomain` (the `iss` check is an exact string match against
+ * it). Throws when AUTHKIT_DOMAIN is unset or is not a bare host / https
+ * origin — callers check `authConfigured` first; there is no fallback host.
+ */
 export function issuerUrl(env: AuthEnv): string {
-  return `https://${env.AUTHKIT_DOMAIN}`;
+  return normaliseAuthkitDomain(env.AUTHKIT_DOMAIN);
 }
 
 /**
@@ -77,11 +142,11 @@ export function wwwAuthenticateHeader(env: AuthEnv): string {
 /* JWKS instances are cached per AuthKit domain for the isolate's lifetime. */
 const jwksCache = new Map<string, ReturnType<typeof createRemoteJWKSet>>();
 
-function jwksFor(domain: string): ReturnType<typeof createRemoteJWKSet> {
-  let jwks = jwksCache.get(domain);
+function jwksFor(issuer: string): ReturnType<typeof createRemoteJWKSet> {
+  let jwks = jwksCache.get(issuer);
   if (!jwks) {
-    jwks = createRemoteJWKSet(new URL(`https://${domain}/oauth2/jwks`));
-    jwksCache.set(domain, jwks);
+    jwks = createRemoteJWKSet(new URL("/oauth2/jwks", issuer));
+    jwksCache.set(issuer, jwks);
   }
   return jwks;
 }
@@ -117,10 +182,11 @@ export async function verifyJwt(
   token: string | undefined,
   expectedAudience?: string,
 ): Promise<VerifiedJwt | null> {
-  if (!token || !env.AUTHKIT_DOMAIN) return null;
+  if (!token || !authConfigured(env)) return null;
   try {
-    const { payload } = await jwtVerify(token, jwksFor(env.AUTHKIT_DOMAIN), {
-      issuer: issuerUrl(env),
+    const issuer = issuerUrl(env);
+    const { payload } = await jwtVerify(token, jwksFor(issuer), {
+      issuer,
       audience: expectedAudience ?? resourceUrl(env),
     });
     const scopes =
