@@ -7,13 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Changed
-
-- **Dependabot waits seven days before proposing a new release.** Every
-  `updates:` entry in `.github/dependabot.yml` now sets
-  `cooldown: { default-days: 7 }`, the org rule, so a freshly published (and
-  possibly malicious or broken) version is never proposed on day one.
-
 ### Added
 
 - **Mukoko Events in the brand list and the release pipeline**
@@ -49,6 +42,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Dependabot waits seven days before proposing a new release.** Every
+  `updates:` entry in `.github/dependabot.yml` now sets
+  `cooldown: { default-days: 7 }`, the org rule, so a freshly published (and
+  possibly malicious or broken) version is never proposed on day one.
 - **Vite+ for the root checks and Worker tests** (tooling only). `vite-plus`
   1.0 replaces `vitest` as a root dev dependency, `vite.config.ts` carries the
   org format settings and turns on type-aware linting and type checking, and
