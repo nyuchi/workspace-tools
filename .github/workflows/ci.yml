@@ -1,6 +1,10 @@
 name: CI
 
 on:
+  # Merge queue: required checks must also run on the queue's merge group, or
+  # queued PRs wait 60 minutes and drop out.
+  merge_group:
+    types: [checks_requested]
   pull_request:
   push:
     branches: [main, staging]
