@@ -42,6 +42,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Dependencies are declared as minimums, and vite-plus is 1.3.0.** Owner
+  direction, 2026-10-21. Every dependency, devDependency and override in the
+  root `package.json` and in `signature-generator/package.json` is now written
+  as `>=x.y.z` with no upper bound, where `x.y.z` is the version the lockfile
+  already resolved. The one deliberate move is vite-plus, from `^1.0.0`
+  (resolved 1.0.0) to `>=1.3.0` (resolved 1.3.0). It brings oxfmt 0.73.0,
+  oxlint 1.88.0 and vitest 5.0.5 into the root tree, along with their own
+  transitive packages. No other direct dependency's resolved version moved,
+  and `signature-generator/package-lock.json` resolves exactly as before.
 - **Dependabot waits seven days before proposing a new release.** Every
   `updates:` entry in `.github/dependabot.yml` now sets
   `cooldown: { default-days: 7 }`, the org rule, so a freshly published (and
