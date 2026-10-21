@@ -3,6 +3,9 @@
 version: 2
 updates:
   - package-ecosystem: npm
+    target-branch: "staging"
+    cooldown:
+      default-days: 7
     directory: "/"
     schedule:
       interval: weekly
@@ -12,6 +15,9 @@ updates:
         update-types: ["minor", "patch"]
 
   - package-ecosystem: npm
+    target-branch: "staging"
+    cooldown:
+      default-days: 7
     directory: "/signature-generator"
     schedule:
       interval: weekly
@@ -21,6 +27,9 @@ updates:
         update-types: ["minor", "patch"]
 
   - package-ecosystem: github-actions
+    target-branch: "staging"
+    cooldown:
+      default-days: 7
     directory: "/"
     schedule:
       interval: weekly
