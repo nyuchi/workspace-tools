@@ -51,6 +51,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   oxlint 1.88.0 and vitest 5.0.5 into the root tree, along with their own
   transitive packages. No other direct dependency's resolved version moved,
   and `signature-generator/package-lock.json` resolves exactly as before.
+- **Security floors for the audit gate.** Root: `@modelcontextprotocol/sdk`
+  `>=1.32.1` (resolved 1.32.1; 1.31.0 and older carry five high advisories),
+  `wrangler` `>=4.149.0` (resolved 4.152.0, whose miniflare no longer pulls a
+  vulnerable sharp), and new overrides `proxy-addr` `>=2.0.8`, `sharp`
+  `>=0.35.5` and `vite@>=8.0.0 <8.3.5` `>=8.3.5` (resolved 8.3.5).
+  `signature-generator`: new overrides `http-cache-semantics@<4.3.0`
+  `>=4.3.0`, `source-map-js@<1.2.2` `>=1.2.2`, `vite@>=7.0.0 <7.3.7`
+  `>=7.3.7` and `vite@>=8.0.0 <8.3.5` `>=8.3.5`, so astro, `@astrojs/react`
+  and vitest all resolve vite 8.3.5. Every override is a minimum with no
+  maximum. The root lockfile is regenerated with npm 10.9, the npm CI's Node
+  22 ships, so `npm ci` there accepts it again (npm 11 had pruned the nested
+  `@google/clasp/node_modules/typescript@5.9.3` that npm 10 requires); npm
+  11.12.1's `npm ci` accepts it too. The Worker test for an unknown brand now
+  asserts on the field name only, because SDK 1.32 words its validation error
+  differently.
 - **Dependabot waits seven days before proposing a new release.** Every
   `updates:` entry in `.github/dependabot.yml` now sets
   `cooldown: { default-days: 7 }`, the org rule, so a freshly published (and
