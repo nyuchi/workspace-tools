@@ -158,7 +158,7 @@ the other three are its pillars.
 | **Bundu Foundation** | bundu.org   | The parent — foundation |
 | **Nyuchi Africa**    | nyuchi.com  | Commercial              |
 | **Mukoko**           | mukoko.com  | Consumer                |
-| **Shamwari AI**      | shamwari.ai | Community               |
+| **Shamwari AI**      | shamwari.ai | Intelligence            |
 
 Divisions and Bundu Foundation initiatives (initiatives are projects, not brands):
 

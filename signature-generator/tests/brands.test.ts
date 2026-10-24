@@ -38,7 +38,7 @@ describe('TOP_BRANDS registry shape', () => {
     expect(TOP_BRANDS.bundu.pillar).toBe('foundation')
     expect(TOP_BRANDS.nyuchi.pillar).toBe('commercial')
     expect(TOP_BRANDS.mukoko.pillar).toBe('consumer')
-    expect(TOP_BRANDS.shamwari.pillar).toBe('community')
+    expect(TOP_BRANDS.shamwari.pillar).toBe('intelligence')
   })
 
   it('vendors per-theme icon pairs for all four brands', () => {
