@@ -47,7 +47,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   root `package.json` and in `signature-generator/package.json` is now written
   as `>=x.y.z` with no upper bound. Most `x.y.z` values are the version the
   lockfile already resolved; the security floors in the next entry are higher.
-  The deliberate tooling move is vite-plus, from `^1.0.0` (resolved 1.0.0) to
+  One exception: owner decision 2026-10-24, typescript stays `~6.0.3` in
+  `signature-generator`, so the site is held on TypeScript 6.0.x while the
+  root is on TypeScript 7 (resolved 6.0.3). The deliberate tooling move is vite-plus, from `^1.0.0` (resolved 1.0.0) to
   `>=1.3.0` (resolved 1.3.0), which brings oxfmt 0.73.0, oxlint 1.88.0 and
   vitest 5.0.5 into the root tree. It is not the only resolved version that
   moved: in the root lock `@modelcontextprotocol/sdk` goes from 1.29.0 to
