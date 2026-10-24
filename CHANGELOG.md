@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Shamwari AI is the intelligence pillar, not the community pillar**
+  ([mzizi-dev/mzizi-registry#543](https://github.com/mzizi-dev/mzizi-registry/issues/543)).
+  Aligns the brand registry with Mzizi, which is the rule for brand taxonomy:
+  the `mzizi-design` skill names shamwari ai "the intelligence pillar", and
+  its colour, sodalite, carries the role "Intelligence" (terracotta is
+  "Community"). `PillarRole`'s `'community'` becomes `'intelligence'`, so
+  `TOP_BRANDS.shamwari.pillar` and the `nyuchi://brands` MCP resource now
+  report `intelligence`. The pillar set (nyuchi, mukoko, shamwari under the
+  Bundu Foundation) and every pillar colour (bundu copper, nyuchi gold,
+  mukoko tanzanite, shamwari sodalite) already matched `/v1/brand`. The
+  signature engine and the Apps Script copies carry no pillar role, so emitted
+  signature HTML is unchanged.
+
 ### Added
 
 - **Mukoko Events in the brand list and the release pipeline**
