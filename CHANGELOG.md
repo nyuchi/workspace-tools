@@ -82,13 +82,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `clasp mcp` server's `tools/list` both work); `body-parser` `>=2.4.0`
   (GHSA-27r3-jxmh-p828, via the MCP SDK's express); and
   `undici@>=7.0.0 <7.30.1` `>=7.30.1` (GHSA-4qv8-2p9j-2685,
-  GHSA-f72v-6w45-q472, GHSA-xjj6-f33q-929c, via miniflare). That open
-  minimum resolves undici 8.12.3 for miniflare, which pins 7.29.1;
-  `wrangler dev` still serves the Worker and the deploy dry run passes.
+  GHSA-f72v-6w45-q472, GHSA-xjj6-f33q-929c, via miniflare, which pins
+  7.29.1). The lockfile holds the patched 7.30.1, miniflare's own major; a
+  resolve without the lockfile may pick undici 8.
   `signature-generator`: `undici@>=8.0.0 <8.12.3` `>=8.12.3` (via astro's
-  unifont) and `zod@<4.6.6` `>=4.6.6`. Resolved: zod 4.6.7 and undici 8.12.3
-  in both trees, body-parser 2.4.0 (with content-type 2.1.0, iconv-lite 0.7.3
-  and qs 6.16.1) in the root.
+  unifont, which asks for `^8`) and `zod@<4.6.6` `>=4.6.6`. Resolved: zod
+  4.6.7 in both trees, undici 7.30.1 in the root and 8.12.3 in the site, and
+  body-parser 2.4.0 (with content-type 2.1.0, iconv-lite 0.7.3 and qs 6.16.1)
+  in the root.
 - **Dependabot waits seven days before proposing a new release.** Every
   `updates:` entry in `.github/dependabot.yml` now sets
   `cooldown: { default-days: 7 }`, the org rule, so a freshly published (and
