@@ -45,12 +45,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Dependencies are declared as minimums, and vite-plus is 1.3.0.** Owner
   direction, 2026-10-21. Every dependency, devDependency and override in the
   root `package.json` and in `signature-generator/package.json` is now written
-  as `>=x.y.z` with no upper bound, where `x.y.z` is the version the lockfile
-  already resolved. The one deliberate move is vite-plus, from `^1.0.0`
-  (resolved 1.0.0) to `>=1.3.0` (resolved 1.3.0). It brings oxfmt 0.73.0,
-  oxlint 1.88.0 and vitest 5.0.5 into the root tree, along with their own
-  transitive packages. No other direct dependency's resolved version moved,
-  and `signature-generator/package-lock.json` resolves exactly as before.
+  as `>=x.y.z` with no upper bound. Most `x.y.z` values are the version the
+  lockfile already resolved; the security floors in the next entry are higher.
+  The deliberate tooling move is vite-plus, from `^1.0.0` (resolved 1.0.0) to
+  `>=1.3.0` (resolved 1.3.0), which brings oxfmt 0.73.0, oxlint 1.88.0 and
+  vitest 5.0.5 into the root tree. It is not the only resolved version that
+  moved: in the root lock `@modelcontextprotocol/sdk` goes from 1.29.0 to
+  1.32.1, `wrangler` from 4.147.0 to 4.152.0 (with miniflare
+  5.20261019.2-beta) and `@cloudflare/workers-types` from 5.20261003.1 to
+  5.20261023.1. `signature-generator/package-lock.json` changes too: the new
+  overrides below move astro, `@astrojs/react` and vitest onto one vite 8.3.5
+  (vite 7.3.6 and 8.1.3, and rollup 4.62.2 with them, are gone), with
+  rolldown 1.2.15, postcss 8.5.31, nanoid 3.3.20, picomatch 4.0.7,
+  source-map-js 1.2.2, http-cache-semantics 4.3.0 and a second lightningcss
+  at 1.33.0; no direct dependency of the site changed its resolved version.
 - **Security floors for the audit gate.** Root: `@modelcontextprotocol/sdk`
   `>=1.32.1` (resolved 1.32.1; 1.31.0 and older carry five high advisories),
   `wrangler` `>=4.149.0` (resolved 4.152.0, whose miniflare no longer pulls a
@@ -66,6 +74,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   11.12.1's `npm ci` accepts it too. The Worker test for an unknown brand now
   asserts on the field name only, because SDK 1.32 words its validation error
   differently.
+- **Floors for the advisories published on 2026-10-23.** The org audit blocks
+  a high advisory whenever a fixed release exists. Root: `zod` `>=4.6.6`
+  (GHSA-mrhx-c7xc-m3w5) as the direct dependency and as a nested override
+  under `@google/clasp`, whose own range is `^3.25.76` and so has no fixed
+  release on 3.x (clasp 3.3.0 still runs on zod 4: `clasp status` and the
+  `clasp mcp` server's `tools/list` both work); `body-parser` `>=2.4.0`
+  (GHSA-27r3-jxmh-p828, via the MCP SDK's express); and
+  `undici@>=7.0.0 <7.30.1` `>=7.30.1` (GHSA-4qv8-2p9j-2685,
+  GHSA-f72v-6w45-q472, GHSA-xjj6-f33q-929c, via miniflare). That open
+  minimum resolves undici 8.12.3 for miniflare, which pins 7.29.1;
+  `wrangler dev` still serves the Worker and the deploy dry run passes.
+  `signature-generator`: `undici@>=8.0.0 <8.12.3` `>=8.12.3` (via astro's
+  unifont) and `zod@<4.6.6` `>=4.6.6`. Resolved: zod 4.6.7 and undici 8.12.3
+  in both trees, body-parser 2.4.0 (with content-type 2.1.0, iconv-lite 0.7.3
+  and qs 6.16.1) in the root.
 - **Dependabot waits seven days before proposing a new release.** Every
   `updates:` entry in `.github/dependabot.yml` now sets
   `cooldown: { default-days: 7 }`, the org rule, so a freshly published (and
