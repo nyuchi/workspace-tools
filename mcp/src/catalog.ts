@@ -53,7 +53,7 @@ export function registerCatalog(server: McpServer): void {
       title: "Bundu ecosystem brand registry",
       description:
         "The canonical Bundu-ecosystem taxonomy: the four top-level brands " +
-        "(bundu foundation, nyuchi commercial, mukoko consumer, shamwari community AI), " +
+        "(bundu foundation, nyuchi commercial, mukoko consumer, shamwari intelligence (AI)), " +
         "their divisions, and the Bundu Foundation initiatives. Same data the " +
         "nyuchi_generate_email_signature and nyuchi_generate_studio_card tools use.",
       mimeType: "application/json",

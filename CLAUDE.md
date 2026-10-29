@@ -108,7 +108,7 @@ registry — a pure module holding the Bundu-ecosystem taxonomy:
 
 - **Bundu Foundation** (`bundu`, bundu.org) is the parent; the other three
   top-level brands are its pillars: **Nyuchi Africa** (`nyuchi`, commercial),
-  **Mukoko** (`mukoko`, consumer), **Shamwari AI** (`shamwari`, community).
+  **Mukoko** (`mukoko`, consumer), **Shamwari AI** (`shamwari`, intelligence).
 - `DIVISIONS` (keyed by parent): nyuchi → lingo/learning/development/foundation,
   mukoko → mukokoNews.
 - `INITIATIVES` under bundu (projects, NOT brands): Zimbabwe Information

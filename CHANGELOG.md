@@ -42,6 +42,82 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Internal only: WorkOS org gate, one MCP URL, R2 images, portrait cards**
+  ([#120](https://github.com/nyuchi/workspace-tools/issues/120)). The site login
+  and `/mcp` now require membership of the WorkOS organization in
+  `NYUCHI_ORG_ID` (the token's `org_id` claim); a valid sign-in from another
+  org, or a consumer Mukoko account, is refused. Session cookies carry `org`, so
+  sessions minted before this change end; with `NYUCHI_ORG_ID` unset everything
+  fails closed. `/mcp` and `/images/*` are served only on `tools.nyuchi.dev`;
+  `tools.nyuchi.com/mcp` is a 404 (a connector added against it advertised a
+  resource that did not match its URL and failed authorization — re-add it with
+  the `.dev` URL). `nyuchi_generate_studio_card` defaults to
+  `returnFormat: 'both'` (SVG, then the PNG inline); `upload`/`url` stores the
+  PNG in the R2 bucket bound as `IMAGES` and returns a public
+  `https://tools.nyuchi.dev/images/<key>` link (Cloudflare Images stays a
+  fallback). New 4:5 `portrait` Studio canvas (1080×1350).
+- **Shamwari AI is the intelligence pillar, not the community pillar**
+  ([mzizi-dev/mzizi-registry#543](https://github.com/mzizi-dev/mzizi-registry/issues/543)).
+  Aligns the brand registry with Mzizi, which is the rule for brand taxonomy:
+  the `mzizi-design` skill names shamwari ai "the intelligence pillar", and
+  its colour, sodalite, carries the role "Intelligence" (terracotta is
+  "Community"). `PillarRole`'s `'community'` becomes `'intelligence'`, so
+  `TOP_BRANDS.shamwari.pillar` and the `nyuchi://brands` MCP resource now
+  report `intelligence`. The pillar set (nyuchi, mukoko, shamwari under the
+  Bundu Foundation) and every pillar colour (bundu copper, nyuchi gold,
+  mukoko tanzanite, shamwari sodalite) already matched `/v1/brand`. The
+  signature engine and the Apps Script copies carry no pillar role, so emitted
+  signature HTML is unchanged.
+- **Dependencies are declared as minimums, and vite-plus is 1.3.0.** Owner
+  direction, 2026-10-21. Every dependency, devDependency and override in the
+  root `package.json` and in `signature-generator/package.json` is now written
+  as `>=x.y.z` with no upper bound. Most `x.y.z` values are the version the
+  lockfile already resolved; the security floors in the next entry are higher.
+  One exception: owner decision 2026-10-24, typescript stays `~6.0.3` in
+  `signature-generator`, so the site is held on TypeScript 6.0.x while the
+  root is on TypeScript 7 (resolved 6.0.3). The deliberate tooling move is vite-plus, from `^1.0.0` (resolved 1.0.0) to
+  `>=1.3.0` (resolved 1.3.0), which brings oxfmt 0.73.0, oxlint 1.88.0 and
+  vitest 5.0.5 into the root tree. It is not the only resolved version that
+  moved: in the root lock `@modelcontextprotocol/sdk` goes from 1.29.0 to
+  1.32.1, `wrangler` from 4.147.0 to 4.152.0 (with miniflare
+  5.20261019.2-beta) and `@cloudflare/workers-types` from 5.20261003.1 to
+  5.20261023.1. `signature-generator/package-lock.json` changes too: the new
+  overrides below move astro, `@astrojs/react` and vitest onto one vite 8.3.5
+  (vite 7.3.6 and 8.1.3, and rollup 4.62.2 with them, are gone), with
+  rolldown 1.2.15, postcss 8.5.31, nanoid 3.3.20, picomatch 4.0.7,
+  source-map-js 1.2.2, http-cache-semantics 4.3.0 and a second lightningcss
+  at 1.33.0; no direct dependency of the site changed its resolved version.
+- **Security floors for the audit gate.** Root: `@modelcontextprotocol/sdk`
+  `>=1.32.1` (resolved 1.32.1; 1.31.0 and older carry five high advisories),
+  `wrangler` `>=4.149.0` (resolved 4.152.0, whose miniflare no longer pulls a
+  vulnerable sharp), and new overrides `proxy-addr` `>=2.0.8`, `sharp`
+  `>=0.35.5` and `vite@>=8.0.0 <8.3.5` `>=8.3.5` (resolved 8.3.5).
+  `signature-generator`: new overrides `http-cache-semantics@<4.3.0`
+  `>=4.3.0`, `source-map-js@<1.2.2` `>=1.2.2`, `vite@>=7.0.0 <7.3.7`
+  `>=7.3.7` and `vite@>=8.0.0 <8.3.5` `>=8.3.5`, so astro, `@astrojs/react`
+  and vitest all resolve vite 8.3.5. Every override is a minimum with no
+  maximum. The root lockfile is regenerated with npm 10.9, the npm CI's Node
+  22 ships, so `npm ci` there accepts it again (npm 11 had pruned the nested
+  `@google/clasp/node_modules/typescript@5.9.3` that npm 10 requires); npm
+  11.12.1's `npm ci` accepts it too. The Worker test for an unknown brand now
+  asserts on the field name only, because SDK 1.32 words its validation error
+  differently.
+- **Floors for the advisories published on 2026-10-23.** The org audit blocks
+  a high advisory whenever a fixed release exists. Root: `zod` `>=4.6.6`
+  (GHSA-mrhx-c7xc-m3w5) as the direct dependency and as a nested override
+  under `@google/clasp`, whose own range is `^3.25.76` and so has no fixed
+  release on 3.x (clasp 3.3.0 still runs on zod 4: `clasp status` and the
+  `clasp mcp` server's `tools/list` both work); `body-parser` `>=2.4.0`
+  (GHSA-27r3-jxmh-p828, via the MCP SDK's express); and
+  `undici@>=7.0.0 <7.30.1` `>=7.30.1` (GHSA-4qv8-2p9j-2685,
+  GHSA-f72v-6w45-q472, GHSA-xjj6-f33q-929c, via miniflare, which pins
+  7.29.1). The lockfile holds the patched 7.30.1, miniflare's own major; a
+  resolve without the lockfile may pick undici 8.
+  `signature-generator`: `undici@>=8.0.0 <8.12.3` `>=8.12.3` (via astro's
+  unifont, which asks for `^8`) and `zod@<4.6.6` `>=4.6.6`. Resolved: zod
+  4.6.7 in both trees, undici 7.30.1 in the root and 8.12.3 in the site, and
+  body-parser 2.4.0 (with content-type 2.1.0, iconv-lite 0.7.3 and qs 6.16.1)
+  in the root.
 - **Dependabot waits seven days before proposing a new release.** Every
   `updates:` entry in `.github/dependabot.yml` now sets
   `cooldown: { default-days: 7 }`, the org rule, so a freshly published (and

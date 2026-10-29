@@ -133,7 +133,7 @@ function base64ToBytes(b64: string): Uint8Array {
 /** One-line brand taxonomy, appended to every `brand` param description. */
 const BRAND_TAXONOMY =
   "Top-level Bundu-ecosystem brand: bundu (foundation), nyuchi (commercial), " +
-  "mukoko (consumer), shamwari (community AI).";
+  "mukoko (consumer), shamwari (intelligence, AI).";
 
 /** The seven Mzizi mineral palettes shared by both SVG engines. */
 const MINERALS = [

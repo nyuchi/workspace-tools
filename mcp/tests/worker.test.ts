@@ -343,9 +343,10 @@ describe('POST /mcp — JSON-RPC', () => {
     const result = body.result as { isError: boolean; content: { text: string }[] }
     expect(body.error).toBeUndefined()
     expect(result.isError).toBe(true)
+    // SDK 1.32 renders the failing field as "... at brand" rather than as
+    // zod's JSON issue list with a "path" key, so assert only on the field.
     expect(result.content[0].text).toContain('-32602')
-    expect(result.content[0].text).toContain('"path"')
-    expect(result.content[0].text).toContain('brand')
+    expect(result.content[0].text).toMatch(/\bbrand\b/)
   })
 
   it('tools/call nyuchi_generate_studio_card returns a real Studio SVG plus JSON metadata', async () => {
