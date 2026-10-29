@@ -36,6 +36,28 @@ export interface AuthEnv {
    * `.dev.vars` for `wrangler dev`.
    */
   ALLOW_UNAUTHENTICATED_DEV?: string;
+  /**
+   * The WorkOS organization (`org_...`) whose members are the only people
+   * allowed in — on the site login gate AND on /mcp. A valid AuthKit identity
+   * is not enough: accounts.mukoko.com also hosts consumer accounts. Unset =
+   * FAIL CLOSED (nobody is let in), never "any signed-in user".
+   */
+  NYUCHI_ORG_ID?: string;
+}
+
+/** Message used whenever a flow needs NYUCHI_ORG_ID and it is unset. */
+export const NYUCHI_ORG_ID_MISSING = "NYUCHI_ORG_ID is not configured";
+
+/** The configured org id, or undefined when unset/blank. */
+export function requiredOrgId(env: AuthEnv): string | undefined {
+  const id = typeof env.NYUCHI_ORG_ID === "string" ? env.NYUCHI_ORG_ID.trim() : "";
+  return id || undefined;
+}
+
+/** True only when an org is configured AND `orgId` is exactly that org. */
+export function orgAllowed(env: AuthEnv, orgId: string | undefined): boolean {
+  const required = requiredOrgId(env);
+  return required !== undefined && orgId === required;
 }
 
 // Must match the "AuthKit OAuth resource" registered in the WorkOS dashboard
@@ -159,6 +181,8 @@ export interface VerifiedToken {
 export interface VerifiedJwt {
   sub?: string;
   email?: string;
+  /** WorkOS `org_id` claim: the organization the session is signed in to. */
+  orgId?: string;
   scopes: string[];
 }
 
@@ -180,20 +204,24 @@ export interface VerifiedJwt {
 export async function verifyJwt(
   env: AuthEnv,
   token: string | undefined,
-  expectedAudience?: string,
+  expectedAudience?: string | null,
 ): Promise<VerifiedJwt | null> {
   if (!token || !authConfigured(env)) return null;
   try {
     const issuer = issuerUrl(env);
+    // `null` skips the audience check (signature + issuer + expiry still
+    // apply): used only to read the org claim off the site-login access token,
+    // whose audience is not a registered resource.
     const { payload } = await jwtVerify(token, jwksFor(issuer), {
       issuer,
-      audience: expectedAudience ?? resourceUrl(env),
+      ...(expectedAudience === null ? {} : { audience: expectedAudience ?? resourceUrl(env) }),
     });
     const scopes =
       typeof payload.scope === "string" ? payload.scope.split(" ").filter(Boolean) : [];
     return {
       sub: typeof payload.sub === "string" ? payload.sub : undefined,
       email: typeof payload.email === "string" ? payload.email : undefined,
+      orgId: typeof payload.org_id === "string" ? payload.org_id : undefined,
       scopes,
     };
   } catch {
@@ -213,5 +241,7 @@ export async function verifyBearer(
   if (!token) return null;
   const verified = await verifyJwt(env, token);
   if (!verified) return null;
+  // Internal only: a valid token from another org (or none) is not enough.
+  if (!orgAllowed(env, verified.orgId)) return null;
   return { userId: verified.sub, scopes: verified.scopes };
 }

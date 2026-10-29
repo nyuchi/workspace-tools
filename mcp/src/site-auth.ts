@@ -31,7 +31,7 @@
  */
 
 import { SignJWT, base64url, jwtVerify } from "jose";
-import { type AuthEnv, issuerUrl } from "./auth.js";
+import { type AuthEnv, issuerUrl, orgAllowed } from "./auth.js";
 
 export interface SiteAuthEnv extends AuthEnv {
   SESSION_SECRET?: string;
@@ -278,6 +278,8 @@ export function decodeOauthCookie(value: string | undefined): OauthCookiePayload
 export interface SessionClaims {
   sub?: string;
   email?: string;
+  /** WorkOS org the user was admitted through; checked on every request. */
+  org?: string;
 }
 
 /**
@@ -291,7 +293,7 @@ export async function mintSessionCookie(env: SiteAuthEnv, claims: SessionClaims)
   }
   const key = new TextEncoder().encode(env.SESSION_SECRET);
   const now = Math.floor(Date.now() / 1000);
-  return new SignJWT({ sub: claims.sub, email: claims.email })
+  return new SignJWT({ sub: claims.sub, email: claims.email, org: claims.org })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt(now)
     .setExpirationTime(now + SESSION_TTL_SECONDS)
@@ -313,9 +315,14 @@ export async function verifySessionCookie(
   try {
     const key = new TextEncoder().encode(env.SESSION_SECRET);
     const { payload } = await jwtVerify(cookieValue, key, { algorithms: ["HS256"] });
+    // Cookies minted before the org gate carry no `org`, and a cookie for any
+    // other org is no good either: both fail here, so old sessions end.
+    const org = typeof payload.org === "string" ? payload.org : undefined;
+    if (!orgAllowed(env, org)) return null;
     return {
       sub: typeof payload.sub === "string" ? payload.sub : undefined,
       email: typeof payload.email === "string" ? payload.email : undefined,
+      org,
     };
   } catch {
     return null;

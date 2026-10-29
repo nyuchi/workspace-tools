@@ -40,7 +40,11 @@ import {
   AUTHKIT_DOMAIN_MISSING,
   authConfigured,
   issuerUrl,
+  NYUCHI_ORG_ID_MISSING,
+  orgAllowed,
   protectedResourceMetadata,
+  requiredOrgId,
+  resourceUrl,
   unauthenticatedDevAllowed,
   verifyBearer,
   verifyJwt,
@@ -85,10 +89,12 @@ import {
 import { ensureBrandIconsLoaded } from "./brand-icons.js";
 import { rasterizeSvg, warmRaster } from "./raster.js";
 import {
-  imagesConfigured,
+  IMAGES_PATH_PREFIX,
   MAX_UPLOAD_BYTES,
+  publishImage,
   sanitizeKey,
-  uploadImage,
+  serveStoredImage,
+  storageConfigured,
   type ImagesEnv,
 } from "./images.js";
 import {
@@ -195,6 +201,53 @@ class WorkerHttpTransport implements Transport {
 // MCP server + tool registrations.
 // -----------------------------------------------------------------------------
 
+/** The card arguments both the tool and the signed /card/ route render from. */
+interface CardArgs {
+  title: string;
+  dek?: string;
+  category: StudioParams["category"];
+  format?: StudioParams["format"];
+  layout?: number;
+  theme?: StudioParams["theme"];
+  eyebrow?: string;
+  index?: string;
+  footnote?: string;
+  role?: string;
+  brand?: StudioParams["brand"];
+  seedKey?: string;
+  showHexes?: boolean;
+  dekFontSize?: number;
+  dekColor?: string;
+}
+
+function studioParamsFrom(args: CardArgs): StudioParams {
+  const layout = args.layout ?? 5;
+  return {
+    format: args.format ?? "ig",
+    layout,
+    theme: args.theme ?? "dark",
+    category: args.category,
+    title: args.title,
+    dek: args.dek,
+    eyebrow: args.eyebrow,
+    index: args.index,
+    footnote: args.footnote,
+    role: args.role,
+    brand: args.brand ?? "nyuchi",
+    showHexes: args.showHexes,
+    dekFontSize: args.dekFontSize,
+    dekColor: args.dekColor,
+    // SPA defaults (StudioPage INITIAL state).
+    facet: "diagonal",
+    angle: 62,
+    cleave: true,
+    lattice: true,
+    lockup: true,
+    // Same derivation as the SPA (salt 0).
+    seedKey: args.seedKey ?? `${args.title}${args.category}${layout}0`,
+  };
+}
+
 function buildServer(env: Env): McpServer {
   const server = new McpServer({
     name: SERVER_NAME,
@@ -250,9 +303,10 @@ function buildServer(env: Env): McpServer {
         "`format` (canvas shape) and `layout` (composition) are independent axes — every combination " +
         "is valid, so pick each on its own merits rather than treating them as one choice. Default is " +
         "format 'ig' (square) + layout 5 (mineral, a 'meet this mineral' educational card); use layouts " +
-        "1-4 for a title-first social card instead. `returnFormat` controls the response shape: 'svg' " +
-        "(default without upload) returns the full SVG source plus JSON metadata — right for " +
-        "design/editing/debugging; 'png' returns the rasterized image inline, no upload; 'url' " +
+        "1-4 for a title-first social card instead. `returnFormat` controls the response shape: 'both' " +
+        "(default without upload) returns the SVG source and then the PNG rendered from it, inline, so " +
+        "the chat shows the card; 'svg' returns only the SVG source plus JSON metadata — right for " +
+        "design/editing/debugging; 'png' returns only the rasterized image inline, no upload; 'url' " +
         "(default when `upload` is true) rasterizes, uploads to Cloudflare Images, and returns just " +
         "{url, id, width, height, seed} — the right choice when scheduling to social (Buffer, " +
         "Instagram, X all need a public image URL). Short single-line titles automatically scale up " +
@@ -266,13 +320,15 @@ function buildServer(env: Env): McpServer {
         dek: z.string().optional().describe("Supporting line under the title."),
         category: z.enum(MINERALS).describe("Mineral palette."),
         format: z
-          .enum(["ig", "story", "16x9", "og", "li"])
+          .enum(["ig", "portrait", "story", "16x9", "og", "li"])
           .optional()
           .default("ig")
           .describe(
             "Canvas aspect ratio / target platform — independent of layout. " +
               "'ig' Square 1080x1080 (default; Instagram feed or any square social slot). " +
-              "'story' 1080x1920 (Instagram/Facebook Story, full-bleed vertical). " +
+              "'portrait' 1080x1350 (4:5 vertical — Instagram/Facebook/Threads feed, takes the most " +
+              "screen). " +
+              "'story' 1080x1920 (Instagram/Facebook Story, Reels cover, TikTok — full-bleed vertical). " +
               "'16x9' 1600x900 (wide hero/header image). " +
               "'og' 1200x630 (Open Graph link-preview unfurl for Slack/X/iMessage). " +
               "'li' 1200x627 (LinkedIn share image, near-identical to og).",
@@ -357,12 +413,14 @@ function buildServer(env: Env): McpServer {
               "server to be configured with Cloudflare Images credentials.",
           ),
         returnFormat: z
-          .enum(["url", "png", "svg"])
+          .enum(["url", "png", "svg", "both"])
           .optional()
           .describe(
-            "Response shape: 'url' uploads and returns only the public URL + metadata (default when " +
-              "upload=true); 'png' returns the rasterized image inline; 'svg' returns the full SVG " +
-              "source (default otherwise).",
+            "Response shape: 'both' (default without upload) returns the SVG source and then the " +
+              "rasterized PNG inline, so the chat can display the card and the SVG stays editable; " +
+              "'url' uploads and returns only the public URL + metadata (default when upload=true); " +
+              "'png' returns just the rasterized image inline; 'svg' returns just the SVG source " +
+              "(fastest, no rasterizing).",
           ),
         uploadKey: z
           .string()
@@ -392,35 +450,11 @@ function buildServer(env: Env): McpServer {
       dekFontSize?: number;
       dekColor?: string;
       upload?: boolean;
-      returnFormat?: "url" | "png" | "svg";
+      returnFormat?: "url" | "png" | "svg" | "both";
       uploadKey?: string;
     }) => {
-      const layout = args.layout ?? 5;
-      const params: StudioParams = {
-        format: args.format ?? "ig",
-        layout,
-        theme: args.theme ?? "dark",
-        category: args.category,
-        title: args.title,
-        dek: args.dek,
-        eyebrow: args.eyebrow,
-        index: args.index,
-        footnote: args.footnote,
-        role: args.role,
-        brand: args.brand ?? "nyuchi",
-        showHexes: args.showHexes,
-        dekFontSize: args.dekFontSize,
-        dekColor: args.dekColor,
-        // SPA defaults (StudioPage INITIAL state).
-        facet: "diagonal",
-        angle: 62,
-        cleave: true,
-        lattice: true,
-        lockup: true,
-        // Same derivation as the SPA (salt 0).
-        seedKey: args.seedKey ?? `${args.title}${args.category}${layout}0`,
-      };
-      const returnFormat = args.returnFormat ?? (args.upload ? "url" : "svg");
+      const params = studioParamsFrom(args);
+      const returnFormat = args.returnFormat ?? (args.upload ? "url" : "both");
       if (args.upload && returnFormat === "svg") {
         throw new Error(
           "upload:true cannot be combined with returnFormat 'svg' — nothing would be uploaded. " +
@@ -428,7 +462,7 @@ function buildServer(env: Env): McpServer {
             "or drop upload.",
         );
       }
-      const wantUpload = Boolean(args.upload) || returnFormat === "url";
+      const wantPublicUrl = Boolean(args.upload) || returnFormat === "url";
       // Overlap rasterizer cold-start (wasm + fonts) with icon loading.
       if (returnFormat !== "svg") warmRaster(env.ASSETS);
       await ensureBrandIconsLoaded(env.ASSETS);
@@ -444,32 +478,34 @@ function buildServer(env: Env): McpServer {
       }
 
       const png = await rasterizeSvg(svg, env.ASSETS);
+      // A public PNG URL for tools that only take a link (Postiz, Instagram):
+      // stored in R2 and served at <MCP origin>/images/<key>.
       let uploaded: { url: string; id: string } | undefined;
-      if (wantUpload) {
-        if (!imagesConfigured(env)) {
+      if (wantPublicUrl) {
+        if (!storageConfigured(env)) {
           throw new Error(
-            "Uploading needs Cloudflare Images configured on this server (CF_IMAGES_ACCOUNT_ID " +
-              "plus the CF_IMAGES_TOKEN — or legacy CF_IMAGE_TOKEN — secret). " +
-              "Use returnFormat 'png' or 'svg' without upload instead.",
+            "A public image URL needs image storage on this server: the R2 `IMAGES` binding (or " +
+              "CF_IMAGES_ACCOUNT_ID plus the CF_IMAGES_TOKEN secret). " +
+              "Use returnFormat 'png' or 'both' without upload instead.",
           );
         }
-        uploaded = await uploadImage(env, png, {
+        uploaded = await publishImage(env, new URL(resourceUrl(env)).origin, png, {
           id: sanitizeKey(args.uploadKey),
           contentType: "image/png",
         });
       }
 
-      if (returnFormat === "png") {
+      if (returnFormat === "png" || returnFormat === "both") {
         const meta = {
           format: { w: format.w, h: format.h },
           seed,
           ...(uploaded ? { url: uploaded.url, id: uploaded.id } : {}),
         };
+        const image = { type: "image" as const, data: bytesToBase64(png), mimeType: "image/png" };
+        const metaText = { type: "text" as const, text: JSON.stringify(meta) };
         return {
-          content: [
-            { type: "image", data: bytesToBase64(png), mimeType: "image/png" },
-            { type: "text", text: JSON.stringify(meta) },
-          ],
+          // 'both': the SVG first, then the PNG rendered from it.
+          content: returnFormat === "both" ? [{ type: "text" as const, text: svg }, image, metaText] : [image, metaText],
         };
       }
 
@@ -491,7 +527,7 @@ function buildServer(env: Env): McpServer {
     {
       title: "Upload an image asset, get a public URL",
       description:
-        "Upload a generated image to Cloudflare Images and return a stable public URL in one call. " +
+        "Upload a generated image to the server's image store (R2) and return a stable public URL in one call. " +
         "Give it either `svg` (e.g. the output of nyuchi_generate_studio_card — it is rasterized to PNG " +
         "server-side, no client SVG→PNG pipeline needed) or `pngBase64` (pre-rasterized bytes). " +
         "For nyuchi_generate_studio_card output, prefer calling that tool with upload=true instead — one " +
@@ -499,7 +535,7 @@ function buildServer(env: Env): McpServer {
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
       outputSchema: {
         url: z.string().describe("Public delivery URL of the uploaded asset."),
-        id: z.string().describe("Cloudflare Images id (the sanitized key, or a generated id)."),
+        id: z.string().describe("Stored image id (the sanitized key, or a generated id)."),
         contentType: z.enum(["image/png", "image/svg+xml"]).describe("Stored content type."),
       },
       inputSchema: {
@@ -540,10 +576,10 @@ function buildServer(env: Env): McpServer {
       if ((args.svg ? 1 : 0) + (args.pngBase64 ? 1 : 0) !== 1) {
         throw new Error("Provide exactly one of `svg` or `pngBase64`.");
       }
-      if (!imagesConfigured(env)) {
+      if (!storageConfigured(env)) {
         throw new Error(
-          "Image upload is not configured on this server (CF_IMAGES_ACCOUNT_ID / CF_IMAGES_TOKEN " +
-            "unset). Ask the operator to provision Cloudflare Images credentials.",
+          "Image upload is not configured on this server (no R2 `IMAGES` binding, and " +
+            "CF_IMAGES_ACCOUNT_ID / CF_IMAGES_TOKEN unset). Ask the operator to bind the bucket.",
         );
       }
 
@@ -572,7 +608,7 @@ function buildServer(env: Env): McpServer {
         throw new Error(`Asset is ${bytes.length} bytes; the upload cap is ${MAX_UPLOAD_BYTES} bytes.`);
       }
 
-      const { url, id } = await uploadImage(env, bytes, {
+      const { url, id } = await publishImage(env, new URL(resourceUrl(env)).origin, bytes, {
         id: sanitizeKey(args.key),
         contentType,
       });
@@ -743,6 +779,9 @@ const EXEMPT_SITE_AUTH_PATHS = new Set<string>([
 function isExemptFromSiteAuth(pathname: string): boolean {
   if (EXEMPT_SITE_AUTH_PATHS.has(pathname)) return true;
   if (pathname.startsWith("/mcp/")) return true;
+  // Stored images are public by design: Postiz/Instagram fetch them with no
+  // login. Keys are unguessable-or-chosen, never listable (see images.ts).
+  if (pathname.startsWith(IMAGES_PATH_PREFIX)) return true;
   if (pathname === "/.well-known" || pathname.startsWith("/.well-known/")) return true;
   return false;
 }
@@ -781,6 +820,11 @@ app.get("/login", async (c) => {
     // Fail CLOSED: the client ID comes only from configuration too.
     return c.text(`Service Unavailable: ${WORKOS_CLIENT_ID_MISSING}`, 503);
   }
+  if (!requiredOrgId(c.env)) {
+    // Fail CLOSED: internal-only means org membership is required, so with no
+    // org configured nobody can be admitted.
+    return c.text(`Service Unavailable: ${NYUCHI_ORG_ID_MISSING}`, 503);
+  }
   const returnTo = sanitizeReturnTo(c.req.query("return_to"));
   const state = generateState();
   const codeVerifier = generateCodeVerifier();
@@ -816,9 +860,11 @@ app.get(CALLBACK_PATH, async (c) => {
   }
 
   let idToken: string | undefined;
+  let tokenAccess: string | undefined;
   try {
     const tokenResponse = await exchangeCode(c.env, code, oauthPayload.codeVerifier);
     idToken = tokenResponse.id_token;
+    tokenAccess = tokenResponse.access_token;
   } catch {
     return denyLogin();
   }
@@ -836,9 +882,25 @@ app.get(CALLBACK_PATH, async (c) => {
     return denyLogin();
   }
 
+  // Internal only: the user must have signed in to the Nyuchi WorkOS org. The
+  // org claim is on the id_token when WorkOS puts it there, otherwise on the
+  // (signature- and issuer-verified) access token for the same user.
+  let orgId = verified.orgId;
+  if (!orgId) {
+    const access = await verifyJwt(c.env, tokenAccess, null);
+    if (access && access.sub === verified.sub) orgId = access.orgId;
+  }
+  if (!orgAllowed(c.env, orgId)) {
+    return denyLogin();
+  }
+
   let sessionCookieValue: string;
   try {
-    sessionCookieValue = await mintSessionCookie(c.env, { sub: verified.sub, email: verified.email });
+    sessionCookieValue = await mintSessionCookie(c.env, {
+      sub: verified.sub,
+      email: verified.email,
+      org: orgId,
+    });
   } catch {
     return denyLogin();
   }
@@ -909,11 +971,39 @@ app.get("/auth.md", (c) => c.text(authMd(c.env), 200, { "Content-Type": "text/ma
 // answers 503 and never serves tools unauthenticated — except the explicit
 // localhost-only development opt-out (`unauthenticatedDevAllowed`). With it set
 // but unusable, bearer verification fails and every request is 401.
+// One MCP URL: /mcp is served only on the host MCP_RESOURCE names
+// (tools.nyuchi.dev). The same Worker also answers tools.nyuchi.com, but a
+// second MCP URL means connectors registered against it advertise a resource
+// that doesn't match and fail authorization — so it's a 404 with a pointer.
+const LOCAL_MCP_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
+app.use("/mcp/*", mcpHostOnly);
+app.use("/mcp", mcpHostOnly);
+app.use(`${IMAGES_PATH_PREFIX}*`, mcpHostOnly);
+async function mcpHostOnly(
+  c: Context<{ Bindings: Env; Variables: Variables }>,
+  next: () => Promise<void>,
+) {
+  const host = new URL(c.req.url).hostname;
+  const mcpHost = new URL(resourceUrl(c.env)).hostname;
+  if (host === mcpHost || LOCAL_MCP_HOSTS.has(host)) return next();
+  return c.json({ error: "not_found", hint: `The MCP endpoint is ${resourceUrl(c.env)}` }, 404);
+}
+
+// Public images stored by the upload tools (R2 binding `IMAGES`). Served from
+// the MCP host only, like /mcp. GET only; there is no listing.
+app.get(`${IMAGES_PATH_PREFIX}*`, (c) => serveStoredImage(c.env, new URL(c.req.url).pathname));
+
 app.use("/mcp", async (c, next) => {
   if (!authConfigured(c.env)) {
     if (unauthenticatedDevAllowed(c.env, c.req.url)) return next();
     return c.json(
       { error: "authorization_not_configured", detail: `Service Unavailable: ${AUTHKIT_DOMAIN_MISSING}` },
+      503,
+    );
+  }
+  if (!requiredOrgId(c.env)) {
+    return c.json(
+      { error: "authorization_not_configured", detail: `Service Unavailable: ${NYUCHI_ORG_ID_MISSING}` },
       503,
     );
   }
