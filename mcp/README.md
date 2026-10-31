@@ -11,8 +11,10 @@ comment in `../wrangler.toml` for why `/mcp` lives on a separate hostname):
   Studio replaces it). `nyuchi_generate_studio_card` can
   rasterize server-side (resvg-wasm + the TTFs under
   `signature-generator/public/fonts/raster/`, fetched via the ASSETS binding)
-  and upload to Cloudflare Images (`returnFormat: url | png | svg`); uploads
-  need the `CF_IMAGES_ACCOUNT_ID` var + `CF_IMAGES_TOKEN` secret, and
+  and store the PNG in R2 (`returnFormat: both | url | png | svg`, default `both` =
+  SVG then PNG); uploads need the `IMAGES` R2 binding (served publicly at
+  `/images/<key>` on the MCP host; Cloudflare Images via `CF_IMAGES_ACCOUNT_ID` +
+  `CF_IMAGES_TOKEN` is the fallback), and
   `nyuchi_report_issue` needs the `GITHUB_FEEDBACK_TOKEN` secret (repo picked by the
   `FEEDBACK_REPO` var). Both fail closed with a clear message when
   unconfigured. Has its own bearer-token gate (see below); never
@@ -148,9 +150,10 @@ Never use a throwaway value like that in production — set the real one with
   canvas, so text measurement falls back to a committed font-metrics table
   (`signature-generator/src/engines/metrics/`, regenerated with
   `node scripts/extract-font-metrics.mjs` from `signature-generator/`).
-  `returnFormat` picks the response shape: SVG source + JSON metadata
-  (`{format: {w, h}, seed}`), an inline PNG rasterized in the Worker via
-  `resvg-wasm` (`mcp/src/raster.ts`), or a hosted Cloudflare Images URL.
+  `returnFormat` picks the response shape: `both` (default: SVG source, then an
+  inline PNG rasterized in the Worker via `resvg-wasm` (`mcp/src/raster.ts`), then
+  JSON metadata `{format: {w, h}, seed}`), `svg`, `png`, or a public
+  `https://tools.nyuchi.dev/images/<key>` URL (R2).
 - `protectedResourceMetadata()` (`auth.ts`) advertises `scopes_supported: []`
   — honest, not aspirational: this server only checks bearer-token issuer +
   audience today, no scope-based authorization.
