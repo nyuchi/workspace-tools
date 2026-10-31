@@ -952,7 +952,9 @@ function layoutMineral(ctx: Ctx): string {
   let svg = `<rect width="${w}" height="${h}" fill="${surface.bg}"/>`
   if (opts.lattice) svg += drawEngBackground(w, h, surface.fg)
 
-  const tall = h / w > 1.2, wide = w / h > 1.3
+  /* 9:16 story is the only truly tall canvas; 4:5 portrait has room for the
+     square-tuned proportions (scaled by its taller h). */
+  const tall = h / w > 1.5, wide = w / h > 1.3, mid = !tall && h / w > 1.2
   const swH = Math.round(h * (tall ? 0.38 : wide ? 0.52 : 0.4))
   const swX = pad, swY = pad, swW = iw
   const rx = Math.round(Math.min(swW, swH) * 0.06)
@@ -989,7 +991,7 @@ function layoutMineral(ctx: Ctx): string {
   }
 
   let cy = swY + swH + Math.round(h * 0.058)
-  const nameFs = Math.round(h * (tall ? 0.066 : wide ? 0.07 : 0.082))
+  const nameFs = Math.round(h * (tall ? 0.066 : wide || mid ? 0.07 : 0.082))
   const nfit = fitText(title || cat.name, iw, 2, '700 __SZ__ "Noto Serif",Georgia,serif', nameFs, Math.round(nameFs * 0.6))
   for (const line of nfit.lines) {
     svg += `<text x="${pad}" y="${(cy + nfit.size * 0.85).toFixed(1)}" font-family="Noto Serif,Georgia,serif" font-weight="700" font-size="${nfit.size}" fill="${surface.fg}">${esc(line)}</text>`

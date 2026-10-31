@@ -53,7 +53,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ([#120](https://github.com/nyuchi/workspace-tools/issues/120)). The site login
   and `/mcp` now require membership of the WorkOS organization in
   `NYUCHI_ORG_ID` (the token's `org_id` claim); a valid sign-in from another
-  org, or a consumer Mukoko account, is refused. Session cookies carry `org`, so
+  org, or a consumer Mukoko account, is refused (a 403 on `/mcp`, with no
+  re-auth challenge). Session cookies carry `org`, so
   sessions minted before this change end; with `NYUCHI_ORG_ID` unset everything
   fails closed. `/mcp` and `/images/*` are served only on `tools.nyuchi.dev`;
   `tools.nyuchi.com/mcp` is a 404 (a connector added against it advertised a

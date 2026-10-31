@@ -46,7 +46,6 @@ import {
   requiredOrgId,
   resourceUrl,
   unauthenticatedDevAllowed,
-  verifyBearer,
   verifyJwt,
   wwwAuthenticateHeader,
 } from "./auth.js";
@@ -201,7 +200,7 @@ class WorkerHttpTransport implements Transport {
 // MCP server + tool registrations.
 // -----------------------------------------------------------------------------
 
-/** The card arguments both the tool and the signed /card/ route render from. */
+/** The card arguments `studioParamsFrom` turns into engine params. */
 interface CardArgs {
   title: string;
   dek?: string;
@@ -307,7 +306,7 @@ function buildServer(env: Env): McpServer {
         "(default without upload) returns the SVG source and then the PNG rendered from it, inline, so " +
         "the chat shows the card; 'svg' returns only the SVG source plus JSON metadata — right for " +
         "design/editing/debugging; 'png' returns only the rasterized image inline, no upload; 'url' " +
-        "(default when `upload` is true) rasterizes, uploads to Cloudflare Images, and returns just " +
+        "(default when `upload` is true) rasterizes, stores the PNG in R2, and returns just " +
         "{url, id, width, height, seed} — the right choice when scheduling to social (Buffer, " +
         "Instagram, X all need a public image URL). Short single-line titles automatically scale up " +
         "to poster size (hook mode); wrapping titles keep the standard sizing.",
@@ -407,10 +406,10 @@ function buildServer(env: Env): McpServer {
           .boolean()
           .optional()
           .describe(
-            "Rasterize server-side and upload to Cloudflare Images; flips the default returnFormat " +
+            "Rasterize server-side and store the PNG in R2; flips the default returnFormat " +
               "to 'url'. Combine with returnFormat 'png' to upload AND receive the pixels inline " +
               "(the metadata then carries the url); combining with 'svg' is an error. Requires the " +
-              "server to be configured with Cloudflare Images credentials.",
+              "server to have image storage (the R2 binding, or Cloudflare Images credentials).",
           ),
         returnFormat: z
           .enum(["url", "png", "svg", "both"])
@@ -519,7 +518,7 @@ function buildServer(env: Env): McpServer {
 
   // --- nyuchi_upload_asset --------------------------------------------------------
   // Standalone "give me a public URL" tool: takes SVG (rasterized
-  // server-side) or ready PNG bytes and uploads to Cloudflare Images, so a
+  // server-side) or ready PNG bytes and stores it in R2, so a
   // generated image can be attached to anything that needs a fetchable URL
   // (Buffer, Instagram, X, ...).
   server.registerTool(
@@ -1007,12 +1006,24 @@ app.use("/mcp", async (c, next) => {
       503,
     );
   }
-  const verified = await verifyBearer(c.env, c.req.header("Authorization"));
+  const token = c.req.header("Authorization")?.match(/^Bearer (.+)$/)?.[1];
+  const verified = await verifyJwt(c.env, token);
   if (!verified) {
     return c.json(
       { error: "unauthorized", detail: "Valid bearer token required." },
       401,
       { "WWW-Authenticate": wwwAuthenticateHeader(c.env) },
+    );
+  }
+  // A genuine sign-in from outside the Nyuchi org is 403, with no challenge:
+  // a 401 + WWW-Authenticate would send the client back through OAuth in a loop.
+  if (!orgAllowed(c.env, verified.orgId)) {
+    return c.json(
+      {
+        error: "forbidden",
+        detail: "This account is not a member of the Nyuchi organization, so it cannot use these tools.",
+      },
+      403,
     );
   }
   return next();

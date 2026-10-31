@@ -90,8 +90,15 @@ async function storeInR2(
   opts: { id?: string; contentType: UploadContentType },
 ): Promise<UploadResult> {
   const ext = EXT[opts.contentType];
-  const suggested = opts.id && /\.[A-Za-z0-9]+$/.test(opts.id) ? opts.id : opts.id && `${opts.id}.${ext}`;
-  const key = suggested ?? `${crypto.randomUUID()}.${ext}`;
+  // The extension always matches the stored content type, and the final key must
+  // still pass sanitizeKey (length included) or the serve route would 404 it.
+  const withExt = opts.id && (opts.id.toLowerCase().endsWith(`.${ext}`) ? opts.id : `${opts.id}.${ext}`);
+  const key = sanitizeKey(withExt) ?? `${crypto.randomUUID()}.${ext}`;
+  // head() first, then a conditional put: never rely on a single guard to keep a
+  // published (year-long immutable) URL from changing underneath its viewers.
+  if (await bucket.head(key)) {
+    throw new Error(`An image with the key '${key}' already exists; pick a unique uploadKey.`);
+  }
   const stored = await bucket.put(key, bytes, {
     httpMetadata: { contentType: opts.contentType },
     onlyIf: { etagDoesNotMatch: "*" },

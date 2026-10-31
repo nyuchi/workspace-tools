@@ -31,7 +31,7 @@
  */
 
 import { SignJWT, base64url, jwtVerify } from "jose";
-import { type AuthEnv, issuerUrl, orgAllowed } from "./auth.js";
+import { type AuthEnv, issuerUrl, orgAllowed, requiredOrgId } from "./auth.js";
 
 export interface SiteAuthEnv extends AuthEnv {
   SESSION_SECRET?: string;
@@ -181,6 +181,10 @@ export function buildAuthorizeUrl(
   url.searchParams.set("code_challenge_method", "S256");
   url.searchParams.set("state", state);
   url.searchParams.set("scope", "openid profile email");
+  // Ask for a session in the Nyuchi org, so the tokens carry its `org_id`
+  // rather than depending on which org the user last used.
+  const org = requiredOrgId(env);
+  if (org) url.searchParams.set("organization_id", org);
   return url.toString();
 }
 

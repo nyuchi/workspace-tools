@@ -1383,6 +1383,7 @@ describe('GET /login', () => {
     expect(url.searchParams.get('response_type')).toBe('code')
     expect(url.searchParams.get('client_id')).toBe(TEST_CLIENT_ID)
     expect(url.searchParams.get('redirect_uri')).toBe('https://tools.nyuchi.com/callback')
+    expect(url.searchParams.get('organization_id')).toBe(TEST_ORG)
     expect(url.searchParams.get('code_challenge_method')).toBe('S256')
     expect(url.searchParams.get('scope')).toBe('openid profile email')
     expect(url.searchParams.get('state')).toBeTruthy()
@@ -2983,14 +2984,23 @@ describe('internal-only access — WorkOS org membership', () => {
     expect((await toolsList(BEARER_ENV, token)).status).toBe(200)
   })
 
-  it('/mcp rejects a valid token from a different org', async () => {
+  it('/mcp answers 403 (no re-auth challenge) to a valid token from a different org', async () => {
     const token = await bearerFor({ org_id: 'org_someone_else' })
-    expect((await toolsList(BEARER_ENV, token)).status).toBe(401)
+    const res = await toolsList(BEARER_ENV, token)
+    expect(res.status).toBe(403)
+    expect(res.headers.get('WWW-Authenticate')).toBeNull()
   })
 
-  it('/mcp rejects a valid token with no org (e.g. a consumer Mukoko account)', async () => {
+  it('/mcp answers 403 to a valid token with no org (e.g. a consumer Mukoko account)', async () => {
     const token = await bearerFor({})
-    expect((await toolsList(BEARER_ENV, token)).status).toBe(401)
+    expect((await toolsList(BEARER_ENV, token)).status).toBe(403)
+  })
+
+  it('/mcp still answers 401 + challenge to a token that is not valid at all', async () => {
+    await bearerFor({ org_id: TEST_ORG })
+    const res = await toolsList(BEARER_ENV, 'not-a-jwt')
+    expect(res.status).toBe(401)
+    expect(res.headers.get('WWW-Authenticate')).toContain('resource_metadata=')
   })
 
   it('/mcp is 503 naming NYUCHI_ORG_ID when no org is configured — never open', async () => {
@@ -3118,6 +3128,9 @@ function fakeBucket() {
       objects.set(key, { bytes: value, contentType: opts?.httpMetadata?.contentType })
       return { key }
     },
+    async head(key: string) {
+      return objects.has(key) ? { key } : null
+    },
     async get(key: string) {
       const o = objects.get(key)
       if (!o) return null
@@ -3173,6 +3186,33 @@ describe('R2-backed public images (/images/*)', () => {
     const env = { ...UPLOAD_ENV, IMAGES: bucket }
     await callCard({ title: 'A', category: 'gold', upload: true, uploadKey: 'dup' }, env)
     await expect(callCard({ title: 'B', category: 'gold', upload: true, uploadKey: 'dup' }, env)).rejects.toThrow(
+      /already exists/,
+    )
+  })
+
+  it('keeps a stored key servable: extension matches the type and the key stays within the cap', async () => {
+    const bucket = fakeBucket()
+    const env = { ...UPLOAD_ENV, IMAGES: bucket }
+    // Already ends in .png: not doubled. Mismatched extension: the right one is appended.
+    await callCard({ title: 'A', category: 'gold', upload: true, uploadKey: 'x/a.png' }, env)
+    await callCard({ title: 'B', category: 'gold', upload: true, uploadKey: 'x/b.svg' }, env)
+    expect([...bucket.objects.keys()].sort()).toEqual(['x/a.png', 'x/b.svg.png'])
+    // A 510-char key would be 514 with the extension: it falls back to a generated id.
+    const long = 'k'.repeat(510)
+    const content = await callCard({ title: 'C', category: 'gold', upload: true, uploadKey: long }, env)
+    const { id } = JSON.parse(content[0].text!) as { id: string }
+    expect(id).toMatch(/^[0-9a-f-]{36}\.png$/)
+  })
+
+  it('refuses to overwrite even if the conditional put were ignored (head() guard)', async () => {
+    const bucket = fakeBucket()
+    bucket.put = async (key: string, value: Uint8Array) => {
+      bucket.objects.set(key, { bytes: value })
+      return { key }
+    }
+    const env = { ...UPLOAD_ENV, IMAGES: bucket }
+    await callCard({ title: 'A', category: 'gold', upload: true, uploadKey: 'same' }, env)
+    await expect(callCard({ title: 'B', category: 'gold', upload: true, uploadKey: 'same' }, env)).rejects.toThrow(
       /already exists/,
     )
   })

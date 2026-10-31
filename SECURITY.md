@@ -161,7 +161,7 @@ Before deploying to production:
 
 ### Internal-only access (WorkOS org)
 
-The site login gate and `/mcp` admit only members of the WorkOS organization in `NYUCHI_ORG_ID`: a valid token from `accounts.mukoko.com` is not enough, because consumer Mukoko accounts live there too. The token's `org_id` must match; session cookies carry `org` and are rejected without it. Unset `NYUCHI_ORG_ID` fails closed (503 / no admission). `/mcp` is served only on the MCP host (`tools.nyuchi.dev`); every other host answers 404.
+The site login gate and `/mcp` admit only members of the WorkOS organization in `NYUCHI_ORG_ID`: a valid token from `accounts.mukoko.com` is not enough, because consumer Mukoko accounts live there too. The token's `org_id` must match (a valid token from another org is a 403 with no re-auth challenge); the site login requests that org explicitly; session cookies carry `org` and are rejected without it. Unset `NYUCHI_ORG_ID` fails closed (503 / no admission). `/mcp` is served only on the MCP host (`tools.nyuchi.dev`); every other host answers 404.
 
 ### Public images (`/images/*`)
 

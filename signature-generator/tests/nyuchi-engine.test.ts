@@ -272,6 +272,19 @@ describe('buildSVG — dek typography (2026-07 Studio fixes)', () => {
     }
   })
 
+  it('portrait (4:5) renders the mineral layout with its full dek, on the square-tuned sizing', () => {
+    const { svg, format } = buildSVG(
+      baseParams({
+        layout: 5,
+        format: 'portrait',
+        title: 'How Zimbabwean founders are building community-owned technology',
+        dek: 'Three years of Nyuchi Africa, told by the people it helped along the way.',
+      }),
+    )
+    expect(format).toBe(FORMATS.portrait)
+    expect(svg).toContain('along the way.')
+  })
+
   it('fitText shrinks a single unbreakable word instead of overflowing the frame', () => {
     const long = 'Uncompromisinglyinteroperable'
     const { svg } = buildSVG(baseParams({ layout: 1, format: 'ig', title: long, dek: '' }))
