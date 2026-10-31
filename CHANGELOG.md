@@ -42,6 +42,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **New Bundu Foundation icon.** `bundu-icon-light.png` and
+  `bundu-icon-dark.png` under `signature-generator/public/assets/brand-icons/`
+  are replaced with the refreshed pair (brown ring and navy mark on light
+  surfaces, tan ring and pale mark on dark), kept as supplied. Their `.b64.txt`
+  embed companions are cut to the circle with transparent corners and downscaled
+  to 192px, so Studio lockups for the Bundu brand show no box behind the mark on
+  dark surfaces and the embedded data stays small.
 - **Internal only: WorkOS org gate, one MCP URL, R2 images, portrait cards**
   ([#120](https://github.com/nyuchi/workspace-tools/issues/120)). The site login
   and `/mcp` now require membership of the WorkOS organization in
