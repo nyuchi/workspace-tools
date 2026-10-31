@@ -53,11 +53,14 @@ const LOCAL_DEV_ENV = { ALLOW_UNAUTHENTICATED_DEV: 'true' }
 const LOCAL_BASE = 'http://localhost:8787'
 
 /** Auth configured: WorkOS AuthKit protects /mcp. */
-const AUTH_ENV = { AUTHKIT_DOMAIN: 'x.authkit.app' }
+/** The WorkOS org whose members are the only people admitted (test fixture). */
+const TEST_ORG = 'org_test_nyuchi'
+const MCP_BASE = 'https://tools.nyuchi.dev'
+const AUTH_ENV = { AUTHKIT_DOMAIN: 'x.authkit.app', NYUCHI_ORG_ID: TEST_ORG }
 
 /** Site-wide login gate configured with a known, throwaway test secret. */
 const TEST_SESSION_SECRET = 'test-secret-do-not-use-in-prod'
-const SITE_ENV = { SESSION_SECRET: TEST_SESSION_SECRET }
+const SITE_ENV = { SESSION_SECRET: TEST_SESSION_SECRET, NYUCHI_ORG_ID: TEST_ORG }
 /** Throwaway site client ID (test fixture) — the real one is configuration only. */
 const TEST_CLIENT_ID = 'client_test_site_login'
 /** SITE_ENV plus an AuthKit domain and client ID — the login flow needs all three (test fixture). */
@@ -117,14 +120,19 @@ function baseFor(env: Env): string {
   return env.ALLOW_UNAUTHENTICATED_DEV === 'true' ? LOCAL_BASE : BASE
 }
 
+/** /mcp is served only on the MCP host (tools.nyuchi.dev); everything else on the site host. */
+function origin(path: string, env: Env): string {
+  return path.startsWith('/mcp') && env.ALLOW_UNAUTHENTICATED_DEV !== 'true' ? MCP_BASE : baseFor(env)
+}
+
 function get(path: string, env: Env = LOCAL_DEV_ENV, headers?: HeadersInit): Promise<Response> {
-  return Promise.resolve(worker.fetch(new Request(`${baseFor(env)}${path}`, { headers }), env))
+  return Promise.resolve(worker.fetch(new Request(`${origin(path, env)}${path}`, { headers }), env))
 }
 
 function post(path: string, body: unknown, env: Env = LOCAL_DEV_ENV): Promise<Response> {
   return Promise.resolve(
     worker.fetch(
-      new Request(`${baseFor(env)}${path}`, {
+      new Request(`${origin(path, env)}${path}`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: typeof body === 'string' ? body : JSON.stringify(body),
@@ -349,6 +357,7 @@ describe('POST /mcp — JSON-RPC', () => {
         {
           name: 'nyuchi_generate_studio_card',
           arguments: {
+            returnFormat: 'svg',
             title: 'Seven minerals, one ecosystem',
             dek: 'How the bundu palette carries meaning across every brand we build.',
             category: 'gold',
@@ -391,6 +400,7 @@ describe('POST /mcp — JSON-RPC', () => {
         {
           name: 'nyuchi_generate_studio_card',
           arguments: {
+            returnFormat: 'svg',
             title: 'Attack <script>alert(1)</script> & Co',
             category: 'cobalt',
             format: 'ig',
@@ -408,7 +418,7 @@ describe('POST /mcp — JSON-RPC', () => {
   })
 
   it('nyuchi_generate_studio_card is deterministic for identical arguments', async () => {
-    const args = { title: 'Determinism', category: 'malachite', format: '16x9', layout: 3 }
+    const args = { returnFormat: 'svg', title: 'Determinism', category: 'malachite', format: '16x9', layout: 3 }
     const first = (await (
       await post('/mcp', rpc('tools/call', { name: 'nyuchi_generate_studio_card', arguments: args }, 12))
     ).json()) as JsonRpcResponse
@@ -428,7 +438,8 @@ describe('POST /mcp — JSON-RPC', () => {
         'tools/call',
         {
           name: 'nyuchi_generate_studio_card',
-          arguments: { title: 'The wilderness holds the hive', category: 'copper', brand: 'bundu' },
+          arguments: {
+            returnFormat: 'svg', title: 'The wilderness holds the hive', category: 'copper', brand: 'bundu' },
         },
         32,
       ),
@@ -491,7 +502,8 @@ describe('POST /mcp — JSON-RPC', () => {
         'tools/call',
         {
           name: 'nyuchi_generate_studio_card',
-          arguments: { title: 'What is nhimbe?', category: 'malachite', brand: 'mukoko' },
+          arguments: {
+            returnFormat: 'svg', title: 'What is nhimbe?', category: 'malachite', brand: 'mukoko' },
         },
         18,
       ),
@@ -554,6 +566,7 @@ describe('nyuchi_generate_studio_card — returnFormat / upload', () => {
         {
           name: 'nyuchi_generate_studio_card',
           arguments: {
+            returnFormat: 'svg',
             title: 'Nhimbe',
             dek: 'Gathering, discovered.',
             category: 'malachite',
@@ -578,7 +591,8 @@ describe('nyuchi_generate_studio_card — returnFormat / upload', () => {
         'tools/call',
         {
           name: 'nyuchi_generate_studio_card',
-          arguments: { title: 'Nhimbe', category: 'malachite', layout: 1, theme: 'accent' },
+          arguments: {
+            returnFormat: 'svg', title: 'Nhimbe', category: 'malachite', layout: 1, theme: 'accent' },
         },
         45,
       ),
@@ -1032,7 +1046,7 @@ describe('OAuth discovery — auth OFF (no AUTHKIT_DOMAIN): fails closed', () =>
   it('the dev opt-out does not apply to a non-localhost host', async () => {
     const res = await Promise.resolve(
       worker.fetch(
-        new Request(`${BASE}/mcp`, {
+        new Request(`${MCP_BASE}/mcp`, {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify(rpc('tools/list')),
@@ -1106,7 +1120,7 @@ describe('OAuth discovery — auth ON (AUTHKIT_DOMAIN set)', () => {
   it('/mcp with a structurally invalid bearer token is also 401', async () => {
     const res = await Promise.resolve(
       worker.fetch(
-        new Request(`${BASE}/mcp`, { headers: { Authorization: 'Bearer not-a-jwt' } }),
+        new Request(`${MCP_BASE}/mcp`, { headers: { Authorization: 'Bearer not-a-jwt' } }),
         AUTH_ENV,
       ),
     )
@@ -1316,14 +1330,14 @@ describe('Site-wide login gate — protected paths', () => {
   })
 
   it('lets a request with a valid session cookie through to the ASSETS catch-all', async () => {
-    const cookie = await mintSessionCookie(SITE_ENV, { sub: 'user_123', email: 'bryan@nyuchi.com' })
+    const cookie = await mintSessionCookie(SITE_ENV, { org: TEST_ORG, sub: 'user_123', email: 'bryan@nyuchi.com' })
     const res = await get('/', { ...SITE_ENV, ASSETS: ASSETS_STUB }, { Cookie: `${SESSION_COOKIE_NAME}=${cookie}` })
     expect(res.status).toBe(200)
     expect(await res.text()).toBe('stub-asset')
   })
 
   it('rejects a tampered session cookie and redirects to /login instead of crashing', async () => {
-    const cookie = await mintSessionCookie(SITE_ENV, { sub: 'user_123' })
+    const cookie = await mintSessionCookie(SITE_ENV, { org: TEST_ORG, sub: 'user_123' })
     const tampered = `${cookie.slice(0, -4)}abcd`
     const res = await get('/', { ...SITE_ENV, ASSETS: ASSETS_STUB }, { Cookie: `${SESSION_COOKIE_NAME}=${tampered}` })
     expect(res.status).toBe(302)
@@ -1369,6 +1383,7 @@ describe('GET /login', () => {
     expect(url.searchParams.get('response_type')).toBe('code')
     expect(url.searchParams.get('client_id')).toBe(TEST_CLIENT_ID)
     expect(url.searchParams.get('redirect_uri')).toBe('https://tools.nyuchi.com/callback')
+    expect(url.searchParams.get('organization_id')).toBe(TEST_ORG)
     expect(url.searchParams.get('code_challenge_method')).toBe('S256')
     expect(url.searchParams.get('scope')).toBe('openid profile email')
     expect(url.searchParams.get('state')).toBeTruthy()
@@ -1475,6 +1490,7 @@ describe('GET /callback', () => {
       SESSION_SECRET: TEST_SESSION_SECRET,
       AUTHKIT_DOMAIN: 'identity.example.test',
       WORKOS_CLIENT_ID: TEST_CLIENT_ID,
+      NYUCHI_ORG_ID: TEST_ORG,
     }
 
     afterEach(() => {
@@ -1485,12 +1501,12 @@ describe('GET /callback', () => {
      * fetch so the token endpoint returns it and the JWKS endpoint serves
      * its matching public key — exercising the ACTUAL jose/JWKS verification
      * path (`verifyJwt`), not just the surrounding cookie/redirect plumbing. */
-    async function mockSuccessfulExchange(claims: { sub: string; email?: string }) {
+    async function mockSuccessfulExchange(claims: { sub: string; email?: string; org_id?: string }) {
       const { generateKeyPair, exportJWK, SignJWT } = await import('jose')
       const { publicKey, privateKey } = await generateKeyPair('RS256')
       const publicJwk = await exportJWK(publicKey)
       const kid = 'test-key-1'
-      const idToken = await new SignJWT({ email: claims.email })
+      const idToken = await new SignJWT({ email: claims.email, org_id: claims.org_id })
         .setProtectedHeader({ alg: 'RS256', kid })
         .setIssuedAt()
         .setIssuer('https://identity.example.test')
@@ -1518,7 +1534,7 @@ describe('GET /callback', () => {
     }
 
     it('verifies the id_token (not the access_token) and mints a session cookie', async () => {
-      await mockSuccessfulExchange({ sub: 'user_123', email: 'bryan@nyuchi.com' })
+      await mockSuccessfulExchange({ sub: 'user_123', email: 'bryan@nyuchi.com', org_id: TEST_ORG })
       const oauthCookie = encodeOauthCookie({ state: 'expected-state', codeVerifier: 'verifier', returnTo: '/studio' })
       const res = await get(`${CALLBACK_PATH}?code=test-code&state=expected-state`, CALLBACK_ENV, {
         Cookie: `${OAUTH_COOKIE_NAME}=${oauthCookie}`,
@@ -1531,7 +1547,7 @@ describe('GET /callback', () => {
       const sessionValue = cookieValueFrom(setCookie, SESSION_COOKIE_NAME)
       expect(sessionValue).toBeTruthy()
       const claims = await verifySessionCookie(CALLBACK_ENV, sessionValue ?? undefined)
-      expect(claims).toEqual({ sub: 'user_123', email: 'bryan@nyuchi.com' })
+      expect(claims).toEqual({ sub: 'user_123', email: 'bryan@nyuchi.com', org: TEST_ORG })
     })
 
     it('denies login when the id_token audience is wrong (e.g. an access token used by mistake)', async () => {
@@ -1614,19 +1630,19 @@ describe('GET /logout', () => {
 
 describe('Session cookie (site-auth.ts)', () => {
   it('mints a cookie that verifies back to the same claims', async () => {
-    const token = await mintSessionCookie(SITE_ENV, { sub: 'user_123', email: 'bryan@nyuchi.com' })
+    const token = await mintSessionCookie(SITE_ENV, { org: TEST_ORG, sub: 'user_123', email: 'bryan@nyuchi.com' })
     const claims = await verifySessionCookie(SITE_ENV, token)
-    expect(claims).toEqual({ sub: 'user_123', email: 'bryan@nyuchi.com' })
+    expect(claims).toEqual({ sub: 'user_123', email: 'bryan@nyuchi.com', org: TEST_ORG })
   })
 
   it('rejects a tampered cookie', async () => {
-    const token = await mintSessionCookie(SITE_ENV, { sub: 'user_123' })
+    const token = await mintSessionCookie(SITE_ENV, { org: TEST_ORG, sub: 'user_123' })
     const tampered = `${token.slice(0, -4)}abcd`
     expect(await verifySessionCookie(SITE_ENV, tampered)).toBeNull()
   })
 
   it('rejects a cookie signed with a different secret', async () => {
-    const token = await mintSessionCookie(SITE_ENV, { sub: 'user_123' })
+    const token = await mintSessionCookie(SITE_ENV, { org: TEST_ORG, sub: 'user_123' })
     expect(await verifySessionCookie({ SESSION_SECRET: 'a-different-secret' }, token)).toBeNull()
   })
 
@@ -1642,7 +1658,7 @@ describe('Session cookie (site-auth.ts)', () => {
   })
 
   it('treats a missing SESSION_SECRET as "no valid session" (fails closed, not open)', async () => {
-    const token = await mintSessionCookie(SITE_ENV, { sub: 'user_123' })
+    const token = await mintSessionCookie(SITE_ENV, { org: TEST_ORG, sub: 'user_123' })
     expect(await verifySessionCookie({}, token)).toBeNull()
   })
 
@@ -1686,7 +1702,7 @@ describe('POST /api/signature', () => {
   })
 
   it('a valid site session cookie also authorizes, with identical output', async () => {
-    const cookie = await mintSessionCookie(SITE_ENV, { sub: 'user_123', email: 'bryan@nyuchi.com' })
+    const cookie = await mintSessionCookie(SITE_ENV, { org: TEST_ORG, sub: 'user_123', email: 'bryan@nyuchi.com' })
     const res = await postSignature(PARAMS, SIG_ENV, { Cookie: `${SESSION_COOKIE_NAME}=${cookie}` })
     expect(res.status).toBe(200)
     const body = (await res.json()) as { html: string }
@@ -1701,7 +1717,7 @@ describe('POST /api/signature', () => {
   })
 
   it('a wrong bearer never falls back to the cookie path (explicit credential is judged on its own)', async () => {
-    const cookie = await mintSessionCookie(SITE_ENV, { sub: 'user_123' })
+    const cookie = await mintSessionCookie(SITE_ENV, { org: TEST_ORG, sub: 'user_123' })
     const res = await postSignature(PARAMS, SIG_ENV, {
       Authorization: 'Bearer wrong-key',
       Cookie: `${SESSION_COOKIE_NAME}=${cookie}`,
@@ -1772,6 +1788,7 @@ describe('POST /api/signature', () => {
  * per test — no live calls). */
 const GOOGLE_ENV = {
   SESSION_SECRET: TEST_SESSION_SECRET,
+  NYUCHI_ORG_ID: TEST_ORG,
   GOOGLE_CLIENT_ID: 'google-client-id',
   GOOGLE_CLIENT_SECRET: 'google-client-secret',
 }
@@ -1779,7 +1796,7 @@ const GOOGLE_ENV = {
 /** Every /api/google/* and /api/self/* path sits BEHIND the site login
  * gate, so requests need a valid `nyuchi_session` cookie to get through. */
 async function siteSessionCookie(): Promise<string> {
-  const value = await mintSessionCookie(SITE_ENV, { sub: 'user_123', email: 'bryan@nyuchi.com' })
+  const value = await mintSessionCookie(SITE_ENV, { org: TEST_ORG, sub: 'user_123', email: 'bryan@nyuchi.com' })
   return `${SESSION_COOKIE_NAME}=${value}`
 }
 
@@ -2316,7 +2333,7 @@ async function adminRequest(
   } = {},
 ): Promise<Response> {
   const env = opts.env ?? ADMIN_GOOGLE_ENV
-  const site = await mintSessionCookie(env, { sub: 'user_123', email: 'bryan@nyuchi.com' })
+  const site = await mintSessionCookie(env, { org: TEST_ORG, sub: 'user_123', email: 'bryan@nyuchi.com' })
   let cookie = `${SESSION_COOKIE_NAME}=${site}`
   const googleCookie =
     opts.googleCookie ??
@@ -2861,7 +2878,7 @@ describe('AUTHKIT_DOMAIN is parsed into an https origin — never concatenated',
   })
 
   it('an unusable value keeps auth ON and fails closed — /mcp is 401, never open', async () => {
-    const res = await get('/mcp', { AUTHKIT_DOMAIN: 'http://identity.example.test' })
+    const res = await get('/mcp', { AUTHKIT_DOMAIN: 'http://identity.example.test', NYUCHI_ORG_ID: TEST_ORG })
     expect(res.status).toBe(401)
   })
 
@@ -2901,5 +2918,330 @@ describe('AUTHKIT_DOMAIN is parsed into an https origin — never concatenated',
     ]) {
       expect(await verifyJwt(env, await sign(iss), 'aud-test'), iss).toBeNull()
     }
+  })
+})
+
+// -----------------------------------------------------------------------------
+// Internal-only access: WorkOS org membership (NYUCHI_ORG_ID)
+// -----------------------------------------------------------------------------
+
+describe('internal-only access — WorkOS org membership', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  // Own issuer + ONE keypair: jose caches the JWKS per issuer for the isolate
+  // (30s refetch cooldown), so a fresh key per test would be invisible to it.
+  const BEARER_ENV = { AUTHKIT_DOMAIN: 'org-bearer.example.test', NYUCHI_ORG_ID: TEST_ORG }
+  let bearerKeys: Promise<{ privateKey: CryptoKey; jwk: Record<string, unknown> }> | undefined
+  function sharedBearerKeys() {
+    bearerKeys ??= (async () => {
+      const { generateKeyPair, exportJWK } = await import('jose')
+      const { publicKey, privateKey } = await generateKeyPair('RS256')
+      return { privateKey, jwk: { ...(await exportJWK(publicKey)), kid: 'org-bearer', alg: 'RS256', use: 'sig' } }
+    })()
+    return bearerKeys
+  }
+
+  async function bearerFor(claims: Record<string, unknown>, audience = 'https://tools.nyuchi.dev/mcp') {
+    const { SignJWT } = await import('jose')
+    const { privateKey, jwk } = await sharedBearerKeys()
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input: RequestInfo | URL) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+      if (url === 'https://org-bearer.example.test/oauth2/jwks') {
+        return new Response(JSON.stringify({ keys: [jwk] }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })
+      }
+      throw new Error(`Unexpected fetch in test: ${url}`)
+    })
+    return new SignJWT(claims)
+      .setProtectedHeader({ alg: 'RS256', kid: 'org-bearer' })
+      .setIssuedAt()
+      .setIssuer('https://org-bearer.example.test')
+      .setAudience(audience)
+      .setSubject('user_1')
+      .setExpirationTime('5m')
+      .sign(privateKey)
+  }
+
+  async function toolsList(env: Env, token: string): Promise<Response> {
+    return Promise.resolve(
+      worker.fetch(
+        new Request(`${MCP_BASE}/mcp`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify(rpc('tools/list')),
+        }),
+        env,
+      ),
+    )
+  }
+
+  it('/mcp admits a valid token for the Nyuchi org', async () => {
+    const token = await bearerFor({ org_id: TEST_ORG })
+    expect((await toolsList(BEARER_ENV, token)).status).toBe(200)
+  })
+
+  it('/mcp answers 403 (no re-auth challenge) to a valid token from a different org', async () => {
+    const token = await bearerFor({ org_id: 'org_someone_else' })
+    const res = await toolsList(BEARER_ENV, token)
+    expect(res.status).toBe(403)
+    expect(res.headers.get('WWW-Authenticate')).toBeNull()
+  })
+
+  it('/mcp answers 403 to a valid token with no org (e.g. a consumer Mukoko account)', async () => {
+    const token = await bearerFor({})
+    expect((await toolsList(BEARER_ENV, token)).status).toBe(403)
+  })
+
+  it('/mcp still answers 401 + challenge to a token that is not valid at all', async () => {
+    await bearerFor({ org_id: TEST_ORG })
+    const res = await toolsList(BEARER_ENV, 'not-a-jwt')
+    expect(res.status).toBe(401)
+    expect(res.headers.get('WWW-Authenticate')).toContain('resource_metadata=')
+  })
+
+  it('/mcp is 503 naming NYUCHI_ORG_ID when no org is configured — never open', async () => {
+    const res = await get('/mcp', { AUTHKIT_DOMAIN: 'x.authkit.app' })
+    expect(res.status).toBe(503)
+    expect(JSON.stringify(await res.json())).toContain('NYUCHI_ORG_ID')
+  })
+
+  it('/login is 503 when no org is configured', async () => {
+    const { NYUCHI_ORG_ID: _omit, ...noOrg } = LOGIN_ENV as Record<string, unknown>
+    void _omit
+    expect((await get('/login', noOrg)).status).toBe(503)
+  })
+
+  it('a session cookie without an org claim no longer opens the site', async () => {
+    const cookie = await mintSessionCookie(SITE_ENV, { sub: 'user_123', email: 'old@nyuchi.com' })
+    const res = await get('/', { ...SITE_ENV, ASSETS: ASSETS_STUB }, { Cookie: `${SESSION_COOKIE_NAME}=${cookie}` })
+    expect(res.status).toBe(302)
+    expect(res.headers.get('Location')).toContain('/login')
+  })
+
+  it('a session cookie for another org does not open the site', async () => {
+    const cookie = await mintSessionCookie(SITE_ENV, { sub: 'user_123', org: 'org_someone_else' })
+    const res = await get('/', { ...SITE_ENV, ASSETS: ASSETS_STUB }, { Cookie: `${SESSION_COOKIE_NAME}=${cookie}` })
+    expect(res.status).toBe(302)
+  })
+
+  describe('login callback', () => {
+    const ISSUER = 'https://org-login.example.test'
+    const ENV = { ...LOGIN_ENV, AUTHKIT_DOMAIN: 'org-login.example.test' }
+    let keys: Promise<{ privateKey: CryptoKey; jwk: Record<string, unknown> }> | undefined
+    const sharedKeys = () =>
+      (keys ??= (async () => {
+        const { generateKeyPair, exportJWK } = await import('jose')
+        const { publicKey, privateKey } = await generateKeyPair('RS256')
+        return { privateKey, jwk: { ...(await exportJWK(publicKey)), kid: 'org-login', alg: 'RS256', use: 'sig' } }
+      })())
+
+    /** id_token / access_token pair with independently chosen org claims. */
+    async function exchange(idOrg: string | undefined, accessOrg: string | undefined) {
+      const { SignJWT } = await import('jose')
+      const { privateKey, jwk } = await sharedKeys()
+      const sign = (aud: string, org?: string) =>
+        new SignJWT(org ? { org_id: org } : {})
+          .setProtectedHeader({ alg: 'RS256', kid: 'org-login' })
+          .setIssuedAt()
+          .setIssuer(ISSUER)
+          .setAudience(aud)
+          .setSubject('user_9')
+          .setExpirationTime('5m')
+          .sign(privateKey)
+      const idToken = await sign(TEST_CLIENT_ID, idOrg)
+      const accessToken = await sign('anything', accessOrg)
+      vi.spyOn(globalThis, 'fetch').mockImplementation(async (input: RequestInfo | URL) => {
+        const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+        if (url === `${ISSUER}/oauth2/token`) {
+          return new Response(JSON.stringify({ access_token: accessToken, id_token: idToken }), {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          })
+        }
+        if (url === `${ISSUER}/oauth2/jwks`) {
+          return new Response(JSON.stringify({ keys: [jwk] }), {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          })
+        }
+        throw new Error(`Unexpected fetch in test: ${url}`)
+      })
+      const oauthCookie = encodeOauthCookie({ state: 's', codeVerifier: 'v', returnTo: '/' })
+      return get(`${CALLBACK_PATH}?code=c&state=s`, ENV, { Cookie: `${OAUTH_COOKIE_NAME}=${oauthCookie}` })
+    }
+
+    it('denies a user who is not in the Nyuchi org', async () => {
+      const res = await exchange('org_someone_else', 'org_someone_else')
+      expect(res.headers.get('Location')).toBe('/login?error=1')
+      expect(cookieValueFrom(res.headers.get('Set-Cookie'), SESSION_COOKIE_NAME)).toBeFalsy()
+    })
+
+    it('denies a user with no org claim anywhere', async () => {
+      const res = await exchange(undefined, undefined)
+      expect(res.headers.get('Location')).toBe('/login?error=1')
+    })
+
+    it('admits a member whose org claim is only on the access token', async () => {
+      const res = await exchange(undefined, TEST_ORG)
+      expect(res.headers.get('Location')).toBe('/')
+      const session = cookieValueFrom(res.headers.get('Set-Cookie'), SESSION_COOKIE_NAME)
+      expect((await verifySessionCookie(ENV, session ?? undefined))?.org).toBe(TEST_ORG)
+    })
+  })
+})
+
+// -----------------------------------------------------------------------------
+// One MCP URL
+// -----------------------------------------------------------------------------
+
+describe('a single MCP URL (tools.nyuchi.dev)', () => {
+  it('/mcp is a 404 on tools.nyuchi.com, pointing at the .dev endpoint', async () => {
+    for (const method of ['GET', 'POST']) {
+      const res = await Promise.resolve(worker.fetch(new Request(`${BASE}/mcp`, { method }), AUTH_ENV))
+      expect(res.status).toBe(404)
+      expect(JSON.stringify(await res.json())).toContain('https://tools.nyuchi.dev/mcp')
+    }
+    const sub = await Promise.resolve(worker.fetch(new Request(`${BASE}/mcp/anything`), AUTH_ENV))
+    expect(sub.status).toBe(404)
+  })
+
+  it('/mcp still answers (401 without a token) on tools.nyuchi.dev', async () => {
+    expect((await get('/mcp', AUTH_ENV)).status).toBe(401)
+  })
+})
+
+// -----------------------------------------------------------------------------
+// Card output: SVG then PNG, portrait/landscape, and R2-backed public URLs
+// -----------------------------------------------------------------------------
+
+/** Minimal in-memory R2 bucket: enough of put/get for the image store. */
+function fakeBucket() {
+  const objects = new Map<string, { bytes: Uint8Array; contentType?: string }>()
+  return {
+    objects,
+    async put(key: string, value: Uint8Array, opts?: { httpMetadata?: { contentType?: string }; onlyIf?: unknown }) {
+      if (opts?.onlyIf && objects.has(key)) return null
+      objects.set(key, { bytes: value, contentType: opts?.httpMetadata?.contentType })
+      return { key }
+    },
+    async head(key: string) {
+      return objects.has(key) ? { key } : null
+    },
+    async get(key: string) {
+      const o = objects.get(key)
+      if (!o) return null
+      return { body: o.bytes, httpMetadata: { contentType: o.contentType }, httpEtag: '"etag-1"' }
+    },
+  }
+}
+
+type CardContent = { type: string; text?: string; data?: string; mimeType?: string }
+async function callCard(args: Record<string, unknown>, env: Env): Promise<CardContent[]> {
+  const res = await post('/mcp', rpc('tools/call', { name: 'nyuchi_generate_studio_card', arguments: args }, 77), env)
+  const body = (await res.json()) as JsonRpcResponse
+  if (body.error) throw new Error(body.error.message)
+  const result = body.result as { content: CardContent[]; isError?: boolean }
+  if (result.isError) throw new Error(result.content[0].text)
+  return result.content
+}
+
+describe('nyuchi_generate_studio_card — output shapes', () => {
+  it('returns the SVG first, then the PNG inline, then metadata by default', async () => {
+    const content = await callCard({ title: 'Hello', category: 'gold' }, UPLOAD_ENV)
+    expect(content.map((c) => c.type)).toEqual(['text', 'image', 'text'])
+    expect(content[0].text!.startsWith('<svg')).toBe(true)
+    expect(content[1].mimeType).toBe('image/png')
+    const png = Uint8Array.from(atob(content[1].data!), (ch) => ch.charCodeAt(0))
+    expect(Array.from(png.slice(0, 8))).toEqual(PNG_MAGIC)
+  })
+
+  it('builds portrait (1080x1350), story (1080x1920) and landscape (1200x630) canvases', async () => {
+    const dims = async (format: string) => {
+      const [svg] = await callCard({ title: 'T', category: 'gold', format, returnFormat: 'svg' }, UPLOAD_ENV)
+      return svg.text!.match(/viewBox="0 0 (\d+) (\d+)"/)!.slice(1).map(Number)
+    }
+    expect(await dims('portrait')).toEqual([1080, 1350])
+    expect(await dims('story')).toEqual([1080, 1920])
+    expect(await dims('og')).toEqual([1200, 630])
+  })
+})
+
+describe('R2-backed public images (/images/*)', () => {
+  it('upload:true stores the PNG in R2 and returns a tools.nyuchi.dev/images URL', async () => {
+    const bucket = fakeBucket()
+    const env = { ...UPLOAD_ENV, IMAGES: bucket, CF_IMAGES_ACCOUNT_ID: undefined, CF_IMAGES_TOKEN: undefined }
+    const content = await callCard({ title: 'Hi', category: 'gold', upload: true, uploadKey: 'campaign/hi' }, env)
+    const payload = JSON.parse(content[0].text!) as { url: string; id: string }
+    expect(payload.url).toBe('https://tools.nyuchi.dev/images/campaign/hi.png')
+    expect(bucket.objects.get('campaign/hi.png')?.contentType).toBe('image/png')
+    expect(Array.from(bucket.objects.get('campaign/hi.png')!.bytes.slice(0, 8))).toEqual(PNG_MAGIC)
+  })
+
+  it('refuses to overwrite an existing key', async () => {
+    const bucket = fakeBucket()
+    const env = { ...UPLOAD_ENV, IMAGES: bucket }
+    await callCard({ title: 'A', category: 'gold', upload: true, uploadKey: 'dup' }, env)
+    await expect(callCard({ title: 'B', category: 'gold', upload: true, uploadKey: 'dup' }, env)).rejects.toThrow(
+      /already exists/,
+    )
+  })
+
+  it('keeps a stored key servable: extension matches the type and the key stays within the cap', async () => {
+    const bucket = fakeBucket()
+    const env = { ...UPLOAD_ENV, IMAGES: bucket }
+    // Already ends in .png: not doubled. Mismatched extension: the right one is appended.
+    await callCard({ title: 'A', category: 'gold', upload: true, uploadKey: 'x/a.png' }, env)
+    await callCard({ title: 'B', category: 'gold', upload: true, uploadKey: 'x/b.svg' }, env)
+    expect([...bucket.objects.keys()].sort()).toEqual(['x/a.png', 'x/b.svg.png'])
+    // A 510-char key would be 514 with the extension: it falls back to a generated id.
+    const long = 'k'.repeat(510)
+    const content = await callCard({ title: 'C', category: 'gold', upload: true, uploadKey: long }, env)
+    const { id } = JSON.parse(content[0].text!) as { id: string }
+    expect(id).toMatch(/^[0-9a-f-]{36}\.png$/)
+  })
+
+  it('refuses to overwrite even if the conditional put were ignored (head() guard)', async () => {
+    const bucket = fakeBucket()
+    bucket.put = async (key: string, value: Uint8Array) => {
+      bucket.objects.set(key, { bytes: value })
+      return { key }
+    }
+    const env = { ...UPLOAD_ENV, IMAGES: bucket }
+    await callCard({ title: 'A', category: 'gold', upload: true, uploadKey: 'same' }, env)
+    await expect(callCard({ title: 'B', category: 'gold', upload: true, uploadKey: 'same' }, env)).rejects.toThrow(
+      /already exists/,
+    )
+  })
+
+  it('without any store, upload:true is a clear tool error', async () => {
+    const env = { ...UPLOAD_ENV, CF_IMAGES_ACCOUNT_ID: undefined, CF_IMAGES_TOKEN: undefined }
+    await expect(callCard({ title: 'A', category: 'gold', upload: true }, env)).rejects.toThrow(/image storage/)
+  })
+
+  const publicEnv = (bucket: ReturnType<typeof fakeBucket>) => ({ ...SITE_ENV, IMAGES: bucket })
+  const fetchImage = (host: string, path: string, env: Env) =>
+    Promise.resolve(worker.fetch(new Request(`${host}${path}`), env))
+
+  it('serves a stored image publicly (no login) on the MCP host with safe headers', async () => {
+    const bucket = fakeBucket()
+    bucket.objects.set('a/b.png', { bytes: new Uint8Array(PNG_MAGIC), contentType: 'image/png' })
+    const res = await fetchImage(MCP_BASE, '/images/a/b.png', publicEnv(bucket))
+    expect(res.status).toBe(200)
+    expect(res.headers.get('Content-Type')).toBe('image/png')
+    expect(res.headers.get('X-Content-Type-Options')).toBe('nosniff')
+    expect(res.headers.get('Cache-Control')).toContain('immutable')
+    expect(res.headers.get('Content-Security-Policy')).toContain('sandbox')
+  })
+
+  it('404s for a missing key, a traversal attempt, and on the site host', async () => {
+    const bucket = fakeBucket()
+    bucket.objects.set('a.png', { bytes: new Uint8Array(PNG_MAGIC), contentType: 'image/png' })
+    expect((await fetchImage(MCP_BASE, '/images/missing.png', publicEnv(bucket))).status).toBe(404)
+    expect((await fetchImage(MCP_BASE, '/images/..%2Fsecret', publicEnv(bucket))).status).toBe(404)
+    expect((await fetchImage(BASE, '/images/a.png', publicEnv(bucket))).status).toBe(404)
   })
 })

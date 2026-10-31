@@ -42,6 +42,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **New Bundu Foundation icon.** `bundu-icon-light.png` and
+  `bundu-icon-dark.png` under `signature-generator/public/assets/brand-icons/`
+  are replaced with the refreshed pair (brown ring and navy mark on light
+  surfaces, tan ring and pale mark on dark), kept as supplied. Their `.b64.txt`
+  embed companions are cut to the circle with transparent corners and downscaled
+  to 192px, so Studio lockups for the Bundu brand show no box behind the mark on
+  dark surfaces and the embedded data stays small.
+- **Internal only: WorkOS org gate, one MCP URL, R2 images, portrait cards**
+  ([#120](https://github.com/nyuchi/workspace-tools/issues/120)). The site login
+  and `/mcp` now require membership of the WorkOS organization in
+  `NYUCHI_ORG_ID` (the token's `org_id` claim); a valid sign-in from another
+  org, or a consumer Mukoko account, is refused (a 403 on `/mcp`, with no
+  re-auth challenge). Session cookies carry `org`, so
+  sessions minted before this change end; with `NYUCHI_ORG_ID` unset everything
+  fails closed. `/mcp` and `/images/*` are served only on `tools.nyuchi.dev`;
+  `tools.nyuchi.com/mcp` is a 404 (a connector added against it advertised a
+  resource that did not match its URL and failed authorization — re-add it with
+  the `.dev` URL). `nyuchi_generate_studio_card` defaults to
+  `returnFormat: 'both'` (SVG, then the PNG inline); `upload`/`url` stores the
+  PNG in the R2 bucket bound as `IMAGES` and returns a public
+  `https://tools.nyuchi.dev/images/<key>` link (Cloudflare Images stays a
+  fallback). New 4:5 `portrait` Studio canvas (1080×1350).
 - **Shamwari AI is the intelligence pillar, not the community pillar**
   ([mzizi-dev/mzizi-registry#543](https://github.com/mzizi-dev/mzizi-registry/issues/543)).
   Aligns the brand registry with Mzizi, which is the rule for brand taxonomy:

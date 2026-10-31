@@ -44,6 +44,13 @@
  * initiatives with an `icon` field below are vendored under
  * signature-generator/public/assets/brand-icons/; shamwari also has SVG
  * sources vendored alongside its PNGs.
+ *
+ * Bundu's icons (2026-10-31 refresh: brown ring + navy mark on light surfaces,
+ * tan ring + pale mark on dark) are vendored as supplied, 500×500. Their
+ * `.b64.txt` companions — the only thing the engines embed — are cut to the
+ * circle with transparent corners (the supplied PNGs carry a baked cream/black
+ * square that shows as a box on some surfaces) and downscaled to 192px, so a
+ * Bundu card's SVG stays about 25 KB heavier instead of 115 KB.
  */
 
 /** The four top-level Bundu-ecosystem brands (parent first, then pillars). */

@@ -67,7 +67,7 @@ The web/MCP surface (`tools.nyuchi.com` / `tools.nyuchi.dev`, source in `mcp/src
 
 ### Secrets
 
-Provisioned only via `wrangler secret put`, never committed: `SESSION_SECRET` (login gate), `CF_IMAGES_TOKEN`/`CF_IMAGE_TOKEN` (Cloudflare Images upload), `GITHUB_FEEDBACK_TOKEN` (issue filing). Every dependent feature fails closed with a clear error when its secret is absent.
+Provisioned only via `wrangler secret put`, never committed: `SESSION_SECRET` (login gate), `CF_IMAGES_TOKEN`/`CF_IMAGE_TOKEN` (optional Cloudflare Images fallback; the preferred R2 store is a Worker binding and needs no token), `GITHUB_FEEDBACK_TOKEN` (issue filing). Every dependent feature fails closed with a clear error when its secret is absent.
 
 ### Input handling
 
@@ -158,3 +158,11 @@ Before deploying to production:
 **Developer:** Bryan Fawcett
 **Last Updated:** December 2025
 **Version:** 2.0.0
+
+### Internal-only access (WorkOS org)
+
+The site login gate and `/mcp` admit only members of the WorkOS organization in `NYUCHI_ORG_ID`: a valid token from `accounts.mukoko.com` is not enough, because consumer Mukoko accounts live there too. The token's `org_id` must match (a valid token from another org is a 403 with no re-auth challenge); the site login requests that org explicitly; session cookies carry `org` and are rejected without it. Unset `NYUCHI_ORG_ID` fails closed (503 / no admission). `/mcp` is served only on the MCP host (`tools.nyuchi.dev`); every other host answers 404.
+
+### Public images (`/images/*`)
+
+Images stored by the upload tools are public by design (Postiz/Instagram must fetch them with no login). The route is GET-only on the MCP host, has no listing, rejects traversal and non-allowlisted key characters, never overwrites a key, and serves with `nosniff` and a sandboxing CSP so an SVG opened directly cannot run script. Do not put anything private in this bucket.
