@@ -32,7 +32,7 @@
     "tailwindcss": ">=4.3.3",
     "typescript": "~6.0.3",
     "typescript-eslint": ">=8.72.0",
-    "vitest": ">=4.1.11"
+    "vitest": ">=5.0.5"
   },
   "overrides": {
     "http-cache-semantics@<4.3.0": ">=4.3.0",
