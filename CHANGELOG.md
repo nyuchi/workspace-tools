@@ -50,9 +50,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `Client` and Streamable HTTP transport: tools/list (titles, annotations,
   bounded schemas), tool calls including the PNG raster path, `isError`
   results, resources and prompts. The worker suite also gains Origin tests.
-
-### Added
-
 - **Mukoko Events in the brand list and the release pipeline**
   ([mukoko-dev/nhimbe#155](https://github.com/mukoko-dev/nhimbe/issues/155)).
   Owner decision, 2026-10-04: the nhimbe brand is retired, and the events
