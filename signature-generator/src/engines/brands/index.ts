@@ -15,7 +15,7 @@
  *   ├─ Mukoko (mukoko.com)          — consumer pillar,
  *   │    "Africa's privacy-first social super-app"
  *   │    divisions: Mukoko News
- *   └─ Shamwari AI (shamwari.ai)    — community pillar,
+ *   └─ Shamwari AI (shamwari.ai)    — intelligence pillar (sodalite),
  *        "AI that actually works for Africa"
  *
  *   Bundu Foundation initiatives (projects, NOT brands):
@@ -44,6 +44,13 @@
  * initiatives with an `icon` field below are vendored under
  * signature-generator/public/assets/brand-icons/; shamwari also has SVG
  * sources vendored alongside its PNGs.
+ *
+ * Bundu's icons (2026-10-31 refresh: brown ring + navy mark on light surfaces,
+ * tan ring + pale mark on dark) are vendored as supplied, 500×500. Their
+ * `.b64.txt` companions — the only thing the engines embed — are cut to the
+ * circle with transparent corners (the supplied PNGs carry a baked cream/black
+ * square that shows as a box on some surfaces) and downscaled to 192px, so a
+ * Bundu card's SVG stays about 25 KB heavier instead of 115 KB.
  */
 
 /** The four top-level Bundu-ecosystem brands (parent first, then pillars). */
@@ -52,7 +59,7 @@ export const TOP_BRAND_KEYS = ['bundu', 'nyuchi', 'mukoko', 'shamwari'] as const
 export type TopBrandKey = (typeof TOP_BRAND_KEYS)[number]
 
 /** Role a top-level brand plays in the Bundu ecosystem. */
-export type PillarRole = 'foundation' | 'commercial' | 'consumer' | 'community'
+export type PillarRole = 'foundation' | 'commercial' | 'consumer' | 'intelligence'
 
 export interface TopBrand {
   key: TopBrandKey
@@ -136,7 +143,7 @@ export const TOP_BRANDS: Record<TopBrandKey, TopBrand> = {
     url: 'https://shamwari.ai',
     tagline: 'AI that actually works for Africa',
     lockupLabel: 'shamwari.ai',
-    pillar: 'community',
+    pillar: 'intelligence',
     // Hexagonal lattice mark in the sodalite pair (#3D5AFE dark / #283593
     // light); source SVGs vendored beside the PNGs. TODO(brand): socials.
     icon: {

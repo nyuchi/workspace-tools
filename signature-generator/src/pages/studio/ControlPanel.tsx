@@ -15,6 +15,7 @@ interface Props {
 
 const FORMATS: { v: FormatKey; label: string }[] = [
   { v: 'ig',    label: 'Square' },
+  { v: 'portrait', label: 'Portrait' },
   { v: 'story', label: 'Story' },
   { v: '16x9',  label: '16:9' },
   { v: 'og',    label: 'OG' },
