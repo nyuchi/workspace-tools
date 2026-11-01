@@ -55,7 +55,7 @@ export type Category =
   | 'copper'
   | 'terracotta'
 
-export type FormatKey = '16x9' | 'og' | 'li' | 'ig' | 'story'
+export type FormatKey = '16x9' | 'og' | 'li' | 'ig' | 'portrait' | 'story'
 
 /** 'accent' is a full-bleed mineral surface (mineral background, ink text)
     — the loudest option, built per-category in buildSVG rather than from
@@ -141,6 +141,7 @@ export const FORMATS: Record<FormatKey, Format> = {
   og:     { w: 1200, h: 630,  label: '1200 × 630',  name: 'OG / share'  },
   li:     { w: 1200, h: 627,  label: '1200 × 627',  name: 'LinkedIn'    },
   ig:     { w: 1080, h: 1080, label: '1080 × 1080', name: 'Square 1:1'  },
+  portrait: { w: 1080, h: 1350, label: '1080 × 1350', name: 'Portrait 4:5' },
   story:  { w: 1080, h: 1920, label: '1080 × 1920', name: 'Story 9:16'  },
 }
 
@@ -951,7 +952,9 @@ function layoutMineral(ctx: Ctx): string {
   let svg = `<rect width="${w}" height="${h}" fill="${surface.bg}"/>`
   if (opts.lattice) svg += drawEngBackground(w, h, surface.fg)
 
-  const tall = h / w > 1.2, wide = w / h > 1.3
+  /* 9:16 story is the only truly tall canvas; 4:5 portrait has room for the
+     square-tuned proportions (scaled by its taller h). */
+  const tall = h / w > 1.5, wide = w / h > 1.3, mid = !tall && h / w > 1.2
   const swH = Math.round(h * (tall ? 0.38 : wide ? 0.52 : 0.4))
   const swX = pad, swY = pad, swW = iw
   const rx = Math.round(Math.min(swW, swH) * 0.06)
@@ -988,7 +991,7 @@ function layoutMineral(ctx: Ctx): string {
   }
 
   let cy = swY + swH + Math.round(h * 0.058)
-  const nameFs = Math.round(h * (tall ? 0.066 : wide ? 0.07 : 0.082))
+  const nameFs = Math.round(h * (tall ? 0.066 : wide || mid ? 0.07 : 0.082))
   const nfit = fitText(title || cat.name, iw, 2, '700 __SZ__ "Noto Serif",Georgia,serif', nameFs, Math.round(nameFs * 0.6))
   for (const line of nfit.lines) {
     svg += `<text x="${pad}" y="${(cy + nfit.size * 0.85).toFixed(1)}" font-family="Noto Serif,Georgia,serif" font-weight="700" font-size="${nfit.size}" fill="${surface.fg}">${esc(line)}</text>`
@@ -1089,7 +1092,10 @@ export function buildSVG(p: Params): BuildResult {
           p.title.trim().toLowerCase() === catDef.name.toLowerCase()),
     },
   }
-  const isSquare = Math.abs(fmt.w - fmt.h) < 4
+  /* The square compositions (centered, graph-around-text) also suit 4:5
+     portrait; wide and 9:16 canvases keep the regular layouts. */
+  const aspect = fmt.h / fmt.w
+  const isSquare = Math.abs(fmt.w - fmt.h) < 4 || (aspect > 1 && aspect <= 1.3)
   let inner: string
   if (+p.layout === 5) inner = layoutMineral(ctx)
   else inner = (isSquare ? SQUARE : REGULAR)[p.layout || 1](ctx)
