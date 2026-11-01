@@ -26,6 +26,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Bundu theme and official logos** in `nyuchi-imaging`: a `bundu` theme in
   copper and terracotta, signed with the published Bundu Foundation logo.
 
+### Fixed
+
+- **A release to `main` is tagged.** Nothing tagged one before: the repository had `staging-version.yml` (patch tags on `staging`) but no release workflow, so the 2026-10-21 releases (#104, #111) have no tag and no GitHub release. The new `.github/workflows/release.yml` runs after CI passes on a push to `main`. It tags `main`'s tip as the next minor above the highest `v*` tag (org policy, nyuchi/.github#80) and creates the GitHub release, with this file's section for that version followed by GitHub's list of merged pull requests. It commits nothing to `main`. A major is only made by hand, with `workflow_dispatch` and `bump: major`.
+
 ### Security
 
 - **The site login reads its WorkOS client ID from configuration.** `/login`
