@@ -32,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **`ip-address` 10.7.3 -> 10.7.5** in the root lockfile (transitive, reached through the MCP SDK's express stack). This ports Dependabot security PR #126, which targets `main` because security updates ignore `target-branch`. The lockfile changes in this one package only.
 - **The site login reads its WorkOS client ID from configuration.** `/login`
   and `/callback` now use the `WORKOS_CLIENT_ID` Worker secret instead of a
   compiled-in client ID. With it unset, `/login` answers `503`
