@@ -19,21 +19,23 @@
  *     static assets via `c.env.ASSETS.fetch(...)`, but only once the
  *     site-wide login gate above has let the request through.
  *
- * Transport: streamable-HTTP, stateless JSON (one JSON-RPC request per
- * POST). We implement a minimal per-request transport because the SDK's
- * built-in `StreamableHTTPServerTransport` (v1.29.x) targets Node.js
- * req/res, not the fetch API used by Workers. Protocol version negotiation
- * is the SDK's — it accepts every entry in SUPPORTED_PROTOCOL_VERSIONS; the
- * LATEST_PROTOCOL_VERSION import below is only for discovery display.
- * SSE / server-initiated streaming is not required by the current tool set.
+ * Transport: the official MCP TypeScript SDK v2 (`@modelcontextprotocol/server`).
+ * `createMcpHandler` serves stateless Streamable HTTP from a fresh `McpServer`
+ * per request (`buildServer`), for 2026-07-28 clients and, through its
+ * stateless legacy path, 2025-era clients. Nothing here hand-parses JSON-RPC:
+ * protocol-version checks, batches, notifications (202) and GET/DELETE (405)
+ * are all the SDK's. The Worker adds what the SDK leaves to the host: the
+ * bearer-token gate, Host pinning (`mcpHostOnly`) and Origin validation.
  */
 
 import { Hono } from "hono";
 import type { Context } from "hono";
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
-import { LATEST_PROTOCOL_VERSION, type JSONRPCMessage } from "@modelcontextprotocol/sdk/types.js";
-import { z } from "zod";
+import {
+  createMcpHandler,
+  McpServer,
+  originValidationResponse,
+} from "@modelcontextprotocol/server";
+import * as z from "zod/v4";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import {
   type AuthEnv,
@@ -145,57 +147,17 @@ const MINERALS = [
   "terracotta",
 ] as const;
 
+/** Input bounds: generous for real use, small enough to refuse abuse. */
+const MAX_SHORT_TEXT = 200;
+const MAX_URL = 2048;
+const MAX_CARD_TEXT = 500;
+/** ~2 MB of SVG source is far beyond any Studio card (they are ~20-60 KB). */
+const MAX_SVG_CHARS = 2_000_000;
+/** Base64 of the largest PNG the upload cap allows (4 chars per 3 bytes). */
+const MAX_PNG_BASE64_CHARS = Math.ceil(MAX_UPLOAD_BYTES / 3) * 4 + 1024;
+
 const SERVER_NAME = "nyuchi-tools";
 const SERVER_VERSION = "0.2.0";
-/** Display-only (GET /mcp ping): actual negotiation is per-request in the SDK. */
-const MCP_PROTOCOL_VERSION = LATEST_PROTOCOL_VERSION;
-
-// -----------------------------------------------------------------------------
-// Minimal per-request streamable-HTTP transport.
-// -----------------------------------------------------------------------------
-
-/**
- * Single-shot transport: feeds one incoming JSON-RPC message into the server,
- * captures the first outgoing message, and resolves with it. Notifications
- * (no `id`) get a 202 with no body — handled at the fetch layer, not here.
- */
-class WorkerHttpTransport implements Transport {
-  onmessage?: (message: JSONRPCMessage) => void;
-  onclose?: () => void;
-  onerror?: (error: Error) => void;
-  sessionId?: string;
-
-  private _resolveResponse!: (message: JSONRPCMessage) => void;
-  private _responsePromise: Promise<JSONRPCMessage>;
-
-  constructor() {
-    this._responsePromise = new Promise<JSONRPCMessage>((resolve) => {
-      this._resolveResponse = resolve;
-    });
-  }
-
-  async start(): Promise<void> {
-    // No-op: connection is a single HTTP request.
-  }
-
-  async send(message: JSONRPCMessage): Promise<void> {
-    this._resolveResponse(message);
-  }
-
-  async close(): Promise<void> {
-    this.onclose?.();
-  }
-
-  /** Dispatch a decoded JSON-RPC message and await the server's reply. */
-  dispatch(message: JSONRPCMessage): Promise<JSONRPCMessage> {
-    if (!this.onmessage) {
-      throw new Error("Transport not connected to a server");
-    }
-    this.onmessage(message);
-    return this._responsePromise;
-  }
-}
-
 // -----------------------------------------------------------------------------
 // MCP server + tool registrations.
 // -----------------------------------------------------------------------------
@@ -260,32 +222,52 @@ function buildServer(env: Env): McpServer {
     "nyuchi_generate_email_signature",
     {
       title: "Generate email signature",
-      description: "Generate a branded Nyuchi email signature as HTML.",
-      annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
-      inputSchema: {
+      description:
+        "Generate the branded HTML email signature for one person at a Bundu-ecosystem brand " +
+        "(Nyuchi, Mukoko, Bundu, Shamwari, plus the legacy travel/learning keys). Returns one " +
+        "text block holding the HTML, ready to paste into Gmail's signature settings; it is the " +
+        "same byte-locked template the Signature Generator page and the Apps Script add-ons " +
+        "use, so return it verbatim rather than editing it. Use this when someone wants their " +
+        "email signature; read nyuchi://brands first if you need to pick the brand from an " +
+        "email domain. Only include contact details and social links the person gave you.",
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+      inputSchema: z.object({
         brand: z
           .enum(BRAND_KEYS)
           .describe(
             `Brand slug. ${BRAND_TAXONOMY} travel and learning are legacy ` +
               "signature keys (Zimbabwe Information Platform initiative / Nyuchi Learning division).",
           ),
-        name: z.string().describe("Full name of the signer."),
-        email: z.string().describe("Email address."),
-        title: z.string().optional().describe("Job title / role."),
-        phone: z.string().optional().describe("Phone number in international format."),
-        whatsapp: z.string().optional().describe("WhatsApp number, digits with country code."),
-        profileImage: z.string().optional().describe("Profile image URL."),
-        linkedin: z.string().optional().describe("LinkedIn profile URL."),
-        twitter: z.string().optional().describe("X / Twitter profile URL."),
-        facebook: z.string().optional().describe("Facebook page URL."),
-        instagram: z.string().optional().describe("Instagram profile URL."),
-        promoBanner: z.string().optional().describe("Promo banner image URL."),
-        promoLink: z.string().optional().describe("Promo banner target URL."),
-      },
+        name: z.string().min(1).max(MAX_SHORT_TEXT).describe("Full name of the signer."),
+        email: z.string().min(3).max(254).describe("Email address, e.g. tendai@nyuchi.com."),
+        title: z.string().max(MAX_SHORT_TEXT).optional().describe("Job title / role."),
+        phone: z
+          .string()
+          .max(40)
+          .optional()
+          .describe("Phone number in international format, e.g. +263 77 123 4567."),
+        whatsapp: z
+          .string()
+          .max(40)
+          .optional()
+          .describe("WhatsApp number, digits with country code, e.g. 263771234567."),
+        profileImage: z.string().max(MAX_URL).optional().describe("Profile image URL (https)."),
+        linkedin: z.string().max(MAX_URL).optional().describe("LinkedIn profile URL."),
+        twitter: z.string().max(MAX_URL).optional().describe("X / Twitter profile URL."),
+        facebook: z.string().max(MAX_URL).optional().describe("Facebook page URL."),
+        instagram: z.string().max(MAX_URL).optional().describe("Instagram profile URL."),
+        promoBanner: z.string().max(MAX_URL).optional().describe("Promo banner image URL."),
+        promoLink: z.string().max(MAX_URL).optional().describe("Promo banner target URL."),
+      }),
     },
-    async (args: SignatureParams) => {
+    async (args) => {
       const html = buildSignatureHtml(args);
-      return { content: [{ type: "text", text: html }] };
+      return { content: [{ type: "text" as const, text: html }] };
     },
   );
 
@@ -314,9 +296,9 @@ function buildServer(env: Env): McpServer {
       // Images. Creation-only, never destructive; duplicate keys error rather
       // than overwrite (hence not idempotent).
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
-      inputSchema: {
-        title: z.string().describe("Card title."),
-        dek: z.string().optional().describe("Supporting line under the title."),
+      inputSchema: z.object({
+        title: z.string().max(MAX_CARD_TEXT).describe("Card title."),
+        dek: z.string().max(MAX_CARD_TEXT).optional().describe("Supporting line under the title."),
         category: z.enum(MINERALS).describe("Mineral palette."),
         format: z
           .enum(["ig", "portrait", "story", "16x9", "og", "li"])
@@ -360,12 +342,13 @@ function buildServer(env: Env): McpServer {
           ),
         eyebrow: z
           .string()
+          .max(MAX_SHORT_TEXT)
           .optional()
           .describe(
             "Kicker line, rendered as a filled pill chip; defaults to '<Mineral> · <role>'.",
           ),
-        index: z.string().optional().describe("Big index numeral on the mineral swatch (layout 5)."),
-        footnote: z.string().optional().describe("Small mono footnote (layout 5)."),
+        index: z.string().max(16).optional().describe("Big index numeral on the mineral swatch (layout 5)."),
+        footnote: z.string().max(MAX_SHORT_TEXT).optional().describe("Small mono footnote (layout 5)."),
         showHexes: z
           .boolean()
           .optional()
@@ -374,7 +357,7 @@ function buildServer(env: Env): McpServer {
               "when the card is about the mineral itself (no title, or the title is the mineral " +
               "name) — generic cards hide the spec labels automatically.",
           ),
-        role: z.string().optional().describe("Role label; defaults to the mineral's role."),
+        role: z.string().max(MAX_SHORT_TEXT).optional().describe("Role label; defaults to the mineral's role."),
         brand: z
           .enum(TOP_BRAND_KEYS)
           .optional()
@@ -382,6 +365,7 @@ function buildServer(env: Env): McpServer {
           .describe(`Lockup brand. ${BRAND_TAXONOMY}`),
         seedKey: z
           .string()
+          .max(MAX_SHORT_TEXT)
           .optional()
           .describe("Seed for the generative graph; defaults to title+category+layout like the SPA."),
         dekFontSize: z
@@ -430,28 +414,9 @@ function buildServer(env: Env): McpServer {
               "'nhimbe/2026-07/harvest-post.png'. Must be unique; unusable keys fall back to a " +
               "generated id.",
           ),
-      },
+      }),
     },
-    async (args: {
-      title: string;
-      dek?: string;
-      category: StudioParams["category"];
-      format?: StudioParams["format"];
-      layout?: number;
-      theme?: StudioParams["theme"];
-      eyebrow?: string;
-      index?: string;
-      footnote?: string;
-      role?: string;
-      brand?: StudioParams["brand"];
-      seedKey?: string;
-      showHexes?: boolean;
-      dekFontSize?: number;
-      dekColor?: string;
-      upload?: boolean;
-      returnFormat?: "url" | "png" | "svg" | "both";
-      uploadKey?: string;
-    }) => {
+    async (args) => {
       const params = studioParamsFrom(args);
       const returnFormat = args.returnFormat ?? (args.upload ? "url" : "both");
       if (args.upload && returnFormat === "svg") {
@@ -470,8 +435,8 @@ function buildServer(env: Env): McpServer {
       if (returnFormat === "svg") {
         return {
           content: [
-            { type: "text", text: svg },
-            { type: "text", text: JSON.stringify({ format: { w: format.w, h: format.h }, seed }) },
+            { type: "text" as const, text: svg },
+            { type: "text" as const, text: JSON.stringify({ format: { w: format.w, h: format.h }, seed }) },
           ],
         };
       }
@@ -510,7 +475,7 @@ function buildServer(env: Env): McpServer {
 
       const payload = { url: uploaded!.url, id: uploaded!.id, width: format.w, height: format.h, seed };
       return {
-        content: [{ type: "text", text: JSON.stringify(payload) }],
+        content: [{ type: "text" as const, text: JSON.stringify(payload) }],
         structuredContent: payload,
       };
     },
@@ -532,18 +497,20 @@ function buildServer(env: Env): McpServer {
         "For nyuchi_generate_studio_card output, prefer calling that tool with upload=true instead — one " +
         "call, no SVG round-trip.",
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
-      outputSchema: {
+      outputSchema: z.object({
         url: z.string().describe("Public delivery URL of the uploaded asset."),
         id: z.string().describe("Stored image id (the sanitized key, or a generated id)."),
         contentType: z.enum(["image/png", "image/svg+xml"]).describe("Stored content type."),
-      },
-      inputSchema: {
+      }),
+      inputSchema: z.object({
         svg: z
           .string()
+          .max(MAX_SVG_CHARS)
           .optional()
           .describe("Raw SVG source to rasterize and upload. Exactly one of svg / pngBase64."),
         pngBase64: z
           .string()
+          .max(MAX_PNG_BASE64_CHARS)
           .optional()
           .describe("Base64-encoded PNG bytes to upload as-is. Exactly one of svg / pngBase64."),
         key: z
@@ -562,14 +529,9 @@ function buildServer(env: Env): McpServer {
               "rasterizing (note: social platforms generally can't use SVG URLs). Default: rasterize " +
               "to image/png.",
           ),
-      },
+      }),
     },
-    async (args: {
-      svg?: string;
-      pngBase64?: string;
-      key?: string;
-      contentType?: "image/png" | "image/svg+xml";
-    }) => {
+    async (args) => {
       // Truthiness on purpose, and the same predicate drives the dispatch
       // below — an empty-string pngBase64 must not shadow a valid svg.
       if ((args.svg ? 1 : 0) + (args.pngBase64 ? 1 : 0) !== 1) {
@@ -613,7 +575,7 @@ function buildServer(env: Env): McpServer {
       });
       const payload = { url, id, contentType };
       return {
-        content: [{ type: "text", text: JSON.stringify(payload) }],
+        content: [{ type: "text" as const, text: JSON.stringify(payload) }],
         structuredContent: payload,
       };
     },
@@ -632,12 +594,12 @@ function buildServer(env: Env): McpServer {
         "The target repo is configured server-side. Include what was tried, what happened, and " +
         "what was expected; always name the specific tool concerned.",
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
-      outputSchema: {
+      outputSchema: z.object({
         url: z.string().describe("URL of the created GitHub issue."),
         number: z.number().describe("Issue number."),
         repo: z.string().describe("owner/repo the issue was filed on."),
-      },
-      inputSchema: {
+      }),
+      inputSchema: z.object({
         title: z.string().min(4).max(200).describe("Short summary of the issue."),
         description: z
           .string()
@@ -659,15 +621,9 @@ function buildServer(env: Env): McpServer {
         category: z
           .enum(["bug", "missing_capability", "confusing_output", "documentation"])
           .describe("What kind of issue this is."),
-      },
+      }),
     },
-    async (args: {
-      title: string;
-      description: string;
-      tool_name: string;
-      severity?: FeedbackSeverity;
-      category: FeedbackCategory;
-    }) => {
+    async (args) => {
       const { url, number } = await createFeedbackIssue(env, {
         title: args.title,
         description: args.description,
@@ -677,7 +633,7 @@ function buildServer(env: Env): McpServer {
       });
       const payload = { url, number, repo: feedbackRepo(env) };
       return {
-        content: [{ type: "text", text: JSON.stringify(payload) }],
+        content: [{ type: "text" as const, text: JSON.stringify(payload) }],
         structuredContent: payload,
       };
     },
@@ -733,6 +689,8 @@ function authorizationServerMetadataHandler(wellKnownPath: "oauth-authorization-
  */
 interface Env extends SiteAuthEnv, ImagesEnv, FeedbackEnv, SignatureApiEnv, GoogleAuthEnv, GoogleAdminEnv {
   ASSETS: Fetcher;
+  /** Extra browser Origin hostnames allowed on /mcp (comma-separated). */
+  MCP_ALLOWED_ORIGINS?: string;
 }
 
 interface Variables {
@@ -1012,7 +970,7 @@ app.use("/mcp", async (c, next) => {
     return c.json(
       { error: "unauthorized", detail: "Valid bearer token required." },
       401,
-      { "WWW-Authenticate": wwwAuthenticateHeader(c.env) },
+      { "WWW-Authenticate": wwwAuthenticateHeader(c.env, Boolean(token)) },
     );
   }
   // A genuine sign-in from outside the Nyuchi org is 403, with no challenge:
@@ -1030,62 +988,40 @@ app.use("/mcp", async (c, next) => {
 });
 
 // Discovery: cheap identity ping for clients probing the endpoint.
-app.get("/mcp", (c) => {
-  return c.json({
-    name: SERVER_NAME,
-    version: SERVER_VERSION,
-    protocol: `mcp/${MCP_PROTOCOL_VERSION}`,
-    endpoint: "/mcp",
+/**
+ * Origins a browser-based MCP client may call /mcp from. Requests without an
+ * `Origin` header (every non-browser client) always pass; a present Origin
+ * outside this list is refused with 403, as the Streamable HTTP transport
+ * requires (DNS-rebinding protection). Extend per environment with the
+ * comma-separated `MCP_ALLOWED_ORIGINS` var.
+ */
+function allowedOriginHosts(env: Env): string[] {
+  const extra = (env.MCP_ALLOWED_ORIGINS ?? "")
+    .split(",")
+    .map((h) => h.trim())
+    .filter(Boolean);
+  return [
+    new URL(resourceUrl(env)).hostname,
+    "tools.nyuchi.com",
+    "localhost",
+    "127.0.0.1",
+    "[::1]",
+    ...extra,
+  ];
+}
+
+app.all("/mcp", async (c) => {
+  const rejected = originValidationResponse(c.req.raw, allowedOriginHosts(c.env));
+  if (rejected) return rejected;
+  // A fresh handler + server per request: nothing is shared between requests,
+  // so concurrent calls cannot interfere (see the SDK's per-request factory).
+  const handler = createMcpHandler(() => buildServer(c.env), {
+    responseMode: "json",
+    onerror: (error) => console.error("mcp handler error:", error.message),
   });
+  return handler.fetch(c.req.raw);
 });
 
-// JSON-RPC entry: one request per POST (stateless streamable-HTTP).
-app.post("/mcp", async (c) => {
-  let body: unknown;
-  try {
-    body = await c.req.json();
-  } catch {
-    return c.json(
-      {
-        jsonrpc: "2.0",
-        id: null,
-        error: { code: -32700, message: "Parse error" },
-      },
-      400,
-    );
-  }
-
-  const messages = Array.isArray(body) ? body : [body];
-  const server = buildServer(c.env);
-  const transport = new WorkerHttpTransport();
-  await server.connect(transport);
-
-  try {
-    // MCP HTTP requests batching is rare; we support only single-request payloads.
-    // Notifications (no `id`) get an empty 202 per JSON-RPC + MCP HTTP spec.
-    const first = messages[0] as { id?: unknown };
-    if (first == null || typeof first !== "object") {
-      return c.json(
-        { jsonrpc: "2.0", id: null, error: { code: -32600, message: "Invalid Request" } },
-        400,
-      );
-    }
-    const isNotification = !("id" in first) || first.id === undefined || first.id === null;
-    if (isNotification) {
-      transport.dispatch(first as JSONRPCMessage).catch(() => {
-        /* fire-and-forget; server may still process */
-      });
-      return new Response(null, { status: 202 });
-    }
-
-    const response = await transport.dispatch(first as JSONRPCMessage);
-    return c.json(response);
-  } finally {
-    await transport.close();
-  }
-});
-
-// Anything else under /mcp/*: 404 with a hint.
 app.all("/mcp/*", (c) => c.json({ error: "not found", hint: "POST /mcp for JSON-RPC" }, 404));
 
 // POST /api/signature — byte-locked signature HTML from the canonical

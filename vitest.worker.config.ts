@@ -22,7 +22,7 @@ const compiledWasm: Plugin = {
 }
 
 // Worker (mcp/src) test setup. Lives at the repo root because the Worker's
-// runtime deps (hono, @modelcontextprotocol/sdk, zod, jose) are root
+// runtime deps (hono, @modelcontextprotocol/server, zod, jose) are root
 // package.json dependencies — mcp/ intentionally has no package.json.
 // The Worker is plain Hono (no cloudflare: imports), so node is sufficient.
 // mcp/tsconfig.json only includes src/**, so `npm run typecheck:worker`

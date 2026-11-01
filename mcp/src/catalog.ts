@@ -8,8 +8,13 @@
  * nothing here is a second copy of the data.
  */
 
-import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { z } from "zod";
+import {
+  McpServer,
+  ProtocolError,
+  ProtocolErrorCode,
+  ResourceTemplate,
+} from "@modelcontextprotocol/server";
+import * as z from "zod/v4";
 import {
   DIVISIONS,
   getBrand,
@@ -85,7 +90,10 @@ export function registerCatalog(server: McpServer): void {
       const key = String(variables.key);
       const brand = getBrand(key);
       if (!brand) {
-        throw new Error(
+        // Resources have no isError channel: a bad key is Invalid Params
+        // (-32602, the 2026-07-28 code for resource-not-found).
+        throw new ProtocolError(
+          ProtocolErrorCode.InvalidParams,
           `Unknown brand '${key}'. Valid keys: ${TOP_BRAND_KEYS.join(", ")}.`,
         );
       }
@@ -151,7 +159,7 @@ export function registerCatalog(server: McpServer): void {
       description:
         "Guided workflow for nyuchi_generate_studio_card: picks mineral by topic, " +
         "format by platform, and applies the hook-title/theme guidance.",
-      argsSchema: {
+      argsSchema: z.object({
         topic: z.string().describe("What the post is about (drives title, dek, and mineral choice)."),
         platform: z
           .string()
@@ -163,7 +171,7 @@ export function registerCatalog(server: McpServer): void {
           .string()
           .optional()
           .describe("Lockup brand: bundu, nyuchi (default), mukoko, or shamwari."),
-      },
+      }),
     },
     ({ topic, platform, brand }) =>
       userMessage(
@@ -189,14 +197,14 @@ export function registerCatalog(server: McpServer): void {
       description:
         "Guided workflow for nyuchi_generate_email_signature: collects the signer's " +
         "details and renders the byte-locked Nyuchi signature HTML.",
-      argsSchema: {
+      argsSchema: z.object({
         name: z.string().describe("Full name of the signer."),
         email: z.string().describe("Email address (its domain usually implies the brand)."),
         brand: z
           .string()
           .optional()
           .describe("Brand slug; if omitted, derive it from the email domain."),
-      },
+      }),
     },
     ({ name, email, brand }) =>
       userMessage(
@@ -215,11 +223,11 @@ export function registerCatalog(server: McpServer): void {
       description:
         "Guided workflow for a layout-5 mineral card with the DARK/LIGHT hex " +
         "spec labels shown — the card ABOUT a Mzizi mineral.",
-      argsSchema: {
+      argsSchema: z.object({
         mineral: z
           .string()
           .describe(`One of the seven Mzizi minerals: ${MINERAL_KEYS.join(", ")}.`),
-      },
+      }),
     },
     ({ mineral }) =>
       userMessage(

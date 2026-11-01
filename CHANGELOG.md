@@ -7,6 +7,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **The nyuchi-tools MCP server runs on the official MCP TypeScript SDK v2**
+  ([#129](https://github.com/nyuchi/workspace-tools/issues/129)). The
+  hand-rolled `WorkerHttpTransport` is gone. `/mcp` is now served by
+  `createMcpHandler` from `@modelcontextprotocol/server` (2.4.0, replacing
+  `@modelcontextprotocol/sdk` 1.x): stateless Streamable HTTP with a fresh
+  server per request, serving 2026-07-28 clients and, through the SDK's
+  stateless path, 2025-era clients. The SDK now owns protocol-version checks,
+  batches and notifications. What clients see differently:
+  - `GET /mcp` answers `405` as the transport spec requires. It no longer
+    returns a JSON identity document; `/.well-known/mcp/server-card.json`
+    still does.
+  - 2025-era responses arrive as one SSE `message` event. POSTs must send
+    `Accept: application/json, text/event-stream`, as every MCP client does.
+  - An invalid tool argument comes back as an `isError` result with the
+    SDK's "Input validation error" text.
+- **`/mcp` validates `Origin`** (MUST in the Streamable HTTP spec). A request
+  without an Origin passes. A browser Origin other than the MCP host,
+  `tools.nyuchi.com`, localhost or a host named in the new optional
+  `MCP_ALLOWED_ORIGINS` var gets `403`. The bearer-token and Nyuchi-org gates
+  are unchanged and run first.
+- **The 401 challenge on `/mcp` follows RFC 6750.** With no token there is no
+  `error` code; a token that fails verification gets
+  `error="invalid_token"`. `resource_metadata` still points at
+  `https://tools.nyuchi.dev/.well-known/oauth-protected-resource`.
+- **Tool inputs are bounded**: maximum lengths on the signature fields, the
+  card text, `svg` (2 MB) and `pngBase64` (sized to the 10 MB upload cap).
+  `nyuchi_generate_email_signature` has a when-to-use description and all
+  four annotations.
+- **Upstream timeouts**: the GitHub issues call (15 s) and the Cloudflare
+  Images upload (30 s) abort, returning an actionable tool error instead of
+  hanging.
+- **`mcp/evals/evals.xml` rewritten to the evaluation guide**: ten
+  multi-step, read-only questions with single string-comparable answers, each
+  verified through the SDK client.
+
+### Added
+
+- **`mcp/tests/sdk-client.test.ts`** drives the server through the SDK's own
+  `Client` and Streamable HTTP transport: tools/list (titles, annotations,
+  bounded schemas), tool calls including the PNG raster path, `isError`
+  results, resources and prompts. The worker suite also gains Origin tests.
+
 ### Added
 
 - **Mukoko Events in the brand list and the release pipeline**
