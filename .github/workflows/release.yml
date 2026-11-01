@@ -1,0 +1,92 @@
+name: Release (auto version + tag)
+
+# A merge to main is a release. Once CI passes on a push to main, this tags
+# main's tip as the next MINOR above the highest v* tag (org versioning
+# policy, nyuchi/.github#80) and creates the GitHub release. Merges into
+# staging are tagged as patches by staging-version.yml. A MAJOR is only ever
+# made by hand: run this workflow from the Actions tab on main with
+# bump: major.
+#
+# The job commits nothing: main takes squash merges through the merge queue
+# only, so a bot push to it is refused. It only pushes a tag.
+#
+# Until this file existed, nothing tagged a release to main: the 2026-10-21
+# releases (#104, #111) have no tag and no GitHub release.
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: Override the bump (major is only ever manual).
+        type: choice
+        options: [minor, patch, major]
+        default: minor
+
+permissions:
+  contents: write
+
+concurrency: release-${{ github.ref }}
+
+jobs:
+  release:
+    # CI must have SUCCEEDED on a push to main: workflow_run fires on every
+    # completion, and CI also runs for pull requests and the merge queue.
+    # A manual run is a person choosing to release, from main only.
+    if: >-
+      ${{ (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
+      || (github.event.workflow_run.conclusion == 'success'
+      && github.event.workflow_run.event == 'push') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 0
+          fetch-tags: true # checkout does NOT fetch tags by default even with depth 0
+          ref: main # tip of main (not the trigger SHA) so rapid merges don't tag a stale commit
+          token: ${{ secrets.RELEASE_BUMP_TOKEN }}
+
+      - name: Compute next version (org versioning policy)
+        id: policy
+        uses: nyuchi/.github/.github/actions/next-version@c2be05a22aeb6a98a80a9301f6b3e33bb88b20b0  # v0.2.0
+        with:
+          channel: main
+          bump: ${{ inputs.bump || '' }}
+          manual: ${{ github.event_name == 'workflow_dispatch' }}
+
+      - name: Tag + release
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_BUMP_TOKEN }}
+          NEW: ${{ steps.policy.outputs.version }}
+        run: |
+          set -euo pipefail
+          echo "Next version: v$NEW"
+          tags="$(git ls-remote --tags --refs origin "v$NEW")"
+          if [ -n "$tags" ]; then
+            echo "Tag v$NEW already exists on origin; nothing to do."; exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # ANNOTATED tag, pushed explicitly.
+          git tag -a "v$NEW" -m "v$NEW"
+          git push origin "v$NEW"
+
+          # Release notes: this version's CHANGELOG section when there is one,
+          # followed by GitHub's list of merged pull requests.
+          awk -v v="$NEW" '
+            $0 ~ "^## \\[" v "\\]" { on = 1; next }
+            on && /^## / { exit }
+            on { print }
+          ' CHANGELOG.md > "$RUNNER_TEMP/notes.md"
+          if ! gh release view "v$NEW" >/dev/null 2>&1; then
+            if [ -s "$RUNNER_TEMP/notes.md" ]; then
+              gh release create "v$NEW" --verify-tag --title "v$NEW" \
+                --notes-file "$RUNNER_TEMP/notes.md" --generate-notes
+            else
+              gh release create "v$NEW" --verify-tag --title "v$NEW" --generate-notes
+            fi
+          fi
