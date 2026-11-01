@@ -7,45 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
-
-- **Mukoko Events in the brand list and the release pipeline**
-  ([mukoko-dev/nhimbe#155](https://github.com/mukoko-dev/nhimbe/issues/155)).
-  Owner decision, 2026-10-04: the nhimbe brand is retired, and the events
-  platform is Mukoko Events at events.mukoko.com, in malachite.
-  `brands.toml` gains the `mukokoEvents` division under Mukoko, with
-  `events` and `nhimbe` as aliases. `nyuchi-imaging` gains a malachite
-  `mukoko-events` theme. `releases/channels.toml` maps `mukokoEvents` to the
-  Mukoko Blog, so an events release posts through the Mukoko channels.
-- **Release marketing pipeline** (#83). `next/crates/release`
-  (`nyuchi-release`) and `releases/`: a release that is live in production
-  becomes a Sanity draft, one Postiz draft per channel and three images (OG,
-  square, story), with a review comment on the tracking issue. Drafts only;
-  checks for the live gate, privacy, British spelling and channel limits; a
-  ledger keeps re-runs idempotent. The `market-release` skill runs it.
-- **Bundu theme and official logos** in `nyuchi-imaging`: a `bundu` theme in
-  copper and terracotta, signed with the published Bundu Foundation logo.
-
-### Fixed
-
-- **A release to `main` is tagged.** Nothing tagged one before: the repository had `staging-version.yml` (patch tags on `staging`) but no release workflow, so the 2026-10-21 releases (#104, #111) have no tag and no GitHub release. The new `.github/workflows/release.yml` runs after CI passes on a push to `main`. It tags `main`'s tip as the next minor above the highest `v*` tag (org policy, nyuchi/.github#80) and creates the GitHub release, with this file's section for that version followed by GitHub's list of merged pull requests. It commits nothing to `main`. A major is only made by hand, with `workflow_dispatch` and `bump: major`.
-
-### Security
-
-- **`ip-address` 10.7.3 -> 10.7.5** in the root lockfile (transitive, reached through the MCP SDK's express stack). This ports Dependabot security PR #126, which targets `main` because security updates ignore `target-branch`. The lockfile changes in this one package only.
-- **The site login reads its WorkOS client ID from configuration.** `/login`
-  and `/callback` now use the `WORKOS_CLIENT_ID` Worker secret instead of a
-  compiled-in client ID. With it unset, `/login` answers `503`
-  "WORKOS_CLIENT_ID is not configured" and `/callback` denies without
-  attempting a token exchange; there is no fallback client.
-- **`/mcp` fails closed when `AUTHKIT_DOMAIN` is not configured.** It used to
-  run without its bearer-token gate ("open mode"), so a missing secret served
-  every tool unauthenticated. It now answers `503` "AUTHKIT_DOMAIN is not
-  configured", as does the protected-resource metadata. Local development can
-  still opt out explicitly with `ALLOW_UNAUTHENTICATED_DEV=true`, honoured only
-  for requests to `localhost` and never set in a deployed environment.
-
 ### Changed
+
+- **The nyuchi-tools MCP server runs on the official MCP TypeScript SDK v2**
+  ([#129](https://github.com/nyuchi/workspace-tools/issues/129)). The
+  hand-rolled `WorkerHttpTransport` is gone. `/mcp` is now served by
+  `createMcpHandler` from `@modelcontextprotocol/server` (2.4.0, replacing
+  `@modelcontextprotocol/sdk` 1.x): stateless Streamable HTTP with a fresh
+  server per request, serving 2026-07-28 clients and, through the SDK's
+  stateless path, 2025-era clients. The SDK now owns protocol-version checks,
+  batches and notifications. What clients see differently:
+  - `GET /mcp` answers `405` as the transport spec requires. It no longer
+    returns a JSON identity document; `/.well-known/mcp/server-card.json`
+    still does.
+  - 2025-era responses arrive as one SSE `message` event. POSTs must send
+    `Accept: application/json, text/event-stream`, as every MCP client does.
+  - An invalid tool argument comes back as an `isError` result with the
+    SDK's "Input validation error" text.
+- **`/mcp` validates `Origin`** (MUST in the Streamable HTTP spec). A request
+  without an Origin passes. A browser Origin other than the MCP host,
+  `tools.nyuchi.com`, localhost or a host named in the new optional
+  `MCP_ALLOWED_ORIGINS` var gets `403`. The bearer-token and Nyuchi-org gates
+  are unchanged and run first.
+- **The 401 challenge on `/mcp` follows RFC 6750.** With no token there is no
+  `error` code; a token that fails verification gets
+  `error="invalid_token"`. `resource_metadata` still points at
+  `https://tools.nyuchi.dev/.well-known/oauth-protected-resource`.
+- **Tool inputs are bounded**: maximum lengths on the signature fields, the
+  card text, `svg` (2 MB) and `pngBase64` (sized to the 10 MB upload cap).
+  `nyuchi_generate_email_signature` has a when-to-use description and all
+  four annotations.
+- **Upstream timeouts**: the GitHub issues call (15 s) and the Cloudflare
+  Images upload (30 s) abort, returning an actionable tool error instead of
+  hanging.
+- **`mcp/evals/evals.xml` rewritten to the evaluation guide**: ten
+  multi-step, read-only questions with single string-comparable answers, each
+  verified through the SDK client.
 
 - **New Bundu Foundation icon.** `bundu-icon-light.png` and
   `bundu-icon-dark.png` under `signature-generator/public/assets/brand-icons/`
@@ -141,6 +138,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `npm run test:worker` runs `vp test`. The org-required `vite-plus / check`
   runs the transitional `ci:check` (`vp lint`) until the sources are
   formatted.
+
+### Added
+
+- **`mcp/tests/sdk-client.test.ts`** drives the server through the SDK's own
+  `Client` and Streamable HTTP transport: tools/list (titles, annotations,
+  bounded schemas), tool calls including the PNG raster path, `isError`
+  results, resources and prompts. The worker suite also gains Origin tests.
+- **Mukoko Events in the brand list and the release pipeline**
+  ([mukoko-dev/nhimbe#155](https://github.com/mukoko-dev/nhimbe/issues/155)).
+  Owner decision, 2026-10-04: the nhimbe brand is retired, and the events
+  platform is Mukoko Events at events.mukoko.com, in malachite.
+  `brands.toml` gains the `mukokoEvents` division under Mukoko, with
+  `events` and `nhimbe` as aliases. `nyuchi-imaging` gains a malachite
+  `mukoko-events` theme. `releases/channels.toml` maps `mukokoEvents` to the
+  Mukoko Blog, so an events release posts through the Mukoko channels.
+- **Release marketing pipeline** (#83). `next/crates/release`
+  (`nyuchi-release`) and `releases/`: a release that is live in production
+  becomes a Sanity draft, one Postiz draft per channel and three images (OG,
+  square, story), with a review comment on the tracking issue. Drafts only;
+  checks for the live gate, privacy, British spelling and channel limits; a
+  ledger keeps re-runs idempotent. The `market-release` skill runs it.
+- **Bundu theme and official logos** in `nyuchi-imaging`: a `bundu` theme in
+  copper and terracotta, signed with the published Bundu Foundation logo.
+
+### Fixed
+
+- **A release to `main` is tagged.** Nothing tagged one before: the repository had `staging-version.yml` (patch tags on `staging`) but no release workflow, so the 2026-10-21 releases (#104, #111) have no tag and no GitHub release. The new `.github/workflows/release.yml` runs after CI passes on a push to `main`. It tags `main`'s tip as the next minor above the highest `v*` tag (org policy, nyuchi/.github#80) and creates the GitHub release, with this file's section for that version followed by GitHub's list of merged pull requests. It commits nothing to `main`. A major is only made by hand, with `workflow_dispatch` and `bump: major`.
+
+### Security
+
+- **`ip-address` 10.7.3 -> 10.7.5** in the root lockfile (transitive, reached through the MCP SDK's express stack). This ports Dependabot security PR #126, which targets `main` because security updates ignore `target-branch`. The lockfile changes in this one package only.
+- **The site login reads its WorkOS client ID from configuration.** `/login`
+  and `/callback` now use the `WORKOS_CLIENT_ID` Worker secret instead of a
+  compiled-in client ID. With it unset, `/login` answers `503`
+  "WORKOS_CLIENT_ID is not configured" and `/callback` denies without
+  attempting a token exchange; there is no fallback client.
+- **`/mcp` fails closed when `AUTHKIT_DOMAIN` is not configured.** It used to
+  run without its bearer-token gate ("open mode"), so a missing secret served
+  every tool unauthenticated. It now answers `503` "AUTHKIT_DOMAIN is not
+  configured", as does the protected-resource metadata. Local development can
+  still opt out explicitly with `ALLOW_UNAUTHENTICATED_DEV=true`, honoured only
+  for requests to `localhost` and never set in a deployed environment.
 
 ## [2.0.0] - 2025-12-15
 

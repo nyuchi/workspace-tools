@@ -5,7 +5,10 @@ Source for the Cloudflare Worker that serves **all of `tools.nyuchi.com`**
 Worker, same code, two Workers Custom Domains; see the `MCP_RESOURCE`
 comment in `../wrangler.toml` for why `/mcp` lives on a separate hostname):
 
-- `/mcp` — Model Context Protocol server (streamable-HTTP JSON-RPC) exposing
+- `/mcp` — Model Context Protocol server, served by the official MCP
+  TypeScript SDK v2 (`createMcpHandler` from `@modelcontextprotocol/server`:
+  stateless Streamable HTTP, a fresh server per request, `Origin` validated,
+  `GET` answers 405) exposing
   `nyuchi_generate_email_signature`, `nyuchi_generate_studio_card`, `nyuchi_upload_asset`, and
   `nyuchi_report_issue` (the legacy `generate_article_banner` was removed — the
   Studio replaces it). `nyuchi_generate_studio_card` can

@@ -5,11 +5,11 @@
  *   AUTHKIT_DOMAIN — the WorkOS AuthKit/Connect domain for the environment,
  *                    a bare host or an https origin. Set per environment as a
  *                    Worker secret (never a wrangler.toml [vars] entry, and
- *                    there is no default in code). When UNSET, the MCP
- *                    server runs open (no auth) and OAuth discovery endpoints
- *                    return 404s that tell clients no sign-in is needed.
+ *                    there is no default in code). When UNSET, /mcp FAILS
+ *                    CLOSED (503) — the only exception is the explicit
+ *                    localhost opt-out `ALLOW_UNAUTHENTICATED_DEV`.
  *   MCP_RESOURCE   — this server's canonical resource URL
- *                    (default: https://tools.nyuchi.com).
+ *                    (default: https://tools.nyuchi.dev/mcp).
  *
  * Enforcement follows the MCP authorization spec:
  *   - /.well-known/oauth-protected-resource advertises the WorkOS
@@ -153,11 +153,19 @@ export function protectedResourceMetadata(env: AuthEnv): Record<string, unknown>
   };
 }
 
-export function wwwAuthenticateHeader(env: AuthEnv): string {
+/**
+ * The RFC 6750 / RFC 9728 challenge for a 401 on /mcp. With no credentials the
+ * challenge carries no `error` (RFC 6750 §3.1); a token that was sent and
+ * failed verification gets `error="invalid_token"`. `resource_metadata` is
+ * how MCP clients find the authorization server.
+ */
+export function wwwAuthenticateHeader(env: AuthEnv, tokenSent = false): string {
   return [
-    'Bearer error="unauthorized"',
-    'error_description="Authorization needed"',
+    'Bearer realm="nyuchi-tools"',
     `resource_metadata="${resourceOrigin(env)}/.well-known/oauth-protected-resource"`,
+    ...(tokenSent
+      ? ['error="invalid_token"', 'error_description="The access token is invalid or expired"']
+      : []),
   ].join(", ");
 }
 
