@@ -58,18 +58,18 @@
     "@braintree/sanitize-url": ">=7.1.2",
     "@modelcontextprotocol/server": ">=2.4.0",
     "@resvg/resvg-wasm": ">=2.6.2",
-    "hono": ">=4.13.13",
-    "jose": ">=6.2.12",
+    "hono": ">=4.13.14",
+    "jose": ">=6.2.13",
     "zod": ">=4.6.6"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": ">=5.20261003.1",
+    "@cloudflare/workers-types": ">=5.20261026.1",
     "@google/clasp": ">=3.4.1",
     "@modelcontextprotocol/client": ">=2.4.0",
     "@types/google-apps-script": ">=2.0.13",
     "typescript": ">=7.0.2",
-    "vite-plus": ">=1.3.0",
-    "wrangler": ">=4.149.0"
+    "vite-plus": ">=1.4.0",
+    "wrangler": ">=4.153.0"
   },
   "packageManager": "npm@11.12.1",
   "overrides": {
