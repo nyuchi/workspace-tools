@@ -14,9 +14,9 @@
   "dependencies": {
     "@astrojs/react": ">=7.1.1",
     "@braintree/sanitize-url": ">=7.1.2",
-    "@bundu/ui": ">=0.5.0",
+    "@bundu/ui": ">=0.7.0",
     "@tailwindcss/vite": ">=4.3.3",
-    "astro": ">=7.4.1",
+    "astro": ">=7.4.2",
     "react": ">=19.3.1",
     "react-dom": ">=19.3.1"
   },
@@ -31,7 +31,7 @@
     "globals": ">=17.13.0",
     "tailwindcss": ">=4.3.3",
     "typescript": "~6.0.3",
-    "typescript-eslint": ">=8.72.0",
+    "typescript-eslint": ">=8.72.1",
     "vitest": ">=5.0.5"
   },
   "overrides": {
