@@ -134,7 +134,8 @@ function post(path: string, body: unknown, env: Env = LOCAL_DEV_ENV): Promise<Re
     worker.fetch(
       new Request(`${origin(path, env)}${path}`, {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        // What a Streamable HTTP client sends: the SDK transport requires both.
+        headers: { 'content-type': 'application/json', accept: 'application/json, text/event-stream' },
         body: typeof body === 'string' ? body : JSON.stringify(body),
       }),
       env,
@@ -156,21 +157,32 @@ interface JsonRpcResponse {
   error?: { code: number; message: string }
 }
 
+/**
+ * The JSON-RPC message in an MCP HTTP response. The SDK answers 2025-era
+ * requests as a single SSE `message` event and 2026-07-28 ones as JSON; read
+ * either.
+ */
+async function readRpc(res: Response): Promise<JsonRpcResponse> {
+  const text = await res.text()
+  if ((res.headers.get('content-type') ?? '').includes('text/event-stream')) {
+    const data = text
+      .split('\n')
+      .filter((line) => line.startsWith('data:'))
+      .map((line) => line.slice(5).trim())
+      .join('')
+    return JSON.parse(data) as JsonRpcResponse
+  }
+  return JSON.parse(text) as JsonRpcResponse
+}
+
 function rpc(method: string, params: Record<string, unknown> = {}, id: number = 1) {
   return { jsonrpc: '2.0', id, method, params }
 }
 
-describe('GET /mcp — discovery', () => {
-  it('returns the server identity JSON advertising the latest SDK protocol version', async () => {
-    const { LATEST_PROTOCOL_VERSION } = await import('@modelcontextprotocol/sdk/types.js')
+describe('GET /mcp — no standalone stream', () => {
+  it('answers 405, as a stateless Streamable HTTP server must (discovery lives in the server card)', async () => {
     const res = await get('/mcp')
-    expect(res.status).toBe(200)
-    expect(await res.json()).toEqual({
-      name: 'nyuchi-tools',
-      version: '0.2.0',
-      protocol: `mcp/${LATEST_PROTOCOL_VERSION}`,
-      endpoint: '/mcp',
-    })
+    expect(res.status).toBe(405)
   })
 })
 
@@ -185,7 +197,7 @@ describe('POST /mcp — JSON-RPC', () => {
       }),
     )
     expect(res.status).toBe(200)
-    const body = (await res.json()) as JsonRpcResponse
+    const body = (await readRpc(res)) as JsonRpcResponse
     expect(body.jsonrpc).toBe('2.0')
     expect(body.id).toBe(1)
     expect(body.error).toBeUndefined()
@@ -201,7 +213,7 @@ describe('POST /mcp — JSON-RPC', () => {
   it('tools/list exposes exactly the four tools (the banner tool is gone)', async () => {
     const res = await post('/mcp', rpc('tools/list', {}, 2))
     expect(res.status).toBe(200)
-    const body = (await res.json()) as JsonRpcResponse
+    const body = (await readRpc(res)) as JsonRpcResponse
     const tools = (body.result as { tools: { name: string }[] }).tools
     expect(tools.map((t) => t.name).sort()).toEqual([
       'nyuchi_generate_email_signature',
@@ -216,7 +228,7 @@ describe('POST /mcp — JSON-RPC', () => {
       '/mcp',
       rpc('tools/call', { name: 'generate_article_banner', arguments: { title: 'X', category: 'gold' } }, 3),
     )
-    const body = (await res.json()) as JsonRpcResponse
+    const body = (await readRpc(res)) as JsonRpcResponse
     // Unknown tool is a protocol-level error (or an isError result depending
     // on SDK version) — either way, never a successful render.
     const result = body.result as { isError?: boolean } | undefined
@@ -226,7 +238,7 @@ describe('POST /mcp — JSON-RPC', () => {
   it('the pre-0.2.0 unprefixed tool names error cleanly (renamed with the nyuchi_ prefix)', async () => {
     for (const name of ['generate_email_signature', 'generate_studio_card', 'upload_asset', 'report_issue']) {
       const res = await post('/mcp', rpc('tools/call', { name, arguments: {} }, 4))
-      const body = (await res.json()) as JsonRpcResponse
+      const body = (await readRpc(res)) as JsonRpcResponse
       const result = body.result as { isError?: boolean } | undefined
       expect(Boolean(body.error) || Boolean(result?.isError)).toBe(true)
     }
@@ -234,7 +246,7 @@ describe('POST /mcp — JSON-RPC', () => {
 
   it('tools carry behavior annotations and (where stable) output schemas', async () => {
     const res = await post('/mcp', rpc('tools/list', {}, 2))
-    const body = (await res.json()) as JsonRpcResponse
+    const body = (await readRpc(res)) as JsonRpcResponse
     const tools = (
       body.result as {
         tools: {
@@ -274,7 +286,7 @@ describe('POST /mcp — JSON-RPC', () => {
       ),
     )
     expect(res.status).toBe(200)
-    const body = (await res.json()) as JsonRpcResponse
+    const body = (await readRpc(res)) as JsonRpcResponse
     expect(body.error).toBeUndefined()
     const content = (body.result as { content: { type: string; text: string }[] }).content
     expect(content[0].type).toBe('text')
@@ -300,7 +312,7 @@ describe('POST /mcp — JSON-RPC', () => {
       ),
     )
     expect(res.status).toBe(200)
-    const body = (await res.json()) as JsonRpcResponse
+    const body = (await readRpc(res)) as JsonRpcResponse
     expect(body.error).toBeUndefined()
     const html = (body.result as { content: { text: string }[] }).content[0].text
     expect(html).toContain('color: #BF5A36;">Bundu Foundation</span>')
@@ -320,7 +332,7 @@ describe('POST /mcp — JSON-RPC', () => {
         31,
       ),
     )
-    const body = (await res.json()) as JsonRpcResponse
+    const body = (await readRpc(res)) as JsonRpcResponse
     expect(body.error).toBeUndefined()
     const html = (body.result as { content: { text: string }[] }).content[0].text
     expect(html).toContain('color: #283593;">Shamwari AI</span>')
@@ -337,15 +349,15 @@ describe('POST /mcp — JSON-RPC', () => {
       ),
     )
     expect(res.status).toBe(200)
-    const body = (await res.json()) as JsonRpcResponse
+    const body = (await readRpc(res)) as JsonRpcResponse
     // The MCP SDK reports zod input-validation failures as a tool-level
-    // error result (isError: true, -32602 in the text), not a protocol error.
+    // error result (isError: true, the SDK's input-validation text), not a protocol error.
     const result = body.result as { isError: boolean; content: { text: string }[] }
     expect(body.error).toBeUndefined()
     expect(result.isError).toBe(true)
     // SDK 1.32 renders the failing field as "... at brand" rather than as
     // zod's JSON issue list with a "path" key, so assert only on the field.
-    expect(result.content[0].text).toContain('-32602')
+    expect(result.content[0].text).toContain('Input validation error')
     expect(result.content[0].text).toMatch(/\bbrand\b/)
   })
 
@@ -368,7 +380,7 @@ describe('POST /mcp — JSON-RPC', () => {
       ),
     )
     expect(res.status).toBe(200)
-    const body = (await res.json()) as JsonRpcResponse
+    const body = (await readRpc(res)) as JsonRpcResponse
     expect(body.error).toBeUndefined()
     const content = (body.result as { content: { type: string; text: string }[] }).content
     expect(content).toHaveLength(2)
@@ -410,7 +422,7 @@ describe('POST /mcp — JSON-RPC', () => {
         11,
       ),
     )
-    const body = (await res.json()) as JsonRpcResponse
+    const body = (await readRpc(res)) as JsonRpcResponse
     expect(body.error).toBeUndefined()
     const svg = (body.result as { content: { text: string }[] }).content[0].text
     expect(svg).not.toContain('<script>')
@@ -419,12 +431,12 @@ describe('POST /mcp — JSON-RPC', () => {
 
   it('nyuchi_generate_studio_card is deterministic for identical arguments', async () => {
     const args = { returnFormat: 'svg', title: 'Determinism', category: 'malachite', format: '16x9', layout: 3 }
-    const first = (await (
-      await post('/mcp', rpc('tools/call', { name: 'nyuchi_generate_studio_card', arguments: args }, 12))
-    ).json()) as JsonRpcResponse
-    const second = (await (
-      await post('/mcp', rpc('tools/call', { name: 'nyuchi_generate_studio_card', arguments: args }, 13))
-    ).json()) as JsonRpcResponse
+    const first = await readRpc(
+      await post('/mcp', rpc('tools/call', { name: 'nyuchi_generate_studio_card', arguments: args }, 12)),
+    )
+    const second = await readRpc(
+      await post('/mcp', rpc('tools/call', { name: 'nyuchi_generate_studio_card', arguments: args }, 13)),
+    )
     const a = (first.result as { content: { text: string }[] }).content
     const b = (second.result as { content: { text: string }[] }).content
     expect(b[0].text).toBe(a[0].text)
@@ -445,7 +457,7 @@ describe('POST /mcp — JSON-RPC', () => {
       ),
     )
     expect(res.status).toBe(200)
-    const body = (await res.json()) as JsonRpcResponse
+    const body = (await readRpc(res)) as JsonRpcResponse
     expect(body.error).toBeUndefined()
     const svg = (body.result as { content: { text: string }[] }).content[0].text
     expect(svg.startsWith('<svg')).toBe(true)
@@ -462,11 +474,11 @@ describe('POST /mcp — JSON-RPC', () => {
         33,
       ),
     )
-    const body = (await res.json()) as JsonRpcResponse
+    const body = (await readRpc(res)) as JsonRpcResponse
     const result = body.result as { isError: boolean; content: { text: string }[] }
     expect(body.error).toBeUndefined()
     expect(result.isError).toBe(true)
-    expect(result.content[0].text).toContain('-32602')
+    expect(result.content[0].text).toContain('Input validation error')
   })
 
   it('nyuchi_generate_studio_card rejects an unknown format', async () => {
@@ -478,10 +490,10 @@ describe('POST /mcp — JSON-RPC', () => {
         14,
       ),
     )
-    const body = (await res.json()) as JsonRpcResponse
+    const body = (await readRpc(res)) as JsonRpcResponse
     const result = body.result as { isError: boolean; content: { text: string }[] }
     expect(result.isError).toBe(true)
-    expect(result.content[0].text).toContain('-32602')
+    expect(result.content[0].text).toContain('Input validation error')
   })
 
 
@@ -510,7 +522,7 @@ describe('POST /mcp — JSON-RPC', () => {
       { ...LOCAL_DEV_ENV, ASSETS: ICON_ASSETS_STUB },
     )
     expect(res.status).toBe(200)
-    const body = (await res.json()) as JsonRpcResponse
+    const body = (await readRpc(res)) as JsonRpcResponse
     expect(body.error).toBeUndefined()
     const svg = (body.result as { content: { text: string }[] }).content[0].text
     expect(svg).toContain(`<image href="data:image/png;base64,${FAKE_ICON_B64}"`)
@@ -521,7 +533,7 @@ describe('POST /mcp — JSON-RPC', () => {
   it('malformed JSON gets a -32700 parse error with HTTP 400', async () => {
     const res = await post('/mcp', '{not json')
     expect(res.status).toBe(400)
-    const body = (await res.json()) as JsonRpcResponse
+    const body = (await readRpc(res)) as JsonRpcResponse
     expect(body.error?.code).toBe(-32700)
     expect(body.id).toBeNull()
   })
@@ -529,7 +541,7 @@ describe('POST /mcp — JSON-RPC', () => {
   it('a non-object payload gets a -32600 invalid request with HTTP 400', async () => {
     const res = await post('/mcp', '42')
     expect(res.status).toBe(400)
-    const body = (await res.json()) as JsonRpcResponse
+    const body = (await readRpc(res)) as JsonRpcResponse
     expect(body.error?.code).toBe(-32600)
   })
 
@@ -578,7 +590,7 @@ describe('nyuchi_generate_studio_card — returnFormat / upload', () => {
         40,
       ),
     )
-    const body = (await res.json()) as JsonRpcResponse
+    const body = (await readRpc(res)) as JsonRpcResponse
     expect(body.error).toBeUndefined()
     const svg = (body.result as { content: { text: string }[] }).content[0].text
     expect(svg).toContain('font-size="44" fill="#FFD740"')
@@ -597,7 +609,7 @@ describe('nyuchi_generate_studio_card — returnFormat / upload', () => {
         45,
       ),
     )
-    const body = (await res.json()) as JsonRpcResponse
+    const body = (await readRpc(res)) as JsonRpcResponse
     expect(body.error).toBeUndefined()
     const svg = (body.result as { content: { text: string }[] }).content[0].text
     expect(svg).toContain('<rect width="1080" height="1080" fill="#64FFDA"/>')
@@ -616,10 +628,10 @@ describe('nyuchi_generate_studio_card — returnFormat / upload', () => {
         41,
       ),
     )
-    const body = (await res.json()) as JsonRpcResponse
+    const body = (await readRpc(res)) as JsonRpcResponse
     const result = body.result as { isError: boolean; content: { text: string }[] }
     expect(result.isError).toBe(true)
-    expect(result.content[0].text).toContain('-32602')
+    expect(result.content[0].text).toContain('Input validation error')
   })
 
   it("returnFormat 'png' rasterizes server-side and returns a real PNG image", async () => {
@@ -642,7 +654,7 @@ describe('nyuchi_generate_studio_card — returnFormat / upload', () => {
       { ...LOCAL_DEV_ENV, ASSETS: FONT_ASSETS_STUB },
     )
     expect(res.status).toBe(200)
-    const body = (await res.json()) as JsonRpcResponse
+    const body = (await readRpc(res)) as JsonRpcResponse
     expect(body.error).toBeUndefined()
     const content = (body.result as { content: { type: string; data?: string; mimeType?: string; text?: string }[] })
       .content
@@ -678,7 +690,7 @@ describe('nyuchi_generate_studio_card — returnFormat / upload', () => {
       ),
       UPLOAD_ENV,
     )
-    const body = (await res.json()) as JsonRpcResponse
+    const body = (await readRpc(res)) as JsonRpcResponse
     expect(body.error).toBeUndefined()
     const content = (body.result as { content: { type: string; mimeType?: string; text?: string }[] }).content
     expect(content[0].type).toBe('image')
@@ -700,7 +712,7 @@ describe('nyuchi_generate_studio_card — returnFormat / upload', () => {
       ),
       UPLOAD_ENV,
     )
-    const body = (await res.json()) as JsonRpcResponse
+    const body = (await readRpc(res)) as JsonRpcResponse
     const result = body.result as { isError: boolean; content: { text: string }[] }
     expect(result.isError).toBe(true)
     expect(result.content[0].text).toContain("cannot be combined")
@@ -719,7 +731,7 @@ describe('nyuchi_generate_studio_card — returnFormat / upload', () => {
       ),
       { ...LOCAL_DEV_ENV, ASSETS: FONT_ASSETS_STUB },
     )
-    const body = (await res.json()) as JsonRpcResponse
+    const body = (await readRpc(res)) as JsonRpcResponse
     const result = body.result as { isError: boolean; content: { text: string }[] }
     expect(result.isError).toBe(true)
     expect(result.content[0].text).toContain('CF_IMAGES_ACCOUNT_ID')
@@ -757,7 +769,7 @@ describe('nyuchi_generate_studio_card — returnFormat / upload', () => {
       ),
       UPLOAD_ENV,
     )
-    const body = (await res.json()) as JsonRpcResponse
+    const body = (await readRpc(res)) as JsonRpcResponse
     expect(body.error).toBeUndefined()
     const content = (body.result as { content: { type: string; text: string }[] }).content
     expect(content).toHaveLength(1)
@@ -807,7 +819,7 @@ describe('nyuchi_upload_asset', () => {
       rpc('tools/call', { name: 'nyuchi_upload_asset', arguments: { pngBase64: TINY_PNG_B64 } }, 50),
       UPLOAD_ENV,
     )
-    const body = (await res.json()) as JsonRpcResponse
+    const body = (await readRpc(res)) as JsonRpcResponse
     expect(body.error).toBeUndefined()
     const result = body.result as { content: { text: string }[]; structuredContent?: Record<string, unknown> }
     const payload = JSON.parse(result.content[0].text) as { url: string; contentType: string }
@@ -839,7 +851,7 @@ describe('nyuchi_upload_asset', () => {
       rpc('tools/call', { name: 'nyuchi_upload_asset', arguments: { svg } }, 51),
       UPLOAD_ENV,
     )
-    const body = (await res.json()) as JsonRpcResponse
+    const body = (await readRpc(res)) as JsonRpcResponse
     expect(body.error).toBeUndefined()
     const [, init] = fetchSpy.mock.calls[0] as [string, RequestInit]
     const file = (init.body as FormData).get('file') as Blob
@@ -864,7 +876,7 @@ describe('nyuchi_upload_asset', () => {
       rpc('tools/call', { name: 'nyuchi_upload_asset', arguments: { svg, pngBase64: '' } }, 55),
       UPLOAD_ENV,
     )
-    const body = (await res.json()) as JsonRpcResponse
+    const body = (await readRpc(res)) as JsonRpcResponse
     expect(body.error).toBeUndefined()
     const result = body.result as { isError?: boolean; content: { text: string }[] }
     expect(result.isError).toBeFalsy()
@@ -882,7 +894,7 @@ describe('nyuchi_upload_asset', () => {
       ),
       UPLOAD_ENV,
     )
-    const body = (await res.json()) as JsonRpcResponse
+    const body = (await readRpc(res)) as JsonRpcResponse
     const result = body.result as { isError: boolean; content: { text: string }[] }
     expect(result.isError).toBe(true)
     expect(result.content[0].text).toContain('exactly one')
@@ -898,7 +910,7 @@ describe('nyuchi_upload_asset', () => {
       ),
       UPLOAD_ENV,
     )
-    const body = (await res.json()) as JsonRpcResponse
+    const body = (await readRpc(res)) as JsonRpcResponse
     const result = body.result as { isError: boolean; content: { text: string }[] }
     expect(result.isError).toBe(true)
     expect(result.content[0].text).toContain('bad signature')
@@ -910,7 +922,7 @@ describe('nyuchi_upload_asset', () => {
       rpc('tools/call', { name: 'nyuchi_upload_asset', arguments: { pngBase64: TINY_PNG_B64 } }, 54),
       { ...LOCAL_DEV_ENV, ASSETS: FONT_ASSETS_STUB },
     )
-    const body = (await res.json()) as JsonRpcResponse
+    const body = (await readRpc(res)) as JsonRpcResponse
     const result = body.result as { isError: boolean; content: { text: string }[] }
     expect(result.isError).toBe(true)
     expect(result.content[0].text).toContain('not configured')
@@ -947,7 +959,7 @@ describe('nyuchi_report_issue', () => {
       ),
       UPLOAD_ENV,
     )
-    const body = (await res.json()) as JsonRpcResponse
+    const body = (await readRpc(res)) as JsonRpcResponse
     expect(body.error).toBeUndefined()
     const result = body.result as { content: { text: string }[]; structuredContent?: Record<string, unknown> }
     const payload = JSON.parse(result.content[0].text) as { url: string; number: number; repo: string }
@@ -984,7 +996,7 @@ describe('nyuchi_report_issue', () => {
         61,
       ),
     )
-    const body = (await res.json()) as JsonRpcResponse
+    const body = (await readRpc(res)) as JsonRpcResponse
     const result = body.result as { isError: boolean; content: { text: string }[] }
     expect(result.isError).toBe(true)
     expect(result.content[0].text).toContain('not configured')
@@ -1011,7 +1023,7 @@ describe('nyuchi_report_issue', () => {
       ),
       UPLOAD_ENV,
     )
-    const body = (await res.json()) as JsonRpcResponse
+    const body = (await readRpc(res)) as JsonRpcResponse
     const result = body.result as { isError: boolean; content: { text: string }[] }
     expect(result.isError).toBe(true)
     expect(result.content[0].text).toContain('Bad credentials')
@@ -1074,7 +1086,7 @@ describe('OAuth discovery — auth OFF (no AUTHKIT_DOMAIN): fails closed', () =>
 
 describe('Local development opt-out (ALLOW_UNAUTHENTICATED_DEV=true on localhost)', () => {
   it('/mcp requires no token', async () => {
-    const res = await get('/mcp', LOCAL_DEV_ENV)
+    const res = await post('/mcp', rpc('tools/list', {}, 1), LOCAL_DEV_ENV)
     expect(res.status).toBe(200)
   })
 
@@ -1109,7 +1121,9 @@ describe('OAuth discovery — auth ON (AUTHKIT_DOMAIN set)', () => {
     const res = await get('/mcp', AUTH_ENV)
     expect(res.status).toBe(401)
     const challenge = res.headers.get('WWW-Authenticate')
-    expect(challenge).toContain('Bearer error="unauthorized"')
+    expect(challenge).toMatch(/^Bearer /)
+    // No credentials sent: RFC 6750 §3.1 says the challenge carries no error code.
+    expect(challenge).not.toContain('error=')
     expect(challenge).toContain(
       'resource_metadata="https://tools.nyuchi.dev/.well-known/oauth-protected-resource"',
     )
@@ -1126,6 +1140,7 @@ describe('OAuth discovery — auth ON (AUTHKIT_DOMAIN set)', () => {
     )
     expect(res.status).toBe(401)
     expect(res.headers.get('WWW-Authenticate')).toContain('resource_metadata=')
+    expect(res.headers.get('WWW-Authenticate')).toContain('error="invalid_token"')
   })
 
   it('MCP_RESOURCE overrides the advertised resource', async () => {
@@ -1774,7 +1789,7 @@ describe('POST /api/signature', () => {
       '/mcp',
       rpc('tools/call', { name: 'nyuchi_generate_email_signature', arguments: PARAMS }, 70),
     )
-    const mcpBody = (await mcpRes.json()) as JsonRpcResponse
+    const mcpBody = await readRpc(mcpRes)
     const mcpHtml = (mcpBody.result as { content: { text: string }[] }).content[0].text
     expect(html).toBe(mcpHtml)
   })
@@ -2724,7 +2739,7 @@ describe('POST /mcp — resources & prompts (catalog)', () => {
   it('resources/list exposes the three static catalog resources', async () => {
     const res = await post('/mcp', rpc('resources/list', {}, 1))
     expect(res.status).toBe(200)
-    const body = (await res.json()) as JsonRpcResponse
+    const body = (await readRpc(res)) as JsonRpcResponse
     const resources = (body.result as { resources: { uri: string; mimeType?: string }[] }).resources
     expect(resources.map((r) => r.uri).sort()).toEqual([
       'nyuchi://brands',
@@ -2736,14 +2751,14 @@ describe('POST /mcp — resources & prompts (catalog)', () => {
 
   it('resources/templates/list exposes the per-brand template', async () => {
     const res = await post('/mcp', rpc('resources/templates/list', {}, 1))
-    const body = (await res.json()) as JsonRpcResponse
+    const body = (await readRpc(res)) as JsonRpcResponse
     const templates = (body.result as { resourceTemplates: { uriTemplate: string }[] }).resourceTemplates
     expect(templates.map((t) => t.uriTemplate)).toEqual(['nyuchi://brands/{key}'])
   })
 
   it('resources/read nyuchi://brands returns the canonical registry', async () => {
     const res = await post('/mcp', rpc('resources/read', { uri: 'nyuchi://brands' }, 1))
-    const body = (await res.json()) as JsonRpcResponse
+    const body = (await readRpc(res)) as JsonRpcResponse
     const contents = (body.result as { contents: { uri: string; mimeType: string; text: string }[] }).contents
     expect(contents).toHaveLength(1)
     const data = JSON.parse(contents[0].text) as {
@@ -2760,7 +2775,7 @@ describe('POST /mcp — resources & prompts (catalog)', () => {
 
   it('resources/read nyuchi://brands/{key} resolves one brand and rejects unknown keys', async () => {
     const ok = await post('/mcp', rpc('resources/read', { uri: 'nyuchi://brands/mukoko' }, 1))
-    const okBody = (await ok.json()) as JsonRpcResponse
+    const okBody = await readRpc(ok)
     const contents = (okBody.result as { contents: { text: string }[] }).contents
     const brand = JSON.parse(contents[0].text) as { key: string; domain: string; divisions: unknown[] }
     expect(brand.key).toBe('mukoko')
@@ -2768,7 +2783,7 @@ describe('POST /mcp — resources & prompts (catalog)', () => {
     expect(brand.divisions).toHaveLength(1)
 
     const bad = await post('/mcp', rpc('resources/read', { uri: 'nyuchi://brands/acme' }, 2))
-    const badBody = (await bad.json()) as JsonRpcResponse
+    const badBody = await readRpc(bad)
     expect(badBody.error).toBeDefined()
     expect(badBody.error!.message).toContain("Unknown brand 'acme'")
   })
@@ -2776,7 +2791,7 @@ describe('POST /mcp — resources & prompts (catalog)', () => {
   it('resources/read nyuchi://minerals matches the engine palette table', async () => {
     const { CATEGORIES } = await import('../../signature-generator/src/engines/nyuchi')
     const res = await post('/mcp', rpc('resources/read', { uri: 'nyuchi://minerals' }, 1))
-    const body = (await res.json()) as JsonRpcResponse
+    const body = (await readRpc(res)) as JsonRpcResponse
     const contents = (body.result as { contents: { text: string }[] }).contents
     const data = JSON.parse(contents[0].text) as {
       minerals: Record<string, { role: string; light: string; dark: string }>
@@ -2789,7 +2804,7 @@ describe('POST /mcp — resources & prompts (catalog)', () => {
 
   it('resources/read nyuchi://studio/reference lists formats, layouts, themes', async () => {
     const res = await post('/mcp', rpc('resources/read', { uri: 'nyuchi://studio/reference' }, 1))
-    const body = (await res.json()) as JsonRpcResponse
+    const body = (await readRpc(res)) as JsonRpcResponse
     const data = JSON.parse(
       (body.result as { contents: { text: string }[] }).contents[0].text,
     ) as { formats: Record<string, { w: number; h: number }>; layouts: Record<string, string>; themes: Record<string, string> }
@@ -2800,7 +2815,7 @@ describe('POST /mcp — resources & prompts (catalog)', () => {
 
   it('prompts/list exposes the three guided prompts with their arguments', async () => {
     const res = await post('/mcp', rpc('prompts/list', {}, 1))
-    const body = (await res.json()) as JsonRpcResponse
+    const body = (await readRpc(res)) as JsonRpcResponse
     const prompts = (
       body.result as { prompts: { name: string; arguments?: { name: string; required?: boolean }[] }[] }
     ).prompts
@@ -2820,7 +2835,7 @@ describe('POST /mcp — resources & prompts (catalog)', () => {
       '/mcp',
       rpc('prompts/get', { name: 'create_social_card', arguments: { topic: 'Malachite quarterly growth report' } }, 1),
     )
-    const body = (await res.json()) as JsonRpcResponse
+    const body = (await readRpc(res)) as JsonRpcResponse
     const messages = (body.result as { messages: { role: string; content: { type: string; text: string } }[] }).messages
     expect(messages).toHaveLength(1)
     expect(messages[0].role).toBe('user')
@@ -2834,7 +2849,7 @@ describe('POST /mcp — resources & prompts (catalog)', () => {
       '/mcp',
       rpc('prompts/get', { name: 'mineral_education_card', arguments: { mineral: 'copper' } }, 1),
     )
-    const body = (await res.json()) as JsonRpcResponse
+    const body = (await readRpc(res)) as JsonRpcResponse
     const text = (body.result as { messages: { content: { text: string } }[] }).messages[0].content.text
     expect(text).toContain("'copper'")
     expect(text).toContain('layout 5')
@@ -2971,7 +2986,11 @@ describe('internal-only access — WorkOS org membership', () => {
       worker.fetch(
         new Request(`${MCP_BASE}/mcp`, {
           method: 'POST',
-          headers: { 'content-type': 'application/json', Authorization: `Bearer ${token}` },
+          headers: {
+            'content-type': 'application/json',
+            accept: 'application/json, text/event-stream',
+            Authorization: `Bearer ${token}`,
+          },
           body: JSON.stringify(rpc('tools/list')),
         }),
         env,
@@ -3099,14 +3118,14 @@ describe('internal-only access — WorkOS org membership', () => {
 // -----------------------------------------------------------------------------
 
 describe('a single MCP URL (tools.nyuchi.dev)', () => {
-  it('/mcp is a 404 on tools.nyuchi.com, pointing at the .dev endpoint', async () => {
+  it('/mcp is a 410 Gone on tools.nyuchi.com, naming the .dev endpoint', async () => {
     for (const method of ['GET', 'POST']) {
       const res = await Promise.resolve(worker.fetch(new Request(`${BASE}/mcp`, { method }), AUTH_ENV))
-      expect(res.status).toBe(404)
+      expect(res.status).toBe(410)
       expect(JSON.stringify(await res.json())).toContain('https://tools.nyuchi.dev/mcp')
     }
     const sub = await Promise.resolve(worker.fetch(new Request(`${BASE}/mcp/anything`), AUTH_ENV))
-    expect(sub.status).toBe(404)
+    expect(sub.status).toBe(410)
   })
 
   it('/mcp still answers (401 without a token) on tools.nyuchi.dev', async () => {
@@ -3142,7 +3161,7 @@ function fakeBucket() {
 type CardContent = { type: string; text?: string; data?: string; mimeType?: string }
 async function callCard(args: Record<string, unknown>, env: Env): Promise<CardContent[]> {
   const res = await post('/mcp', rpc('tools/call', { name: 'nyuchi_generate_studio_card', arguments: args }, 77), env)
-  const body = (await res.json()) as JsonRpcResponse
+  const body = (await readRpc(res)) as JsonRpcResponse
   if (body.error) throw new Error(body.error.message)
   const result = body.result as { content: CardContent[]; isError?: boolean }
   if (result.isError) throw new Error(result.content[0].text)
@@ -3237,11 +3256,45 @@ describe('R2-backed public images (/images/*)', () => {
     expect(res.headers.get('Content-Security-Policy')).toContain('sandbox')
   })
 
-  it('404s for a missing key, a traversal attempt, and on the site host', async () => {
+  it('404s for a missing key and a traversal attempt; the site host is 410 Gone', async () => {
     const bucket = fakeBucket()
     bucket.objects.set('a.png', { bytes: new Uint8Array(PNG_MAGIC), contentType: 'image/png' })
     expect((await fetchImage(MCP_BASE, '/images/missing.png', publicEnv(bucket))).status).toBe(404)
     expect((await fetchImage(MCP_BASE, '/images/..%2Fsecret', publicEnv(bucket))).status).toBe(404)
-    expect((await fetchImage(BASE, '/images/a.png', publicEnv(bucket))).status).toBe(404)
+    expect((await fetchImage(BASE, '/images/a.png', publicEnv(bucket))).status).toBe(410)
+  })
+})
+
+describe('/mcp Origin validation (DNS-rebinding protection)', () => {
+  function postWithOrigin(originHeader: string | undefined, env: Env = LOCAL_DEV_ENV): Promise<Response> {
+    const headers: Record<string, string> = {
+      'content-type': 'application/json',
+      accept: 'application/json, text/event-stream',
+    }
+    if (originHeader) headers.origin = originHeader
+    return Promise.resolve(
+      worker.fetch(
+        new Request(`${LOCAL_BASE}/mcp`, { method: 'POST', headers, body: JSON.stringify(rpc('tools/list')) }),
+        env,
+      ),
+    )
+  }
+
+  it('serves a request with no Origin header (every non-browser client)', async () => {
+    expect((await postWithOrigin(undefined)).status).toBe(200)
+  })
+
+  it('serves a request from the MCP host itself and from localhost', async () => {
+    expect((await postWithOrigin('https://tools.nyuchi.dev')).status).toBe(200)
+    expect((await postWithOrigin('http://localhost:6274')).status).toBe(200)
+  })
+
+  it('refuses a foreign Origin with 403', async () => {
+    expect((await postWithOrigin('https://evil.example')).status).toBe(403)
+  })
+
+  it('admits an extra Origin named in MCP_ALLOWED_ORIGINS', async () => {
+    const env = { ...LOCAL_DEV_ENV, MCP_ALLOWED_ORIGINS: 'inspector.example, other.example' }
+    expect((await postWithOrigin('https://inspector.example', env)).status).toBe(200)
   })
 })

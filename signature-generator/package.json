@@ -12,27 +12,27 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@astrojs/react": ">=6.0.1",
+    "@astrojs/react": ">=7.1.4",
     "@braintree/sanitize-url": ">=7.1.2",
-    "@bundu/ui": ">=0.5.0",
-    "@tailwindcss/vite": ">=4.3.3",
-    "astro": ">=7.4.1",
+    "@bundu/ui": ">=0.13.0",
+    "@tailwindcss/vite": ">=4.3.5",
+    "astro": ">=7.4.7",
     "react": ">=19.3.1",
     "react-dom": ">=19.3.1"
   },
   "devDependencies": {
     "@eslint/js": ">=10.0.1",
-    "@types/node": ">=26.6.5",
+    "@types/node": ">=26.6.6",
     "@types/react": ">=19.3.0",
     "@types/react-dom": ">=19.3.0",
-    "eslint": ">=10.13.0",
+    "eslint": ">=10.14.0",
     "eslint-plugin-react-hooks": ">=7.1.1",
     "fontkit": ">=2.0.4",
-    "globals": ">=17.13.0",
-    "tailwindcss": ">=4.3.3",
+    "globals": ">=17.14.0",
+    "tailwindcss": ">=4.3.5",
     "typescript": "~6.0.3",
-    "typescript-eslint": ">=8.72.0",
-    "vitest": ">=4.1.11"
+    "typescript-eslint": ">=8.72.1",
+    "vitest": ">=5.1.0"
   },
   "overrides": {
     "http-cache-semantics@<4.3.0": ">=4.3.0",
@@ -40,6 +40,6 @@
     "undici@>=8.0.0 <8.12.3": ">=8.12.3",
     "vite@>=7.0.0 <7.3.7": ">=7.3.7",
     "vite@>=8.0.0 <8.3.5": ">=8.3.5",
-    "zod@<4.6.6": ">=4.6.6"
+    "zod@<4.6.7": ">=4.6.7"
   }
 }

@@ -39,6 +39,9 @@ export function feedbackRepo(env: FeedbackEnv): string {
   return env.FEEDBACK_REPO || DEFAULT_FEEDBACK_REPO;
 }
 
+/** Upper bound on the GitHub issues API call. */
+export const UPSTREAM_TIMEOUT_MS = 15_000;
+
 export interface FiledIssue {
   url: string;
   number: number;
@@ -62,7 +65,9 @@ export async function createFeedbackIssue(env: FeedbackEnv, input: FeedbackInput
     "_Filed via the `nyuchi_report_issue` tool on the nyuchi-tools MCP server._",
   ].join("\n");
 
-  const res = await fetch(`https://api.github.com/repos/${feedbackRepo(env)}/issues`, {
+  let res: Response;
+  try {
+    res = await fetch(`https://api.github.com/repos/${feedbackRepo(env)}/issues`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${env.GITHUB_FEEDBACK_TOKEN}`,
@@ -76,7 +81,16 @@ export async function createFeedbackIssue(env: FeedbackEnv, input: FeedbackInput
       body,
       labels: ["mcp-feedback", input.category, `severity:${input.severity}`],
     }),
-  });
+    // A hung GitHub call must not hold the tool call open indefinitely.
+    signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
+    });
+  } catch (error) {
+    throw new Error(
+      error instanceof Error && error.name === "TimeoutError"
+        ? `GitHub did not answer within ${UPSTREAM_TIMEOUT_MS / 1000}s; the issue was not filed. Try again shortly.`
+        : "Could not reach GitHub to file the issue; it was not filed. Try again shortly.",
+    );
+  }
 
   interface IssueResponse {
     html_url?: string;

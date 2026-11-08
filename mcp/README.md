@@ -5,7 +5,10 @@ Source for the Cloudflare Worker that serves **all of `tools.nyuchi.com`**
 Worker, same code, two Workers Custom Domains; see the `MCP_RESOURCE`
 comment in `../wrangler.toml` for why `/mcp` lives on a separate hostname):
 
-- `/mcp` — Model Context Protocol server (streamable-HTTP JSON-RPC) exposing
+- `/mcp` — Model Context Protocol server, served by the official MCP
+  TypeScript SDK v2 (`createMcpHandler` from `@modelcontextprotocol/server`:
+  stateless Streamable HTTP, a fresh server per request, `Origin` validated,
+  `GET` answers 405) exposing
   `nyuchi_generate_email_signature`, `nyuchi_generate_studio_card`, `nyuchi_upload_asset`, and
   `nyuchi_report_issue` (the legacy `generate_article_banner` was removed — the
   Studio replaces it). `nyuchi_generate_studio_card` can
@@ -18,8 +21,9 @@ comment in `../wrangler.toml` for why `/mcp` lives on a separate hostname):
   `nyuchi_report_issue` needs the `GITHUB_FEEDBACK_TOKEN` secret (repo picked by the
   `FEEDBACK_REPO` var). Both fail closed with a clear message when
   unconfigured. Has its own bearer-token gate (see below); never
-  double-gated by the site-wide login gate. Reachable on both domains, but
-  `tools.nyuchi.dev/mcp` is the one advertised by discovery metadata.
+  double-gated by the site-wide login gate. Served on the MCP host only —
+  `tools.nyuchi.dev/mcp`, the one URL discovery metadata advertises; every
+  other host (tools.nyuchi.com) answers 410 Gone (permanently dropped).
   Besides tools, the server exposes **resources** (`nyuchi://brands`,
   `nyuchi://brands/{key}`, `nyuchi://minerals`, `nyuchi://studio/reference` —
   read-only JSON views of the canonical engine data) and **prompts**

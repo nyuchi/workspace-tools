@@ -39,6 +39,9 @@ function imagesToken(env: ImagesEnv): string | undefined {
 export type UploadContentType = "image/png" | "image/svg+xml";
 
 /** Cloudflare Images hard limit is 10 MB per image. */
+/** Upper bound on the Cloudflare Images upload call. */
+export const CF_IMAGES_TIMEOUT_MS = 30_000;
+
 export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 
 export function imagesConfigured(env: ImagesEnv): boolean {
@@ -179,14 +182,25 @@ export async function uploadImage(
   form.append("file", new Blob([bytes], { type: opts.contentType }), `asset.${ext}`);
   if (opts.id) form.append("id", opts.id);
 
-  const res = await fetch(
-    `https://api.cloudflare.com/client/v4/accounts/${env.CF_IMAGES_ACCOUNT_ID}/images/v1`,
-    {
-      method: "POST",
-      headers: { Authorization: `Bearer ${imagesToken(env)}` },
-      body: form,
-    },
-  );
+  let res: Response;
+  try {
+    res = await fetch(
+      `https://api.cloudflare.com/client/v4/accounts/${env.CF_IMAGES_ACCOUNT_ID}/images/v1`,
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${imagesToken(env)}` },
+        body: form,
+        // A hung upload must not hold the tool call open indefinitely.
+        signal: AbortSignal.timeout(CF_IMAGES_TIMEOUT_MS),
+      },
+    );
+  } catch (error) {
+    throw new Error(
+      error instanceof Error && error.name === "TimeoutError"
+        ? `Cloudflare Images did not answer within ${CF_IMAGES_TIMEOUT_MS / 1000}s; nothing was uploaded. Try again shortly.`
+        : "Could not reach Cloudflare Images; nothing was uploaded. Try again shortly.",
+    );
+  }
 
   let body: CfImagesResponse | null = null;
   try {

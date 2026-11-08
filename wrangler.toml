@@ -19,7 +19,8 @@ preview_urls = true
 command = "npm --prefix signature-generator ci && npm --prefix signature-generator run build"
 
 # This Worker serves ALL of tools.nyuchi.com:
-#   - /mcp                     → MCP JSON-RPC endpoint
+#   - /mcp                     → MCP JSON-RPC endpoint (tools.nyuchi.dev only;
+#                               410 Gone on every other host)
 #   - /.well-known/*           → OAuth + MCP server-card discovery documents
 #   - /register                → OAuth dynamic client registration 404 stub
 #   - /auth.md                 → human/agent-readable auth architecture doc
@@ -74,9 +75,9 @@ bucket_name = "nyuchi-tools-images"
 # news.mukoko.com/mcp, mcp.mzizi.dev/mcp all use the /mcp suffix). Tokens
 # issued with a resource indicator only carry it as `aud` when it matches a
 # registered resource, so this must be exact, not just "the site's origin".
-# tools.nyuchi.com/mcp remains reachable (same Worker, same code) but is no
-# longer the advertised resource — MCP_RESOURCE below is what discovery
-# metadata and audience checks use.
+# tools.nyuchi.com/mcp is permanently dropped: it answers 410 Gone with the
+# one endpoint that exists in the body (mcp/src/index.ts `mcpHostOnly`) —
+# MCP_RESOURCE below is what discovery metadata and audience checks use.
 MCP_RESOURCE = "https://tools.nyuchi.dev/mcp"
 # Internal only: the WorkOS organization ("Nyuchi Africa") whose members may
 # use the site and /mcp. A valid AuthKit token is not enough — accounts.mukoko.com
