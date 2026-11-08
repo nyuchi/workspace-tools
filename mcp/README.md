@@ -21,8 +21,9 @@ comment in `../wrangler.toml` for why `/mcp` lives on a separate hostname):
   `nyuchi_report_issue` needs the `GITHUB_FEEDBACK_TOKEN` secret (repo picked by the
   `FEEDBACK_REPO` var). Both fail closed with a clear message when
   unconfigured. Has its own bearer-token gate (see below); never
-  double-gated by the site-wide login gate. Reachable on both domains, but
-  `tools.nyuchi.dev/mcp` is the one advertised by discovery metadata.
+  double-gated by the site-wide login gate. Served on the MCP host only —
+  `tools.nyuchi.dev/mcp`, the one URL discovery metadata advertises; every
+  other host (tools.nyuchi.com) answers 410 Gone (permanently dropped).
   Besides tools, the server exposes **resources** (`nyuchi://brands`,
   `nyuchi://brands/{key}`, `nyuchi://minerals`, `nyuchi://studio/reference` —
   read-only JSON views of the canonical engine data) and **prompts**

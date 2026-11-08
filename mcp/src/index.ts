@@ -931,7 +931,9 @@ app.get("/auth.md", (c) => c.text(authMd(c.env), 200, { "Content-Type": "text/ma
 // One MCP URL: /mcp is served only on the host MCP_RESOURCE names
 // (tools.nyuchi.dev). The same Worker also answers tools.nyuchi.com, but a
 // second MCP URL means connectors registered against it advertise a resource
-// that doesn't match and fail authorization — so it's a 404 with a pointer.
+// that doesn't match and fail authorization — so every other host answers
+// 410 Gone: the old URL is permanently dropped, and the body names the one
+// endpoint that exists.
 const LOCAL_MCP_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
 app.use("/mcp/*", mcpHostOnly);
 app.use("/mcp", mcpHostOnly);
@@ -943,7 +945,7 @@ async function mcpHostOnly(
   const host = new URL(c.req.url).hostname;
   const mcpHost = new URL(resourceUrl(c.env)).hostname;
   if (host === mcpHost || LOCAL_MCP_HOSTS.has(host)) return next();
-  return c.json({ error: "not_found", hint: `The MCP endpoint is ${resourceUrl(c.env)}` }, 404);
+  return c.json({ error: "gone", detail: "This MCP URL was permanently dropped.", mcp: resourceUrl(c.env) }, 410);
 }
 
 // Public images stored by the upload tools (R2 binding `IMAGES`). Served from

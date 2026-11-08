@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **One MCP URL, permanently: `tools.nyuchi.com/mcp` answers `410 Gone`.**
+  The off-host `/mcp` (and `/images/*`) response was a `404` with a hint;
+  it is now a `410` whose body names the one endpoint that exists,
+  `https://tools.nyuchi.dev/mcp` (`mcpHostOnly` in `mcp/src/index.ts`).
+  Clients and connectors registered against the old URL get a permanent,
+  machine-readable signal to move.
+- **Dependencies refreshed to the latest published versions across all three
+  npm projects** (root Worker, `signature-generator`, `next/site`):
+  wrangler 4.158, vite-plus 1.5 (oxfmt/oxlint within), workers-types
+  5.20261108, hono 4.13, jose 6.2, zod 4.6.7, Astro 7.4.7 with
+  @astrojs/react 7.1.4, vitest 5.1, and @bundu/ui 0.13. `signature-generator`
+  stays on TypeScript `~6.0.3` (typescript-eslint 8.x peers `<6.1.0`); the
+  Worker typechecks on TypeScript 7. vitest is now a declared root dev
+  dependency (the worker tests import it), and `mcp/tests` gets its own
+  tsconfig so the type-aware linter sees both Node and Workers globals.
 - **The nyuchi-tools MCP server runs on the official MCP TypeScript SDK v2**
   ([#129](https://github.com/nyuchi/workspace-tools/issues/129)). The
   hand-rolled `WorkerHttpTransport` is gone. `/mcp` is now served by
