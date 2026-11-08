@@ -3118,14 +3118,14 @@ describe('internal-only access — WorkOS org membership', () => {
 // -----------------------------------------------------------------------------
 
 describe('a single MCP URL (tools.nyuchi.dev)', () => {
-  it('/mcp is a 404 on tools.nyuchi.com, pointing at the .dev endpoint', async () => {
+  it('/mcp is a 410 Gone on tools.nyuchi.com, naming the .dev endpoint', async () => {
     for (const method of ['GET', 'POST']) {
       const res = await Promise.resolve(worker.fetch(new Request(`${BASE}/mcp`, { method }), AUTH_ENV))
-      expect(res.status).toBe(404)
+      expect(res.status).toBe(410)
       expect(JSON.stringify(await res.json())).toContain('https://tools.nyuchi.dev/mcp')
     }
     const sub = await Promise.resolve(worker.fetch(new Request(`${BASE}/mcp/anything`), AUTH_ENV))
-    expect(sub.status).toBe(404)
+    expect(sub.status).toBe(410)
   })
 
   it('/mcp still answers (401 without a token) on tools.nyuchi.dev', async () => {
@@ -3256,12 +3256,12 @@ describe('R2-backed public images (/images/*)', () => {
     expect(res.headers.get('Content-Security-Policy')).toContain('sandbox')
   })
 
-  it('404s for a missing key, a traversal attempt, and on the site host', async () => {
+  it('404s for a missing key and a traversal attempt; the site host is 410 Gone', async () => {
     const bucket = fakeBucket()
     bucket.objects.set('a.png', { bytes: new Uint8Array(PNG_MAGIC), contentType: 'image/png' })
     expect((await fetchImage(MCP_BASE, '/images/missing.png', publicEnv(bucket))).status).toBe(404)
     expect((await fetchImage(MCP_BASE, '/images/..%2Fsecret', publicEnv(bucket))).status).toBe(404)
-    expect((await fetchImage(BASE, '/images/a.png', publicEnv(bucket))).status).toBe(404)
+    expect((await fetchImage(BASE, '/images/a.png', publicEnv(bucket))).status).toBe(410)
   })
 })
 
