@@ -16,7 +16,7 @@ preview_urls = true
 # Builds CI, whose trigger has no build command of its own) so the assets
 # directory below always exists in a fresh checkout.
 [build]
-command = "npm --prefix signature-generator ci && npm --prefix signature-generator run build"
+command = "npm --prefix site ci && npm --prefix site run build"
 
 # This Worker serves ALL of tools.nyuchi.com:
 #   - /mcp                     → MCP JSON-RPC endpoint (tools.nyuchi.dev only;
@@ -25,10 +25,12 @@ command = "npm --prefix signature-generator ci && npm --prefix signature-generat
 #   - /register                → OAuth dynamic client registration 404 stub
 #   - /auth.md                 → human/agent-readable auth architecture doc
 #   - /login, /callback, /logout → site-wide login gate (see mcp/src/site-auth.ts)
-#   - everything else          → the built signature-generator Astro site as
-#     static assets, but ONLY after the login-gate middleware in
+#   - everything else          → the built site/ Astro site (the apps/nyuchi
+#     rebuild) as static assets, but ONLY after the login-gate middleware in
 #     mcp/src/index.ts lets the request through — every other human-facing
-#     page requires a valid `nyuchi_session` cookie.
+#     page requires a valid `nyuchi_session` cookie. signature-generator/
+#     keeps the legacy pages and the engines' original tests until it is
+#     retired; the engines themselves now live in the shared engines/.
 #
 # run_worker_first is now `true` (every request runs the Worker first, for
 # every path) instead of an explicit path list: the Worker itself gates
@@ -36,7 +38,7 @@ command = "npm --prefix signature-generator ci && npm --prefix signature-generat
 # (`app.all("*", (c) => c.env.ASSETS.fetch(c.req.raw))`), since Cloudflare's
 # assets-before-Worker shortcut had no way to enforce the session cookie.
 [assets]
-directory = "signature-generator/dist"
+directory = "site/dist"
 not_found_handling = "404-page"
 binding = "ASSETS"
 run_worker_first = true
