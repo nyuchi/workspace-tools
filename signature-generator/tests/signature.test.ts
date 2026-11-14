@@ -10,7 +10,7 @@ import {
   escapeHtml,
   sanitizeUrl,
   type SignatureParams,
-} from '../src/engines/signature'
+} from '../../engines/signature'
 
 const FULL_PARAMS: SignatureParams = {
   brand: 'nyuchi',
