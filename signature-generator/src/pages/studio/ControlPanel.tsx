@@ -1,5 +1,5 @@
 import type { Dispatch, SetStateAction } from 'react'
-import { CATEGORIES, type Brand, type Category, type Facet, type FormatKey } from '../../engines/nyuchi'
+import { CATEGORIES, type Brand, type Category, type Facet, type FormatKey } from '../../../../engines/nyuchi'
 import type { StudioState, SurfaceMode } from './StudioPage'
 import PaletteChips from './PaletteChips'
 

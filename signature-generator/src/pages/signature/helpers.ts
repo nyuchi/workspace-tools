@@ -7,8 +7,8 @@
  * and describe which optional blocks are active for the meta readout.
  */
 
-import { BRANDS, sanitizeUrl, type BrandKey, type SignatureParams } from '../../engines/signature'
-import type { Category } from '../../engines/nyuchi'
+import { BRANDS, sanitizeUrl, type BrandKey, type SignatureParams } from '../../../../engines/signature'
+import type { Category } from '../../../../engines/nyuchi'
 
 /** Every field the control panel edits. All strings; empty = absent. */
 export interface SignatureFormData {

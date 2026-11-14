@@ -10,8 +10,8 @@ import {
   type FormatKey,
   type Params,
   type ThemeKey,
-} from '../../engines/nyuchi'
-import { loadBrandIcons } from '../../lib/loadBrandIcons'
+} from '../../../../engines/nyuchi'
+import { loadBrandIcons } from '../../../../engines/loadBrandIcons'
 import ControlPanel from './ControlPanel'
 import Preview from './Preview'
 import { MINERALS } from './minerals'

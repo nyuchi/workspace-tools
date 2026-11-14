@@ -37,9 +37,9 @@ keep their own copy of the brand list, because Apps Script cannot import npm mod
 | `email-signature/`     | Google Apps Script (V8)                                                                      | Admin batch script: push signatures to all domain users and their aliases           | Apps Script via clasp — see [email-signature/README.md](email-signature/README.md)                                    |
 
 The canonical brand taxonomy for the TypeScript side lives in
-`signature-generator/src/engines/brands/` (the Bundu-ecosystem registry); the
+`engines/brands/` (the Bundu-ecosystem registry); the
 signature template and its historical brand copies live in
-`signature-generator/src/engines/signature/` — pure modules imported by both the
+`engines/signature/` — pure modules imported by both the
 web app and the Worker's MCP tools, so both emit identical signature HTML.
 
 **The rebuild.** `next/` holds the rebuild of nyuchi-tools on Astro + Rust
@@ -173,11 +173,11 @@ Divisions and Bundu Foundation initiatives (initiatives are projects, not brands
 | **TELIA — Technology Leaders in Africa** | telia.bundu.org       | Bundu initiative — technology leadership  |
 | **Bundu Education**                      | bundu.org             | Bundu initiative — dedicated site pending |
 
-The canonical registry is `signature-generator/src/engines/brands/index.ts`.
+The canonical registry is `engines/brands/index.ts`.
 The web generator and MCP tools cover the four top-level brands plus the
 legacy signature keys `travel` and `learning`; the Apps Script projects carry
 the full division list. A brand or social-link change must be applied in the
-registry, in `signature-generator/src/engines/signature/index.ts` (new keys
+registry, in `engines/signature/index.ts` (new keys
 only — existing signature output is byte-locked), **and** in both Apps Script
 files (`gmail-addon/Code.js`, `email-signature/Code.js`).
 

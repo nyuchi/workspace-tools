@@ -26,6 +26,7 @@ jobs:
           cache-dependency-path: |
             package-lock.json
             signature-generator/package-lock.json
+            site/package-lock.json
 
       # Root project: Worker deps (hono, MCP SDK) + worker test runner.
       - name: Install root dependencies
@@ -43,10 +44,21 @@ jobs:
       - name: Typecheck Worker
         run: npm run typecheck:worker
 
-      # tsc -b && vite build — type-check is part of the build.
-      - name: Build SPA
+      # tsc -b && vite build — type-check is part of the build. Still built:
+      # the shared engines/' original home and tests, until retirement.
+      - name: Build SPA (legacy signature-generator)
         run: npm run build
         working-directory: signature-generator
+
+      # site/ is the tools-site rebuild on the apps/nyuchi pattern — its own
+      # npm project, and what the Worker now deploys (wrangler.toml [assets]).
+      - name: Install site dependencies
+        run: npm ci
+        working-directory: site
+
+      - name: Build site
+        run: npm run build
+        working-directory: site
 
       # Runs both suites: signature-generator engines + Worker HTTP tests.
       - name: Test

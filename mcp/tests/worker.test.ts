@@ -40,7 +40,7 @@ import {
   MAX_PUSH_TARGETS,
   pacing,
 } from '../src/google-admin'
-import { buildSignatureHtml } from '../../signature-generator/src/engines/signature'
+import { buildSignatureHtml } from '../../engines/signature'
 
 const BASE = 'https://tools.nyuchi.com'
 
@@ -2789,7 +2789,7 @@ describe('POST /mcp — resources & prompts (catalog)', () => {
   })
 
   it('resources/read nyuchi://minerals matches the engine palette table', async () => {
-    const { CATEGORIES } = await import('../../signature-generator/src/engines/nyuchi')
+    const { CATEGORIES } = await import('../../engines/nyuchi')
     const res = await post('/mcp', rpc('resources/read', { uri: 'nyuchi://minerals' }, 1))
     const body = (await readRpc(res)) as JsonRpcResponse
     const contents = (body.result as { contents: { text: string }[] }).contents

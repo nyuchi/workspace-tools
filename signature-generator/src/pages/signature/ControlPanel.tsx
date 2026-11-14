@@ -1,6 +1,6 @@
 import type { ChangeEvent } from 'react'
-import { BRANDS, BRAND_KEYS, type BrandKey } from '../../engines/signature'
-import { CATEGORIES } from '../../engines/nyuchi'
+import { BRANDS, BRAND_KEYS, type BrandKey } from '../../../../engines/signature'
+import { CATEGORIES } from '../../../../engines/nyuchi'
 import { BRAND_LABELS, BRAND_MINERAL, type SignatureFormData } from './helpers'
 
 interface Props {

@@ -13,7 +13,7 @@
  * show them in a muted alert.
  */
 
-import { BRAND_KEYS, type BrandKey, type SignatureParams } from '../../engines/signature'
+import { BRAND_KEYS, type BrandKey, type SignatureParams } from '../../../../engines/signature'
 import { socialDefaults } from './helpers'
 
 /* ── Contract types ── */

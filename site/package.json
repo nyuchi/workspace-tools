@@ -1,0 +1,28 @@
+{
+  "name": "nyuchi-tools-site",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "The tools.nyuchi.com site, built on the apps/nyuchi pattern (bundu-labs/marketing): Astro static + @bundu/ui, served by the nyuchi-tools Worker.",
+  "scripts": {
+    "dev": "astro dev --port 4323",
+    "build": "astro build",
+    "preview": "astro preview",
+    "check": "astro check"
+  },
+  "dependencies": {
+    "@astrojs/react": ">=7.1.4",
+    "@braintree/sanitize-url": ">=7.1.2",
+    "@bundu/ui": ">=0.13.0",
+    "astro": ">=7.4.7",
+    "react": ">=19.3.1",
+    "react-dom": ">=19.3.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": ">=4.3.5",
+    "@types/react": ">=19.3.0",
+    "@types/react-dom": ">=19.3.0",
+    "tailwindcss": ">=4.3.5",
+    "typescript": "~6.0.3"
+  }
+}

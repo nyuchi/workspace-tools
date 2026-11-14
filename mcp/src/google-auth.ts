@@ -33,7 +33,7 @@ import { z } from "zod";
 import {
   BRAND_KEYS,
   buildSignatureHtml,
-} from "../../signature-generator/src/engines/signature";
+} from "../../engines/signature";
 
 export interface GoogleAuthEnv {
   GOOGLE_CLIENT_ID?: string;

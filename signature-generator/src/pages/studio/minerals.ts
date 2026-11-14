@@ -1,4 +1,4 @@
-import type { Category } from '../../engines/nyuchi'
+import type { Category } from '../../../../engines/nyuchi'
 
 export interface MineralPreset {
   idx: string

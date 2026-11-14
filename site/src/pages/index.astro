@@ -1,0 +1,126 @@
+---
+import Base from '../layouts/Base.astro'
+import Hero from '@bundu/ui/Hero.astro'
+import Section from '@bundu/ui/Section.astro'
+import SectionHeader from '@bundu/ui/SectionHeader.astro'
+import { Button } from '@bundu/ui/ui/button'
+import { TOOLS } from '../data/tools'
+import { BRAND_GROUPS } from '../data/brands'
+
+const features = [
+  {
+    title: 'Every brand in the registry',
+    description:
+      'Signatures and cards for the whole ecosystem taxonomy — foundation, pillars, divisions and initiatives — from the one canon brand list.',
+  },
+  {
+    title: 'Domain-Wide Deployment',
+    description: 'Push signatures to all users in your Google Workspace domain with one click.',
+  },
+  {
+    title: 'Self-Service Generation',
+    description: 'Users can generate their own signatures with the interactive web tool.',
+  },
+  {
+    title: 'Automatic Updates',
+    description: 'Schedule daily signature updates to keep user information current.',
+  },
+  {
+    title: 'Brand Design Studio',
+    description: 'Nyuchi Studio social cards generated in the Bundu mineral design system.',
+  },
+  {
+    title: 'MCP for AI Agents',
+    description: 'An MCP server at tools.nyuchi.dev/mcp lets Claude and other agents use these tools.',
+  },
+]
+---
+
+<Base title="Nyuchi workspace tools" hideBreadcrumb>
+  <Hero
+    title="Workspace tools for the Bundu ecosystem"
+    subtitle="nyuchi · workspace tools"
+    description="Email signature management and brand design tools for Nyuchi Africa and the Bundu ecosystem — signatures, Nyuchi Studio social cards, and an MCP server for AI agents."
+    primaryCTA={{ text: 'Generate Signature', href: '/signature-generator' }}
+    secondaryCTA={{ text: 'Setup Guide', href: '/setup' }}
+    variant="gradient"
+  />
+
+  <Section border>
+    <SectionHeader eyebrow="Tools" title="Available tools" as="h2" class="mb-10" />
+    <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {TOOLS.map((tool) => (
+        <a href={tool.href} class="card card-hover p-6 group">
+          <div
+            class={`w-14 h-14 rounded-lg flex items-center justify-center mb-4 ${tool.tint} group-hover:scale-110 transition-transform duration-200 ease-soft`}
+          >
+            <svg class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d={tool.icon}></path>
+            </svg>
+          </div>
+          <h3 class="text-h5 font-sans text-foreground mb-2">{tool.name}</h3>
+          <p class="text-body-sm text-muted-foreground">{tool.description}</p>
+        </a>
+      ))}
+    </div>
+  </Section>
+
+  <Section bg="secondary" border>
+    <SectionHeader eyebrow="Features" title="What it does" as="h2" class="mb-10" />
+    <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-10">
+      {features.map((feature) => (
+        <div>
+          <h3 class="text-h6 font-sans text-foreground mb-2">{feature.title}</h3>
+          <p class="text-body-sm text-muted-foreground">{feature.description}</p>
+        </div>
+      ))}
+    </div>
+  </Section>
+
+  <Section border>
+    <SectionHeader
+      eyebrow="Registry"
+      title="The ecosystem, one list"
+      as="h2"
+      class="mb-4"
+      description="The canon registry (brands.toml) is the single source every tool reads — signatures, the Studio, the site and the MCP all draw from it."
+    />
+    {BRAND_GROUPS.filter((g) => g.brands.length > 0).map((group) => (
+      <div class="mb-8">
+        <p class="text-caption font-semibold uppercase tracking-wider text-muted-foreground mb-3">{group.label}</p>
+        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          {group.brands.map((brand) => (
+            <a
+              href={brand.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              class="card p-4 text-center card-hover"
+            >
+              <span class={`inline-block w-3 h-3 rounded-full mb-3 ${brand.dot}`} aria-hidden="true"></span>
+              <h3 class="text-body-sm font-medium font-sans text-foreground mb-1">{brand.shortName ?? brand.name}</h3>
+              <p class="text-caption text-muted-foreground font-mono">{brand.domain}</p>
+            </a>
+          ))}
+        </div>
+      </div>
+    ))}
+  </Section>
+
+  <Section space="loose" class="wash-gold">
+    <div class="max-w-2xl mx-auto text-center">
+      <SectionHeader
+        title="Ready to get started?"
+        description="Follow the setup guide to install the Gmail Add-on, browse the help docs, or start generating signatures now."
+        as="h2"
+        align="center"
+      />
+      <div class="mt-8 flex flex-wrap items-center justify-center gap-3">
+        <Button href="/setup">View Setup Guide</Button>
+        <Button href="/help" variant="outline">Browse Help</Button>
+        <Button href="https://github.com/nyuchi/workspace-tools" external variant="ghost" arrow>
+          View on GitHub
+        </Button>
+      </div>
+    </div>
+  </Section>
+</Base>
