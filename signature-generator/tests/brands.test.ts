@@ -6,7 +6,7 @@ import {
   TOP_BRAND_KEYS,
   TOP_BRANDS,
   type TopBrandKey,
-} from '../src/engines/brands'
+} from '../../engines/brands'
 
 describe('TOP_BRANDS registry shape', () => {
   it('exposes exactly the four top-level brands, parent first', () => {

@@ -7,7 +7,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import * as studio from '../src/engines/nyuchi'
+import * as studio from '../../engines/nyuchi'
 
 const LIGHT_URI = 'data:image/png;base64,LIGHT-VARIANT'
 const DARK_URI = 'data:image/png;base64,DARK-VARIANT'

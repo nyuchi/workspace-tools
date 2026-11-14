@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { BRANDS, BRAND_KEYS, buildSignatureHtml } from '../src/engines/signature'
+import { BRANDS, BRAND_KEYS, buildSignatureHtml } from '../../engines/signature'
 import {
   BRAND_LABELS,
   BRAND_MINERAL,
