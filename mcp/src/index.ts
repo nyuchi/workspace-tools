@@ -80,13 +80,13 @@ import {
   BRAND_KEYS,
   buildSignatureHtml,
   type SignatureParams,
-} from "../../signature-generator/src/engines/signature";
-import { TOP_BRAND_KEYS } from "../../signature-generator/src/engines/brands";
+} from "../../engines/signature";
+import { TOP_BRAND_KEYS } from "../../engines/brands";
 import {
   buildSVG as buildStudioCard,
   HEX_COLOR_RE,
   type Params as StudioParams,
-} from "../../signature-generator/src/engines/nyuchi";
+} from "../../engines/nyuchi";
 import { ensureBrandIconsLoaded } from "./brand-icons.js";
 import { rasterizeSvg, warmRaster } from "./raster.js";
 import {

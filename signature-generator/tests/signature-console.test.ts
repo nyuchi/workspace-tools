@@ -4,7 +4,7 @@
  * browser-only and not exercised here (no DOM/jsdom in this suite). */
 
 import { describe, expect, it } from 'vitest'
-import { BRANDS, BRAND_KEYS, buildSignatureHtml } from '../src/engines/signature'
+import { BRANDS, BRAND_KEYS, buildSignatureHtml } from '../../engines/signature'
 import {
   describePushSummary,
   isBrandKey,

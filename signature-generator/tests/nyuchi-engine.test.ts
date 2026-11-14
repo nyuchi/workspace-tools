@@ -8,7 +8,7 @@ import {
   type Category,
   type FormatKey,
   type Params,
-} from '../src/engines/nyuchi'
+} from '../../engines/nyuchi'
 
 const FORMAT_KEYS = Object.keys(FORMATS) as FormatKey[]
 const CATEGORY_KEYS = Object.keys(CATEGORIES) as Category[]

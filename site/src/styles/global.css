@@ -1,0 +1,13 @@
+/* Site-wide stylesheet, imported once by src/layouts/Base.astro.
+   Design system: @bundu/ui (npm) — the canonical Mzizi implementation.
+   Order matters: tokens/globals first, then the Nyuchi brand overlay
+   (primary = gold), then local fonts and the legacy-var compat layer. */
+@import "tailwindcss";
+@import "@bundu/ui/styles/globals.css";
+@import "@bundu/ui/styles/brand-nyuchi.css";
+@import "./fonts.css";
+@import "./compat.css";
+
+/* The @bundu/ui tailwind preset (minerals, semantic colors, type scale,
+   radius, ease-soft…) + content globs, incl. the package's own sources. */
+@config "../../tailwind.config.mjs";

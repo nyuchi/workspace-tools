@@ -1,0 +1,90 @@
+---
+/**
+ * Footer — ecosystem columns from the canon brand registry
+ * (src/data/brands.ts, ported from next/crates/brands/data/brands.toml):
+ * every entry links out (target=_blank), grouped Foundation / Pillars /
+ * divisions / initiatives. Plus the site's own tools column and the legal
+ * row. Pattern follows apps/nyuchi's Footer (data-driven, mineral dots).
+ */
+import BeeIcon from '../BeeIcon.astro'
+import { BRAND_GROUPS } from '../../data/brands'
+import { NAV } from '../../data/tools'
+---
+
+<footer class="border-t border-border bg-background">
+  <div class="container-custom py-12 md:py-16">
+    <div class="grid gap-10 md:grid-cols-2 lg:grid-cols-5">
+      {/* Brand block */}
+      <div class="lg:col-span-1">
+        <div class="flex items-center gap-2 mb-4">
+          <BeeIcon class="h-8 w-8" />
+          <span class="font-serif font-bold tracking-tight text-xl text-gold">nyuchi</span>
+        </div>
+        <p class="text-body-sm text-muted-foreground mb-2">Workspace tools for the Bundu ecosystem.</p>
+        <p class="text-caption text-muted-foreground font-medium italic">Ndiri nekuti tiri — I am because we are</p>
+      </div>
+
+      {/* Tools column */}
+      <nav aria-label="Tools">
+        <p class="text-caption font-semibold uppercase tracking-wider text-muted-foreground mb-4">Tools</p>
+        <ul class="space-y-2">
+          {NAV.map((item) => (
+            <li>
+              <a href={item.href} class="text-body-sm text-foreground/80 hover:text-foreground transition-colors">
+                {item.name}
+              </a>
+            </li>
+          ))}
+          <li>
+            <a
+              href="/help#mcp"
+              class="text-body-sm text-foreground/80 hover:text-foreground transition-colors"
+            >
+              MCP server
+            </a>
+          </li>
+        </ul>
+      </nav>
+
+      {/* Ecosystem columns from the canon registry */}
+      {BRAND_GROUPS.filter((g) => g.brands.length > 0).map((group) => (
+        <nav aria-label={group.label}>
+          <p class="text-caption font-semibold uppercase tracking-wider text-muted-foreground mb-4">{group.label}</p>
+          <ul class="space-y-2">
+            {group.brands.map((brand) => (
+              <li>
+                <a
+                  href={brand.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="inline-flex items-center gap-2 text-body-sm text-foreground/80 hover:text-foreground transition-colors"
+                >
+                  <span aria-hidden="true" class={`inline-block w-2 h-2 rounded-full flex-shrink-0 ${brand.dot}`} />
+                  {brand.shortName ?? brand.name}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </nav>
+      ))}
+    </div>
+
+    {/* Legal row */}
+    <div class="mt-12 pt-6 border-t border-border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+      <p class="text-caption text-muted-foreground">
+        © {new Date().getFullYear()} Nyuchi Africa (Pvt) Ltd — a Bundu Foundation pillar.
+      </p>
+      <div class="flex items-center gap-5">
+        <a href="https://nyuchi.com" target="_blank" rel="noopener noreferrer" class="text-caption text-muted-foreground hover:text-foreground transition-colors">
+          nyuchi.com
+        </a>
+        <a href="https://github.com/nyuchi" target="_blank" rel="noopener noreferrer" class="text-caption text-muted-foreground hover:text-foreground transition-colors">
+          GitHub
+        </a>
+        <a href="https://services.nyuchi.com" target="_blank" rel="noopener noreferrer" class="text-caption text-muted-foreground hover:text-foreground transition-colors">
+          Web Services
+        </a>
+      </div>
+    </div>
+  </div>
+</footer>

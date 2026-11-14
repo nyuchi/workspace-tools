@@ -26,9 +26,9 @@ export default defineConfig({
     // signature-generator is its own npm project (own lockfile, eslint and
     // tsc -b); the root install does not have its dependencies, and CI lints
     // and type checks it there.
-    // next/site is likewise its own npm project (Astro); its CI job runs
-    // `astro check` there.
-    ignorePatterns: ["signature-generator/**", "next/site/**"],
+    // next/site and site are likewise their own npm projects (Astro); their
+    // CI job builds them.
+    ignorePatterns: ["signature-generator/**", "next/site/**", "site/**"],
     // Without typeCheck, `vp check` is oxlint only and passes type errors.
     options: { typeAware: true, typeCheck: true },
   },

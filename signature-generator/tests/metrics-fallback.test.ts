@@ -13,7 +13,7 @@
 
 import { beforeAll, describe, expect, it } from 'vitest'
 
-type NyuchiEngine = typeof import('../src/engines/nyuchi')
+type NyuchiEngine = typeof import('../../engines/nyuchi')
 
 interface FontContextStub {
   font: string
@@ -63,7 +63,7 @@ let canvasNyuchiSvg = ''
 
 beforeAll(async () => {
   installSizeAwareCanvasStub()
-  nyuchi = await import('../src/engines/nyuchi')
+  nyuchi = await import('../../engines/nyuchi')
   /* Render once through the canvas path (document present)… */
   canvasNyuchiSvg = nyuchi.buildSVG(NYUCHI_WRAP_PARAMS).svg
   /* …then drop the DOM so every render below uses the metrics fallback. */

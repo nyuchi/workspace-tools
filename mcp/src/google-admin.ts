@@ -33,7 +33,7 @@ import { SignJWT, base64url, importPKCS8 } from "jose";
 import {
   buildSignatureHtml,
   type BrandKey,
-} from "../../signature-generator/src/engines/signature";
+} from "../../engines/signature";
 import {
   decryptGoogleSession,
   GOOGLE_COOKIE_NAME,

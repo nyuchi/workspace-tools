@@ -5,7 +5,7 @@ import {
   buildSignatureHtml,
   buildSignatureText,
   type BrandKey,
-} from '../../engines/signature'
+} from '../../../../engines/signature'
 import AdminPanel from './AdminPanel'
 import ControlPanel from './ControlPanel'
 import Preview from './Preview'

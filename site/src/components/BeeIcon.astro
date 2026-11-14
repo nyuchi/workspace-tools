@@ -1,0 +1,41 @@
+---
+/**
+ * BeeIcon — the "nyuchi" (bee in Shona) brand mark, from the vendored
+ * bundu-ecosystem-icons pair (signature-generator/public/assets/brand-icons/
+ * nyuchi-icon-{light,dark}.png) — the same real mark used on the Studio/
+ * Banner card lockups and the signature brand chips. This is a logo, not a
+ * themed illustration, so both variants are always in the DOM and CSS picks
+ * the right one per `[data-theme]` (same pattern as the sun/moon toggle
+ * icons below), rather than following the theme through currentColor.
+ */
+interface Props {
+  class?: string
+}
+
+const { class: className = 'h-6 w-6' } = Astro.props
+---
+
+<img
+  src="/assets/brand-icons/nyuchi-icon-light.png"
+  alt=""
+  class={`${className} bee-icon-light object-contain`}
+  aria-hidden="true"
+/>
+<img
+  src="/assets/brand-icons/nyuchi-icon-dark.png"
+  alt=""
+  class={`${className} bee-icon-dark object-contain`}
+  aria-hidden="true"
+/>
+
+<style>
+  .bee-icon-dark {
+    display: none;
+  }
+  :global([data-theme='dark']) .bee-icon-light {
+    display: none;
+  }
+  :global([data-theme='dark']) .bee-icon-dark {
+    display: inline-block;
+  }
+</style>
