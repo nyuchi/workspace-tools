@@ -15,8 +15,8 @@
  * does real work once per cold start.
  */
 
-import { loadBrandIcons } from "../../signature-generator/src/lib/loadBrandIcons";
-import { setBrandIcon as setStudioIcon } from "../../signature-generator/src/engines/nyuchi";
+import { loadBrandIcons } from "../../engines/loadBrandIcons";
+import { setBrandIcon as setStudioIcon } from "../../engines/nyuchi";
 
 let cached: Promise<void> | null = null;
 

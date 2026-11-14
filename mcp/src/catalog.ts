@@ -21,12 +21,12 @@ import {
   INITIATIVES,
   TOP_BRAND_KEYS,
   TOP_BRANDS,
-} from "../../signature-generator/src/engines/brands";
+} from "../../engines/brands";
 import {
   CATEGORIES,
   FORMATS,
   SURFACE,
-} from "../../signature-generator/src/engines/nyuchi";
+} from "../../engines/nyuchi";
 
 const MINERAL_KEYS = Object.keys(CATEGORIES);
 

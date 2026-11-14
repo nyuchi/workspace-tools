@@ -1,0 +1,104 @@
+---
+/**
+ * Header — sticky top navigation, on the apps/nyuchi pattern: nav items are
+ * data (src/data/tools.ts), the active item carries the Nyuchi gold accent,
+ * the theme toggle is a React island, and the mobile menu is a disclosure.
+ * Fixed at 4rem: the tool islands' sticky side panels assume `top: 4rem`.
+ */
+import BeeIcon from '../BeeIcon.astro'
+import Icon from '@bundu/ui/Icon.astro'
+import ThemeToggle from './ThemeToggle'
+import { NAV } from '../../data/tools'
+
+/* Normalize the build-time pathname (`build.format: 'file'` yields e.g.
+   "/index.html", "/help.html") back to the public URL form. */
+const path =
+  Astro.url.pathname
+    .replace(/\/index\.html$/, '/')
+    .replace(/\.html$/, '')
+    .replace(/\/+$/, '') || '/'
+const isActive = (href: string) => (href === '/' ? path === '/' : path.startsWith(href))
+
+const navLinkClass = (href: string) =>
+  [
+    'px-4 py-2 rounded-full text-body-sm font-medium transition-colors duration-200 ease-soft',
+    isActive(href)
+      ? 'bg-gold-container text-gold-on-container'
+      : 'text-muted-foreground hover:text-foreground hover:bg-muted',
+  ].join(' ')
+
+const mobileLinkClass = (href: string) =>
+  [
+    'block px-4 py-3 rounded-full text-body font-medium min-h-[48px]',
+    isActive(href)
+      ? 'bg-gold-container text-gold-on-container'
+      : 'text-muted-foreground hover:text-foreground hover:bg-muted',
+  ].join(' ')
+---
+
+<header class="sticky top-0 z-50 h-16 bg-background/80 backdrop-blur-md border-b border-border">
+  <div class="container-custom h-full flex items-center justify-between gap-4">
+    <a href="/" class="flex items-center gap-2" aria-label="Nyuchi workspace tools — home">
+      <BeeIcon class="h-8 w-8" />
+      <span class="flex flex-col leading-none">
+        <span class="font-serif font-bold tracking-tight text-xl text-gold">nyuchi</span>
+        <span class="text-caption text-muted-foreground font-medium">workspace tools</span>
+      </span>
+    </a>
+
+    <nav class="hidden md:flex items-center gap-1" aria-label="Main">
+      {NAV.map((item) => (
+        <a href={item.href} class={navLinkClass(item.href)} aria-current={isActive(item.href) ? 'page' : undefined}>
+          {item.name}
+        </a>
+      ))}
+      <a
+        href="https://github.com/nyuchi/workspace-tools"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="ml-3 inline-flex items-center px-4 h-10 rounded-full bg-foreground text-background text-body-sm font-medium hover:opacity-90 transition-opacity duration-200 ease-soft"
+      >
+        GitHub
+      </a>
+      <ThemeToggle client:load />
+    </nav>
+
+    <div class="flex md:hidden items-center gap-1">
+      <ThemeToggle client:load />
+      <button
+        type="button"
+        id="menu-toggle"
+        class="inline-flex items-center justify-center w-12 h-12 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+        aria-label="Toggle menu"
+        aria-expanded="false"
+        aria-controls="mobile-menu"
+      >
+        <Icon name="menu" class="h-6 w-6" />
+      </button>
+    </div>
+  </div>
+
+  <div id="mobile-menu" class="hidden md:hidden bg-background border-b border-border px-6 py-3 space-y-1">
+    {NAV.map((item) => (
+      <a href={item.href} class={mobileLinkClass(item.href)}>{item.name}</a>
+    ))}
+    <a
+      href="https://github.com/nyuchi/workspace-tools"
+      target="_blank"
+      rel="noopener noreferrer"
+      class={mobileLinkClass('https://github.com')}
+    >
+      GitHub
+    </a>
+  </div>
+</header>
+
+<script>
+  // Mobile menu disclosure (same as the live site).
+  const toggle = document.getElementById('menu-toggle')
+  const menu = document.getElementById('mobile-menu')
+  toggle?.addEventListener('click', () => {
+    const open = menu?.classList.toggle('hidden') === false
+    toggle.setAttribute('aria-expanded', String(open))
+  })
+</script>

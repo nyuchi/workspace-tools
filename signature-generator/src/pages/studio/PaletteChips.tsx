@@ -1,4 +1,4 @@
-import type { Category, CategoryDef } from '../../engines/nyuchi'
+import type { Category, CategoryDef } from '../../../../engines/nyuchi'
 
 interface Props {
   active: Category

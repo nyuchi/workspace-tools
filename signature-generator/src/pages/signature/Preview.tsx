@@ -1,5 +1,5 @@
 import { forwardRef } from 'react'
-import { sanitizeUrl } from '../../engines/signature'
+import { sanitizeUrl } from '../../../../engines/signature'
 
 interface Props {
   /** Emitted signature markup — produced ONLY by buildSignatureHtml, which

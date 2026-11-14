@@ -27,7 +27,7 @@ import {
 import {
   BRAND_KEYS,
   buildSignatureHtml,
-} from "../../signature-generator/src/engines/signature";
+} from "../../engines/signature";
 
 export interface SignatureApiEnv extends SiteAuthEnv {
   /** Shared secret for server-to-server callers (e.g. Apps Script). */
