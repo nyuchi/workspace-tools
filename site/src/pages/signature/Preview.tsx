@@ -26,6 +26,10 @@ interface Props {
 const Preview = forwardRef<HTMLDivElement, Props>(
   ({ html, profileImage, promoBanner, onImageError }, ref) => (
     <div className="sg-preview-frame">
+      {/* nosemgrep: the engine builds this HTML locally from sanitized
+          fields (same preview as the legacy page this ported); not a sink
+          for foreign input. */}
+      {/* nosemgrep:typescript.react.security.audit.react-dangerouslysetinnerhtml.react-dangerouslysetinnerhtml */}
       <div ref={ref} className="sg-card" dangerouslySetInnerHTML={{ __html: html }} />
       <p className="sg-card-note">
         rendered on white — signatures keep the recipient&apos;s inbox background, not the app theme
