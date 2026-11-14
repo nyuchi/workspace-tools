@@ -15,7 +15,7 @@
     "open:signature": "cd email-signature && clasp open",
     "deploy:gmail": "cd gmail-addon && clasp deploy",
     "deploy:signature": "cd email-signature && clasp deploy",
-    "build:web": "npm run build --prefix signature-generator",
+    "build:web": "npm run build --prefix site",
     "dev:tools": "wrangler dev",
     "deploy:tools": "wrangler deploy",
     "typecheck:worker": "tsc --noEmit -p mcp/tsconfig.json",
