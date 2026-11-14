@@ -53,6 +53,7 @@ const Preview = forwardRef<HTMLDivElement, Props>(({ svg, formatW, formatH, resi
         ref={ref}
         className="ns-card-host"
         style={{ width: dims.dw + 'px', height: dims.dh + 'px' }}
+        /* nosemgrep:typescript.react.security.audit.react-dangerouslysetinnerhtml.react-dangerouslysetinnerhtml — the engine's own SVG output, never foreign input */
         dangerouslySetInnerHTML={{ __html: svg }}
       />
     </div>
