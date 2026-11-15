@@ -14,6 +14,7 @@
  */
 
 import { BRAND_KEYS, type BrandKey, type SignatureParams } from '../../../../engines/signature'
+import { DOMAIN_TO_BRAND_SLUG } from '../../../../engines/brands'
 import { socialDefaults } from './helpers'
 
 /* ── Contract types ── */
@@ -177,7 +178,11 @@ export const isBrandKey = (value: string): value is BrandKey =>
  * brands fall back to `nyuchi`. Aliases are push targets, not signature
  * content — they deliberately do not appear in the params. */
 export const mapDirectoryUserToParams = (user: DirectoryUser): SignatureParams => {
-  const brand: BrandKey = isBrandKey(user.brand) ? user.brand : 'nyuchi'
+  const brand: BrandKey = isBrandKey(user.brand)
+    ? user.brand
+    : // Directory rows carry a brand slug or a staff email domain; domains
+      // resolve through the registry's shared map (engines/brands).
+      (DOMAIN_TO_BRAND_SLUG[user.brand] as BrandKey | undefined) ?? 'nyuchi'
   return {
     brand,
     name: user.name,

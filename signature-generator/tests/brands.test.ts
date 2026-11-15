@@ -55,17 +55,20 @@ describe('DIVISIONS', () => {
     expect(Object.keys(DIVISIONS).sort()).toEqual([...TOP_BRAND_KEYS].sort())
   })
 
-  it('nyuchi has the four divisions from gmail-addon/Code.js', () => {
+  it('nyuchi has Learning, Development and Foundation; Lingo is Mukoko', () => {
     expect(DIVISIONS.nyuchi.map((d) => d.key)).toEqual([
-      'lingo',
       'learning',
       'development',
       'foundation',
     ])
   })
 
-  it('mukoko has Mukoko News; bundu and shamwari have none', () => {
-    expect(DIVISIONS.mukoko.map((d) => d.key)).toEqual(['mukokoNews'])
+  it('mukoko has News, Lingo and Events; bundu and shamwari have none', () => {
+    expect(DIVISIONS.mukoko.map((d) => d.key)).toEqual([
+      'mukokoNews',
+      'lingo',
+      'mukokoEvents',
+    ])
     expect(DIVISIONS.bundu).toEqual([])
     expect(DIVISIONS.shamwari).toEqual([])
   })

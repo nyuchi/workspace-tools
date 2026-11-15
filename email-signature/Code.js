@@ -47,10 +47,16 @@ const CONFIG = {
   // Divisions without their own signature identity in the engine render under
   // their parent brand's slug.
   divisions: {
+    'lingo.mukoko.com': {
+      name: 'Mukoko Lingo',
+      website: 'lingo.mukoko.com',
+      brandSlug: 'mukoko' // Mukoko sub-app (Lingo-is-Mukoko) — no engine identity; parent brand
+    },
+    // Legacy mailbox domain until lingo.nyuchi.com mail migrates.
     'lingo.nyuchi.com': {
-      name: 'Nyuchi Lingo',
-      website: 'lingo.nyuchi.com',
-      brandSlug: 'nyuchi' // Nyuchi Africa division — no engine identity
+      name: 'Mukoko Lingo',
+      website: 'lingo.mukoko.com',
+      brandSlug: 'mukoko'
     },
     'learning.nyuchi.com': {
       name: 'Nyuchi Learning',
@@ -586,7 +592,7 @@ function testDivisionDetection() {
   Logger.log('========== TESTING DIVISION DETECTION ==========\n');
 
   const testEmails = [
-    'test@lingo.nyuchi.com',
+    'test@lingo.mukoko.com',
     'test@learning.nyuchi.com',
     'test@services.nyuchi.com',
     'test@travel-info.co.zw',
@@ -621,13 +627,13 @@ function testSignatureGeneration() {
   // Mock user object
   const mockUser = {
     name: { fullName: 'Test User' },
-    primaryEmail: 'test@lingo.nyuchi.com',
+    primaryEmail: 'test@lingo.mukoko.com',
     organizations: [{ title: 'Software Engineer', primary: true }],
     phones: [{ value: '+263 77 123 4567', type: 'work' }]
   };
 
   const testEmails = [
-    'test@lingo.nyuchi.com',
+    'test@lingo.mukoko.com',
     'test@mukoko.com',
     'test@nyuchi.com'
   ];

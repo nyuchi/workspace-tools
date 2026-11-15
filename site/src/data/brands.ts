@@ -1,14 +1,20 @@
 /**
- * The one Bundu-ecosystem brand list, ported from the canon registry
- * (next/crates/brands/data/brands.toml — the file the Rust rebuild, the
- * Studio and the MCP all read). This replaces the hand-synced grid that was
- * baked into the old homepage: Lingo is Mukoko Lingo (lingo.mukoko.com,
- * cobalt), TELIA is indigo, Nyuchi divisions are gold, and the initiatives
- * are listed too.
+ * The ecosystem registry for display — DERIVED from engines/brands (the
+ * canon TS registry, which itself follows next/crates/brands/data/brands.toml
+ * while it exists). There is no second hand-synced copy: taxonomy changes
+ * happen in engines/brands and every consumer sees them.
  *
- * `dot` is a complete literal class string (not `bg-${mineral}` composed) so
- * Tailwind's source scanner generates every utility.
+ * `dot` classes are literal strings (Tailwind's scanner reads this file's
+ * text; composed `bg-${mineral}` would not be generated).
  */
+
+import {
+  TOP_BRANDS,
+  TOP_BRAND_KEYS,
+  DIVISIONS,
+  INITIATIVES,
+  type TopBrandKey,
+} from '@engines/brands'
 
 export type BrandKind = 'foundation' | 'pillar' | 'division' | 'initiative'
 
@@ -26,154 +32,80 @@ export interface Brand {
   dot: string
 }
 
+/** Mzizi colour family → literal dot utility (keep in sync with the minerals). */
+const DOT: Record<string, string> = {
+  copper: 'bg-copper',
+  gold: 'bg-gold',
+  tanzanite: 'bg-tanzanite',
+  sodalite: 'bg-sodalite',
+  cobalt: 'bg-cobalt',
+  river: 'bg-river',
+  malachite: 'bg-malachite',
+  indigo: 'bg-indigo',
+  savanna: 'bg-savanna',
+}
+
+const dot = (mineral: string): string => DOT[mineral] ?? 'bg-gold'
+
+const FOUNDATION: Brand = {
+  key: 'bundu',
+  kind: 'foundation',
+  name: TOP_BRANDS.bundu.name,
+  shortName: 'Bundu',
+  tagline: TOP_BRANDS.bundu.tagline,
+  url: TOP_BRANDS.bundu.url,
+  domain: TOP_BRANDS.bundu.domain,
+  mineral: TOP_BRANDS.bundu.mineral,
+  dot: dot(TOP_BRANDS.bundu.mineral),
+}
+
+const PILLARS: Brand[] = TOP_BRAND_KEYS.filter((k) => k !== 'bundu').map((key) => {
+  const b = TOP_BRANDS[key as TopBrandKey]
+  return {
+    key,
+    kind: 'pillar' as const,
+    parent: 'bundu',
+    name: b.name,
+    tagline: b.tagline,
+    url: b.url,
+    domain: b.domain,
+    mineral: b.mineral,
+    dot: dot(b.mineral),
+  }
+})
+
+const divisionsOf = (parent: TopBrandKey): Brand[] =>
+  DIVISIONS[parent].map((d) => ({
+    key: d.key,
+    kind: 'division' as const,
+    parent,
+    name: d.name,
+    shortName: d.shortName,
+    tagline: d.tagline,
+    url: d.url,
+    domain: d.domain,
+    mineral: d.mineral,
+    dot: dot(d.mineral),
+  }))
+
+const INITIATIVE_BRANDS: Brand[] = Object.values(INITIATIVES).map((i) => ({
+  key: i.key,
+  kind: 'initiative' as const,
+  parent: 'bundu',
+  name: i.name,
+  shortName: 'shortLabel' in i ? i.shortLabel : undefined,
+  url: i.url ?? 'https://bundu.org',
+  domain: i.domain ?? 'bundu.org',
+  mineral: i.mineral,
+  dot: dot(i.mineral),
+}))
+
 export const BRANDS: Brand[] = [
-  {
-    key: 'bundu',
-    kind: 'foundation',
-    name: 'Bundu Foundation',
-    shortName: 'Bundu',
-    tagline: 'The wilderness holds the hive',
-    url: 'https://bundu.org',
-    domain: 'bundu.org',
-    mineral: 'copper',
-    dot: 'bg-copper',
-  },
-  {
-    key: 'nyuchi',
-    kind: 'pillar',
-    parent: 'bundu',
-    name: 'Nyuchi Africa',
-    shortName: 'Nyuchi',
-    tagline: 'I am because we are',
-    url: 'https://nyuchi.com',
-    domain: 'nyuchi.com',
-    mineral: 'gold',
-    dot: 'bg-gold',
-  },
-  {
-    key: 'mukoko',
-    kind: 'pillar',
-    parent: 'bundu',
-    name: 'Mukoko',
-    tagline: "Africa's privacy-first social super-app",
-    url: 'https://mukoko.com',
-    domain: 'mukoko.com',
-    mineral: 'tanzanite',
-    dot: 'bg-tanzanite',
-  },
-  {
-    key: 'shamwari',
-    kind: 'pillar',
-    parent: 'bundu',
-    name: 'Shamwari AI',
-    tagline: 'AI that actually works for Africa',
-    url: 'https://shamwari.ai',
-    domain: 'shamwari.ai',
-    mineral: 'sodalite',
-    dot: 'bg-sodalite',
-  },
-  {
-    key: 'learning',
-    kind: 'division',
-    parent: 'nyuchi',
-    name: 'Nyuchi Learning',
-    tagline: 'Education for All',
-    url: 'https://learning.nyuchi.com',
-    domain: 'learning.nyuchi.com',
-    mineral: 'gold',
-    dot: 'bg-gold',
-  },
-  {
-    key: 'development',
-    kind: 'division',
-    parent: 'nyuchi',
-    name: 'Nyuchi Development',
-    tagline: 'Building Digital Africa',
-    url: 'https://services.nyuchi.com',
-    domain: 'services.nyuchi.com',
-    mineral: 'gold',
-    dot: 'bg-gold',
-  },
-  {
-    key: 'foundation',
-    kind: 'division',
-    parent: 'nyuchi',
-    name: 'Nyuchi Foundation',
-    tagline: 'Empowering Communities',
-    url: 'https://foundation.nyuchi.com',
-    domain: 'foundation.nyuchi.com',
-    mineral: 'gold',
-    dot: 'bg-gold',
-  },
-  {
-    key: 'mukokoNews',
-    kind: 'division',
-    parent: 'mukoko',
-    name: 'Mukoko News',
-    tagline: 'Pan-African Journalism',
-    url: 'https://news.mukoko.com',
-    domain: 'news.mukoko.com',
-    mineral: 'river',
-    dot: 'bg-river',
-  },
-  {
-    key: 'lingo',
-    kind: 'division',
-    parent: 'mukoko',
-    name: 'Mukoko Lingo',
-    tagline: 'Language Learning for Africa',
-    url: 'https://lingo.mukoko.com',
-    domain: 'lingo.mukoko.com',
-    mineral: 'cobalt',
-    dot: 'bg-cobalt',
-  },
-  {
-    key: 'mukokoEvents',
-    kind: 'division',
-    parent: 'mukoko',
-    name: 'Mukoko Events',
-    shortName: 'Events',
-    tagline: 'Community Events and Gatherings',
-    url: 'https://events.mukoko.com',
-    domain: 'events.mukoko.com',
-    mineral: 'malachite',
-    dot: 'bg-malachite',
-  },
-  {
-    key: 'travel',
-    kind: 'initiative',
-    parent: 'bundu',
-    name: 'Zimbabwe Information Platform',
-    shortName: 'Zimbabwe Info',
-    tagline: 'Discover the Heart of Africa',
-    url: 'https://travel-info.co.zw',
-    domain: 'travel-info.co.zw',
-    mineral: 'malachite',
-    dot: 'bg-malachite',
-  },
-  {
-    key: 'telia',
-    kind: 'initiative',
-    parent: 'bundu',
-    name: 'TELIA — Technology Leaders in Africa',
-    shortName: 'TELIA',
-    tagline: 'Leading African Innovation',
-    url: 'https://telia.bundu.org',
-    domain: 'telia.bundu.org',
-    mineral: 'indigo',
-    dot: 'bg-indigo',
-  },
-  {
-    key: 'education',
-    kind: 'initiative',
-    parent: 'bundu',
-    name: 'Bundu Education',
-    shortName: 'Education',
-    url: 'https://bundu.org',
-    domain: 'bundu.org',
-    mineral: 'savanna',
-    dot: 'bg-savanna',
-  },
+  FOUNDATION,
+  ...PILLARS,
+  ...divisionsOf('nyuchi'),
+  ...divisionsOf('mukoko'),
+  ...INITIATIVE_BRANDS,
 ]
 
 export const brandByKey = (key: string): Brand | undefined =>
@@ -181,15 +113,9 @@ export const brandByKey = (key: string): Brand | undefined =>
 
 /** Ordered display groups for the homepage registry grid and the footer. */
 export const BRAND_GROUPS: { label: string; brands: Brand[] }[] = [
-  { label: 'Foundation', brands: BRANDS.filter((b) => b.kind === 'foundation') },
-  { label: 'Pillars', brands: BRANDS.filter((b) => b.kind === 'pillar') },
-  {
-    label: 'Nyuchi divisions',
-    brands: BRANDS.filter((b) => b.kind === 'division' && b.parent === 'nyuchi'),
-  },
-  {
-    label: 'Mukoko divisions',
-    brands: BRANDS.filter((b) => b.kind === 'division' && b.parent === 'mukoko'),
-  },
-  { label: 'Initiatives', brands: BRANDS.filter((b) => b.kind === 'initiative') },
+  { label: 'Foundation', brands: [FOUNDATION] },
+  { label: 'Pillars', brands: PILLARS },
+  { label: 'Nyuchi divisions', brands: divisionsOf('nyuchi') },
+  { label: 'Mukoko divisions', brands: divisionsOf('mukoko') },
+  { label: 'Initiatives', brands: INITIATIVE_BRANDS },
 ]
