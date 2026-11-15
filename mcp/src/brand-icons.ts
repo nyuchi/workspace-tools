@@ -8,7 +8,7 @@
  * fetch — there's no page origin to resolve a relative path against inside
  * a Worker, so this passes a fetch implementation backed by the `ASSETS`
  * binding instead (the vendored PNGs/`.b64.txt` files are static-passthrough
- * assets, bundled into the same `signature-generator/dist` the Worker
+ * assets, bundled into the same `site/dist` the Worker
  * serves everything else from).
  *
  * Cached per isolate: the icon set never changes at runtime, so this only

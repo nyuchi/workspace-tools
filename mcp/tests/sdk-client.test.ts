@@ -22,7 +22,7 @@ const ENV = {
       const url = new URL(req.url)
       if (url.pathname.endsWith('.b64.txt')) return new Response('ZmFrZS1pY29uLWJ5dGVz')
       if (url.pathname.startsWith('/fonts/raster/')) {
-        const file = join(__dirname, '../../signature-generator/public', url.pathname)
+        const file = join(__dirname, '../../site/public', url.pathname)
         return new Response(new Uint8Array(readFileSync(file)))
       }
       return new Response('not found', { status: 404 })
