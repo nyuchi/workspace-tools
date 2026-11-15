@@ -9,7 +9,8 @@
     "build": "astro build",
     "preview": "astro preview",
     "check": "astro check",
-    "test": "vitest run"
+    "test": "vitest run",
+    "mzizi": "mzizi check src"
   },
   "dependencies": {
     "@astrojs/react": ">=7.1.4",
@@ -25,6 +26,7 @@
     "@types/react-dom": ">=19.3.0",
     "tailwindcss": ">=4.3.5",
     "typescript": "~6.0.3",
-    "vitest": ">=5.1.0"
+    "vitest": ">=5.1.0",
+    "@nyuchi/mzizi-cli": ">=0.10.0"
   }
 }

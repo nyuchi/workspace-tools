@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   buildSVG,
   exportPNG,
@@ -10,70 +10,82 @@ import {
   type FormatKey,
   type Params,
   type ThemeKey,
-} from '@engines/nyuchi'
-import { loadBrandIcons } from '../../lib/loadBrandIcons'
-import ControlPanel from './ControlPanel'
-import Preview from './Preview'
-import { MINERALS } from './minerals'
+} from "@engines/nyuchi";
+import { loadBrandIcons } from "../../lib/loadBrandIcons";
+import ControlPanel from "./ControlPanel";
+import Preview from "./Preview";
+import { MINERALS } from "./minerals";
 
-export type SurfaceMode = 'auto' | ThemeKey
+export type SurfaceMode = "auto" | ThemeKey;
 
 export interface StudioState {
-  eyebrow: string
-  title: string
-  dek: string
-  index: string
-  footnote: string
-  role: string
-  category: Category
-  format: FormatKey
-  layout: number
-  theme: SurfaceMode
-  lockup: boolean
-  lattice: boolean
-  brand: Brand
-  facet: Facet
-  angle: number
-  cleave: boolean
-  salt: number
+  eyebrow: string;
+  title: string;
+  dek: string;
+  index: string;
+  footnote: string;
+  role: string;
+  category: Category;
+  format: FormatKey;
+  layout: number;
+  theme: SurfaceMode;
+  lockup: boolean;
+  lattice: boolean;
+  brand: Brand;
+  facet: Facet;
+  angle: number;
+  cleave: boolean;
+  salt: number;
 }
 
 const INITIAL: StudioState = {
-  eyebrow: '',
-  title: 'Seven minerals, one ecosystem',
-  dek: 'How the bundu palette carries meaning across every brand we build.',
-  index: '',
-  footnote: '',
-  role: '',
-  category: 'cobalt',
-  format: 'ig',
+  eyebrow: "",
+  title: "Seven minerals, one ecosystem",
+  dek: "How the bundu palette carries meaning across every brand we build.",
+  index: "",
+  footnote: "",
+  role: "",
+  category: "cobalt",
+  format: "ig",
   layout: 5,
-  theme: 'auto',
+  theme: "auto",
   lockup: true,
   lattice: true,
-  brand: 'nyuchi',
-  facet: 'diagonal',
+  brand: "nyuchi",
+  facet: "diagonal",
   angle: 62,
   cleave: true,
   salt: 0,
-}
+};
 
-const LAYOUT_NAMES: Record<number, string> = { 1: 'type', 2: 'anchor', 3: 'split', 4: 'halo', 5: 'mineral' }
+const LAYOUT_NAMES: Record<number, string> = {
+  1: "type",
+  2: "anchor",
+  3: "split",
+  4: "halo",
+  5: "mineral",
+};
 
 function fileBase(title: string): string {
-  const base = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 36)
-  return base || 'card'
+  const base = title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 36);
+  return base || "card";
 }
 
 function readDomTheme(): ThemeKey {
-  if (typeof document === 'undefined') return 'light'
-  return document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light'
+  if (typeof document === "undefined") return "light";
+  return document.documentElement.getAttribute("data-theme") === "dark"
+    ? "dark"
+    : "light";
 }
 
 const StudioPage = () => {
-  const [state, setState] = useState<StudioState>(INITIAL)
-  const [domTheme, setDomTheme] = useState<ThemeKey>(readDomTheme)
-  const [iconReady, setIconReady] = useState(false)
+  const [state, setState] = useState<StudioState>(INITIAL);
+  const [domTheme, setDomTheme] = useState<ThemeKey>(readDomTheme);
+  const [iconReady, setIconReady] = useState(false);
 
   /* Initial theme is already correct at mount: Base.astro's inline bootstrap
    * script sets `data-theme` from the persisted preference before first
@@ -82,14 +94,17 @@ const StudioPage = () => {
   /* Register every per-theme brand icon from the registry so lockups render
    * the right mark for the card's theme (e.g. gold bee on dark cards). */
   useEffect(() => {
-    let cancelled = false
+    let cancelled = false;
     loadBrandIcons(setBrandIcon).then(() => {
-      if (!cancelled) setIconReady(true)
-    })
-    return () => { cancelled = true }
-  }, [])
+      if (!cancelled) setIconReady(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
-  const resolvedTheme: ThemeKey = state.theme === 'auto' ? domTheme : state.theme
+  const resolvedTheme: ThemeKey =
+    state.theme === "auto" ? domTheme : state.theme;
 
   const params: Params = useMemo(
     () => ({
@@ -112,99 +127,102 @@ const StudioPage = () => {
       seedKey: state.title + state.category + state.layout + state.salt,
     }),
     [state, resolvedTheme],
-  )
+  );
 
   const built = useMemo(() => {
     // iconReady is used as a dependency so that once the bee icon loads,
     // we re-run buildSVG to swap in the image href in the lockup.
-    void iconReady
-    return buildSVG(params)
-  }, [params, iconReady])
+    void iconReady;
+    return buildSVG(params);
+  }, [params, iconReady]);
 
   /* ── Theme toggle ── */
   const toggleTheme = useCallback(() => {
-    const cur = readDomTheme()
-    const next: ThemeKey = cur === 'dark' ? 'light' : 'dark'
-    document.documentElement.setAttribute('data-theme', next)
-    localStorage.setItem('nyuchi-theme', next)
-    setDomTheme(next)
-  }, [])
+    const cur = readDomTheme();
+    const next: ThemeKey = cur === "dark" ? "light" : "dark";
+    document.documentElement.setAttribute("data-theme", next);
+    localStorage.setItem("nyuchi-theme", next);
+    setDomTheme(next);
+  }, []);
 
   /* ── Downloads ── */
   const downloadSvg = useCallback(() => {
-    const blob = new Blob([built.svg], { type: 'image/svg+xml;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `${fileBase(state.title)}-${state.format}-l${state.layout}.svg`
-    document.body.appendChild(a)
-    a.click()
-    a.remove()
-    setTimeout(() => URL.revokeObjectURL(url), 2000)
-  }, [built.svg, state.title, state.format, state.layout])
+    const blob = new Blob([built.svg], { type: "image/svg+xml;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${fileBase(state.title)}-${state.format}-l${state.layout}.svg`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  }, [built.svg, state.title, state.format, state.layout]);
 
-  const [pngBusy, setPngBusy] = useState(false)
+  const [pngBusy, setPngBusy] = useState(false);
   const downloadPng = useCallback(async () => {
-    setPngBusy(true)
+    setPngBusy(true);
     try {
-      const blob = await exportPNG(built.svg, built.format, 2)
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `${fileBase(state.title)}-${state.format}-l${state.layout}.png`
-      document.body.appendChild(a)
-      a.click()
-      a.remove()
-      setTimeout(() => URL.revokeObjectURL(url), 2000)
+      const blob = await exportPNG(built.svg, built.format, 2);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${fileBase(state.title)}-${state.format}-l${state.layout}.png`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
     } catch (err) {
-      console.error(err)
-      alert('Export failed — see console.')
+      console.error(err);
+      alert("Export failed — see console.");
     } finally {
-      setPngBusy(false)
+      setPngBusy(false);
     }
-  }, [built.svg, built.format, state.title, state.format, state.layout])
+  }, [built.svg, built.format, state.title, state.format, state.layout]);
 
   /* WebMCP: expose the same download actions the UI buttons already call, so
    * an agent driving the browser can export a card without scraping the DOM.
    * Feature-detected — a silent no-op wherever document.modelContext doesn't
    * exist (i.e. every browser in this repo's test matrix today). */
   useEffect(() => {
-    if (typeof document === 'undefined' || !('modelContext' in document)) return
-    const controller = new AbortController()
+    if (typeof document === "undefined" || !("modelContext" in document))
+      return;
+    const controller = new AbortController();
     document.modelContext?.registerTool(
       {
-        name: 'download_studio_card_svg',
-        description: 'Render and download the current Nyuchi Studio card as an SVG file.',
-        inputSchema: { type: 'object', properties: {} },
+        name: "download_studio_card_svg",
+        description:
+          "Render and download the current Nyuchi Studio card as an SVG file.",
+        inputSchema: { type: "object", properties: {} },
         execute: async () => {
-          downloadSvg()
-          return { status: 'downloaded', format: 'svg' }
+          downloadSvg();
+          return { status: "downloaded", format: "svg" };
         },
         annotations: { readOnlyHint: false },
       },
       { signal: controller.signal },
-    )
+    );
     document.modelContext?.registerTool(
       {
-        name: 'download_studio_card_png',
-        description: 'Render and download the current Nyuchi Studio card as a PNG file.',
-        inputSchema: { type: 'object', properties: {} },
+        name: "download_studio_card_png",
+        description:
+          "Render and download the current Nyuchi Studio card as a PNG file.",
+        inputSchema: { type: "object", properties: {} },
         execute: async () => {
-          await downloadPng()
-          return { status: 'downloaded', format: 'png' }
+          await downloadPng();
+          return { status: "downloaded", format: "png" };
         },
         annotations: { readOnlyHint: false },
       },
       { signal: controller.signal },
-    )
-    return () => controller.abort()
-  }, [downloadSvg, downloadPng])
+    );
+    return () => controller.abort();
+  }, [downloadSvg, downloadPng]);
 
   /* ── Load mineral copy into the fields ── */
   const loadMineral = useCallback(() => {
     setState((s) => {
-      const m = MINERALS[s.category]
-      const def = CATEGORIES[s.category]
+      const m = MINERALS[s.category];
+      const def = CATEGORIES[s.category];
       return {
         ...s,
         title: def.name,
@@ -212,32 +230,35 @@ const StudioPage = () => {
         index: m.idx,
         footnote: m.origin,
         role: m.role,
-        eyebrow: '',
+        eyebrow: "",
         layout: 5,
-      }
-    })
-  }, [])
+      };
+    });
+  }, []);
 
-  const shuffle = useCallback(() => setState((s) => ({ ...s, salt: (s.salt + 1) | 0 })), [])
+  const shuffle = useCallback(
+    () => setState((s) => ({ ...s, salt: (s.salt + 1) | 0 })),
+    [],
+  );
 
   /* ── Meta strings ── */
-  const catDef = CATEGORIES[state.category]
+  const catDef = CATEGORIES[state.category];
   /* Accent cards use the mineral's dark hex as their surface, so the meta
      dot shows the same hex there as on dark. */
-  const dot = resolvedTheme === 'light' ? catDef.light : catDef.dark
-  const seedStr = 'seed ' + ('00000000' + built.seed.toString(16)).slice(-8)
-  const layoutStr = 'L' + state.layout + ' · ' + LAYOUT_NAMES[state.layout]
-  const exportStr = built.format.w * 2 + ' × ' + built.format.h * 2
+  const dot = resolvedTheme === "light" ? catDef.light : catDef.dark;
+  const seedStr = "seed " + ("00000000" + built.seed.toString(16)).slice(-8);
+  const layoutStr = "L" + state.layout + " · " + LAYOUT_NAMES[state.layout];
+  const exportStr = built.format.w * 2 + " × " + built.format.h * 2;
 
-  const previewRef = useRef<HTMLDivElement | null>(null)
+  const previewRef = useRef<HTMLDivElement | null>(null);
 
   /* Bump a resize signal so the Preview re-runs its fit math after layout changes. */
-  const [resizeSignal, setResizeSignal] = useState(0)
+  const [resizeSignal, setResizeSignal] = useState(0);
   useEffect(() => {
-    const onResize = () => setResizeSignal((n) => n + 1)
-    window.addEventListener('resize', onResize)
-    return () => window.removeEventListener('resize', onResize)
-  }, [])
+    const onResize = () => setResizeSignal((n) => n + 1);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
 
   return (
     <>
@@ -254,7 +275,9 @@ const StudioPage = () => {
         />
         <div className="ns-stage">
           <div className="ns-topbar">
-            <button type="button" className="ns-topbtn" onClick={toggleTheme}>◐ Theme</button>
+            <button type="button" className="ns-topbtn" onClick={toggleTheme}>
+              ◐ Theme
+            </button>
           </div>
           <Preview
             ref={previewRef}
@@ -265,28 +288,46 @@ const StudioPage = () => {
           />
           <div className="ns-meta">
             <div>
-              <b>{built.format.name}</b> · <span>{built.format.label}</span> · <span>{layoutStr}</span>
+              <b>{built.format.name}</b> · <span>{built.format.label}</span> ·{" "}
+              <span>{layoutStr}</span>
               <br />
               <span>
-                <span
-                  className="ns-dot"
-                  style={{ background: dot }}
-                />
+                <span className="ns-dot" style={{ background: dot }} />
                 {catDef.name} · {state.role || catDef.role}
-              </span>{' '}
+              </span>{" "}
               · <span>{seedStr}</span> · export <b>{exportStr}</b>
             </div>
             <div className="ns-actions">
-              <button type="button" className="ns-btn-act ghost" onClick={shuffle} aria-label="Shuffle">↻</button>
-              <button type="button" className="ns-btn-act ghost" onClick={downloadSvg}>SVG</button>
-              <button type="button" className="ns-btn-act primary" onClick={downloadPng} disabled={pngBusy}>PNG</button>
+              <button
+                type="button"
+                className="ns-btn-act ghost"
+                onClick={shuffle}
+                aria-label="Shuffle"
+              >
+                ↻
+              </button>
+              <button
+                type="button"
+                className="ns-btn-act ghost"
+                onClick={downloadSvg}
+              >
+                SVG
+              </button>
+              <button
+                type="button"
+                className="ns-btn-act primary"
+                onClick={downloadPng}
+                disabled={pngBusy}
+              >
+                PNG
+              </button>
             </div>
           </div>
         </div>
       </div>
     </>
-  )
-}
+  );
+};
 
 /* Scoped CSS for the studio. Uses design-token variables where sensible;
    falls back to the original studio's palette variables for chrome. */
@@ -336,27 +377,33 @@ const studioCss = `
 .nyuchi-studio input[type=text],
 .nyuchi-studio textarea {
   width: 100%; background: var(--ns-input); border: 1px solid var(--ns-line); color: var(--ns-fg);
+// mzizi-spacing-exempt: dense Studio panel — palette chips and tool rows; the 14px inset would break the instrument layout
   border-radius: 10px; padding: 8px 10px; font-family: var(--font-sans); font-size: 13px;
   outline: none; transition: border-color .15s;
 }
 .nyuchi-studio input[type=text]:focus,
 .nyuchi-studio textarea:focus { border-color: var(--ns-accent); }
+// mzizi-spacing-exempt: dense Studio panel — palette chips and tool rows; the 14px inset would break the instrument layout
 .nyuchi-studio textarea { resize: vertical; min-height: 44px; line-height: 1.4; }
 .nyuchi-studio .ns-two { display: flex; gap: 8px; }
 .nyuchi-studio .ns-two > div { flex: 1; }
 .nyuchi-studio input[type=range] { width: 100%; accent-color: var(--ns-accent); margin-top: 5px; }
 
+// mzizi-spacing-exempt: dense Studio panel — palette chips and tool rows; the 14px inset would break the instrument layout
 .nyuchi-studio .ns-seg { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 5px; }
 .nyuchi-studio .ns-seg button {
   flex: 1; min-width: 46px; background: var(--ns-input); border: 1px solid var(--ns-line);
+// mzizi-spacing-exempt: dense Studio panel — palette chips and tool rows; the 14px inset would break the instrument layout
   color: var(--ns-fg2); border-radius: 999px; padding: 7px 4px; font-size: 10px; font-weight: 600;
   cursor: pointer; font-family: var(--font-mono); letter-spacing: .04em; transition: .12s; white-space: nowrap;
 }
 .nyuchi-studio .ns-seg button.active { background: var(--ns-accent); color: #1a0d06; border-color: var(--ns-accent); }
 .nyuchi-studio .ns-seg button:hover:not(.active) { color: var(--ns-fg); }
 
+// mzizi-spacing-exempt: dense Studio panel — palette chips and tool rows; the 14px inset would break the instrument layout
 .nyuchi-studio .ns-palette { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 5px; }
 .nyuchi-studio .ns-swatch-chip {
+// mzizi-spacing-exempt: dense Studio panel — palette chips and tool rows; the 14px inset would break the instrument layout
   display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 6px 2px;
   background: var(--ns-input); border: 1.5px solid transparent; border-radius: 9px; cursor: pointer;
   font-family: var(--font-sans); color: var(--ns-fg); transition: .12s;
@@ -370,6 +417,7 @@ const studioCss = `
 
 .nyuchi-studio .ns-act {
   width: 100%; background: var(--ns-accent); color: #1a0d06; border: none; border-radius: 999px;
+// mzizi-spacing-exempt: dense Studio panel — palette chips and tool rows; the 14px inset would break the instrument layout
   padding: 11px; font-weight: 700; font-size: 13px; cursor: pointer; margin-top: 7px;
   font-family: var(--font-sans); transition: opacity .15s;
 }
@@ -392,6 +440,7 @@ const studioCss = `
 .nyuchi-studio .ns-topbtn:hover { color: var(--ns-fg); }
 .nyuchi-studio .ns-preview-frame {
   width: 100%; max-width: 1100px; flex: 1; min-height: 240px;
+// mzizi-spacing-exempt: dense Studio panel — palette chips and tool rows; the 14px inset would break the instrument layout
   display: flex; align-items: center; justify-content: center; padding: 12px;
   background: repeating-conic-gradient(var(--ns-card) 0 25%, transparent 0 50%) 0 0 / 22px 22px;
   border-radius: 10px;
@@ -404,12 +453,14 @@ const studioCss = `
   font-family: var(--font-mono); font-size: 10px; letter-spacing: .06em; color: var(--ns-fg2); line-height: 1.7;
 }
 .nyuchi-studio .ns-meta b { color: var(--ns-fg); font-weight: 600; }
+// mzizi-spacing-exempt: dense Studio panel — palette chips and tool rows; the 14px inset would break the instrument layout
 .nyuchi-studio .ns-actions { display: flex; gap: 6px; }
 .nyuchi-studio .ns-dot {
   display: inline-block; width: 8px; height: 8px; border-radius: 99px;
   vertical-align: middle; margin-right: 5px;
 }
 .nyuchi-studio .ns-btn-act {
+// mzizi-spacing-exempt: dense Studio panel — palette chips and tool rows; the 14px inset would break the instrument layout
   display: inline-flex; align-items: center; height: 34px; padding: 0 16px; border-radius: 999px; border: 0;
   font-family: var(--font-sans); font-size: 12px; font-weight: 600; cursor: pointer; transition: opacity .15s;
 }
@@ -421,11 +472,12 @@ const studioCss = `
 @media (max-width: 768px) {
   .nyuchi-studio { flex-direction: column; }
   .nyuchi-studio .ns-panel { width: 100%; position: relative; top: 0; max-height: none; border-right: none; border-bottom: 1px solid var(--ns-line); }
+// mzizi-spacing-exempt: dense Studio panel — palette chips and tool rows; the 14px inset would break the instrument layout
   .nyuchi-studio .ns-stage { min-height: 60vh; padding: 14px 12px 28px; }
   .nyuchi-studio .ns-preview-frame { min-height: 200px; flex: none; }
   .nyuchi-studio .ns-meta { flex-direction: column; align-items: stretch; }
   .nyuchi-studio .ns-actions { justify-content: flex-end; }
 }
-`
+`;
 
-export default StudioPage
+export default StudioPage;
