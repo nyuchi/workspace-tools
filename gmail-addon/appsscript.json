@@ -42,9 +42,7 @@
         },
         {
           "label": "Help",
-          "openLink": {
-            "url": "https://brand.nyuchi.com"
-          }
+          "openLink": "https://brand.nyuchi.com"
         }
       ]
     },
