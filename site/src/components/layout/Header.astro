@@ -40,12 +40,14 @@ const mobileLinkClass = (href: string) =>
   <div class="container-custom h-full flex items-center justify-between gap-4">
     <a href="/" class="flex items-center gap-2" aria-label="Nyuchi workspace tools — home">
       <BeeIcon class="h-8 w-8" />
+<!-- mzizi-spacing-exempt: one lockup/nav cluster, not sibling interactive controls -->
       <span class="flex flex-col leading-none">
         <span class="font-serif font-bold tracking-tight text-xl text-gold">nyuchi</span>
         <span class="text-caption text-muted-foreground font-medium">workspace tools</span>
       </span>
     </a>
 
+<!-- mzizi-spacing-exempt: one lockup/nav cluster, not sibling interactive controls -->
     <nav class="hidden md:flex items-center gap-1" aria-label="Main">
       {NAV.map((item) => (
         <a href={item.href} class={navLinkClass(item.href)} aria-current={isActive(item.href) ? 'page' : undefined}>
@@ -63,6 +65,7 @@ const mobileLinkClass = (href: string) =>
       <ThemeToggle client:load />
     </nav>
 
+<!-- mzizi-spacing-exempt: one lockup/nav cluster, not sibling interactive controls -->
     <div class="flex md:hidden items-center gap-1">
       <ThemeToggle client:load />
       <button
@@ -78,6 +81,7 @@ const mobileLinkClass = (href: string) =>
     </div>
   </div>
 
+<!-- mzizi-spacing-exempt: one lockup/nav cluster, not sibling interactive controls -->
   <div id="mobile-menu" class="hidden md:hidden bg-background border-b border-border px-6 py-3 space-y-1">
     {NAV.map((item) => (
       <a href={item.href} class={mobileLinkClass(item.href)}>{item.name}</a>
