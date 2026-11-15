@@ -9,6 +9,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **The brand registry follows the canon taxonomy** ([#147](https://github.com/nyuchi/workspace-tools/issues/147)):
+  Lingo is a Mukoko sub-app (Mukoko Lingo, lingo.mukoko.com, cobalt),
+  Mukoko Events joins as a division, every entry carries its Mzizi
+  mineral, and one shared `DOMAIN_TO_BRAND_SLUG` map replaces the
+  hand-synced domain copies. Signature wording follows the registry
+  (owner decision 2, issue 70): Mukoko's tagline is "Africa's
+  privacy-first social super-app", Learning's "Education for All". The
+  site registry derives from `engines/brands` — no second copy.
+- **`next/` retired** ([#149](https://github.com/nyuchi/workspace-tools/issues/149)):
+  the undeployed Astro + workers-rs rebuild is removed (~17k lines) with
+  its CI jobs; the canon it carried lives in `engines/brands`.
+- **`signature-generator/` retired** ([#151](https://github.com/nyuchi/workspace-tools/issues/151)):
+  `site/` is the front end and the engines' test home (the 154-test
+  suite moved to `site/tests`); CI drops the legacy build steps.
+- **@bundu/ui 0.14.0** — both repos now build on the same version
+  (marketing bumped in bundu-labs/marketing).
+
+## [v0.5.0] — 2026-11-14
+
+### Changed
+
 - **One MCP URL, permanently: `tools.nyuchi.com/mcp` answers `410 Gone`.**
   The off-host `/mcp` (and `/images/*`) response was a `404` with a hint;
   it is now a `410` whose body names the one endpoint that exists,
