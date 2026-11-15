@@ -10,13 +10,13 @@ ported yet.
 
 ## What is here now
 
-| Crate           | Role |
-| --------------- | ---- |
-| `crates/brands` | The one brand registry (`data/brands.toml`) and its colour-rule tests. The TS registry in `engines/brands` carries the same canon; the two must never disagree. |
-| `crates/imaging` | The Rust renderer: presets, themes, SVG→layout, privacy gate (`nyuchi-img` CLI). |
-| `crates/signature` | The signature engine in Rust (the parity target for `engines/signature`). |
-| `crates/release` | The release-marketing pipeline (`nyuchi-release`), reading `releases/`. |
-| `crates/worker` | The Rust Worker: `/api/*` + `/mcp` over the same engines, `site/` as static assets (`crates/worker/wrangler.toml`). **Not deployed** — no routes until the cut-over below. |
+| Crate              | Role                                                                                                                                                                       |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `crates/brands`    | The one brand registry (`data/brands.toml`) and its colour-rule tests. The TS registry in `engines/brands` carries the same canon; the two must never disagree.            |
+| `crates/imaging`   | The Rust renderer: presets, themes, SVG→layout, privacy gate (`nyuchi-img` CLI).                                                                                           |
+| `crates/signature` | The signature engine in Rust (the parity target for `engines/signature`).                                                                                                  |
+| `crates/release`   | The release-marketing pipeline (`nyuchi-release`), reading `releases/`.                                                                                                    |
+| `crates/worker`    | The Rust Worker: `/api/*` + `/mcp` over the same engines, `site/` as static assets (`crates/worker/wrangler.toml`). **Not deployed** — no routes until the cut-over below. |
 
 Gates (run locally; the org's required workflows run on every PR as-is):
 `cargo fmt --all --check`, `cargo clippy --all-targets -- -D warnings`,
