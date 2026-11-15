@@ -1,5 +1,5 @@
-import { defineConfig } from 'vitest/config'
-import { fileURLToPath } from 'node:url'
+import { defineConfig } from "vitest/config";
+import { fileURLToPath } from "node:url";
 
 // Engine tests are pure-node: no DOM environment needed. The nyuchi engine
 // lazily grabs a canvas 2c context for text measurement; a deterministic
@@ -9,12 +9,12 @@ import { fileURLToPath } from 'node:url'
 export default defineConfig({
   resolve: {
     alias: {
-      '@engines': fileURLToPath(new URL('../engines', import.meta.url)),
+      "@engines": fileURLToPath(new URL("../engines", import.meta.url)),
     },
   },
   test: {
-    environment: 'node',
-    include: ['tests/**/*.test.ts'],
-    setupFiles: ['tests/setup.canvas.ts'],
+    environment: "node",
+    include: ["tests/**/*.test.ts"],
+    setupFiles: ["tests/setup.canvas.ts"],
   },
-})
+});
