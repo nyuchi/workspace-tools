@@ -41,6 +41,8 @@ const USAGE: &str = "usage: nyuchi-release <gather|check|build|status|publish|re
   comment <release.toml> [--post]";
 
 fn main() -> ExitCode {
+    // A CLI reading its own argv — no security decision is made on it.
+    // nosemgrep: rust.lang.security.args.args
     let args: Vec<String> = std::env::args().skip(1).collect();
     let rest = args.get(1..).unwrap_or(&[]);
     let result = match args.first().map(String::as_str) {
@@ -251,6 +253,8 @@ fn curl(secret_header: &str, args: &[&str], body: Option<&str>) -> Result<Value,
     let mut config = format!("header = \"{}\"\n", secret_header.replace('"', ""));
     if let Some(b) = body {
         // The body goes in a temp file named in the config.
+        // Operator-local drafts, removed after the run; not a trust boundary.
+        // nosemgrep: rust.lang.security.temp-dir.temp-dir
         let tmp = std::env::temp_dir().join(format!("nyuchi-release-{}.json", std::process::id()));
         std::fs::write(&tmp, b).map_err(|e| e.to_string())?;
         config.push_str(&format!("data-binary = \"@{}\"\n", tmp.display()));
@@ -273,6 +277,7 @@ fn curl(secret_header: &str, args: &[&str], body: Option<&str>) -> Result<Value,
     let out = child.wait_with_output().map_err(|e| e.to_string())?;
     if body.is_some() {
         let _ = std::fs::remove_file(
+            // nosemgrep: rust.lang.security.temp-dir.temp-dir
             std::env::temp_dir().join(format!("nyuchi-release-{}.json", std::process::id())),
         );
     }

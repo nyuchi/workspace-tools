@@ -21,6 +21,8 @@ use std::path::Path;
 use std::process::ExitCode;
 
 fn main() -> ExitCode {
+    // A CLI reading its own argv — no security decision is made on it.
+    // nosemgrep: rust.lang.security.args.args
     let args: Vec<String> = std::env::args().skip(1).collect();
     let result = match args.first().map(String::as_str) {
         Some("presets") => presets(args.iter().any(|a| a == "--json")),
