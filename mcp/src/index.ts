@@ -15,7 +15,7 @@
  *   - `/login`, `/callback`, `/logout` — the site-wide login gate for human
  *     visitors, an Authorization Code + PKCE flow against the Hosted AuthKit
  *     UI on the configured AUTHKIT_DOMAIN. See site-auth.ts.
- *   - everything else — the built signature-generator Astro site, served as
+ *   - everything else — the built site/ Astro site, served as
  *     static assets via `c.env.ASSETS.fetch(...)`, but only once the
  *     site-wide login gate above has let the request through.
  *
@@ -715,7 +715,7 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 //   /login, /callback,
 //   /logout              — the login flow itself (unreachable if gated).
 //
-// (signature-generator/public has no robots.txt / llms.txt / llms-full.txt /
+// (site/public has no robots.txt / llms.txt / llms-full.txt /
 // ads.txt today, so there is nothing else to exempt for crawlers. If any of
 // those are added later, add them here too.)
 // -----------------------------------------------------------------------------

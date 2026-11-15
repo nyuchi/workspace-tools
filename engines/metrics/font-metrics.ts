@@ -8,7 +8,7 @@
  * Covers printable ASCII (' '..'~') plus – — · × ‘ ’ “ ” ….
  * Noto Serif source: Google Fonts css2 API (real Noto Serif TTFs).
  *
- * Regenerate from signature-generator/:
+ * Regenerate from site/:
  *   node scripts/extract-font-metrics.mjs
  */
 

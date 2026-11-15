@@ -4,7 +4,7 @@
  *
  * Workers have no canvas, and resvg loads no system fonts, so every family
  * the SVG engines reference must be provided as raw TTF bytes. The static
- * instances live in `signature-generator/public/fonts/raster/` (vendored
+ * instances live in `site/public/fonts/raster/` (vendored
  * from Google Fonts) and are fetched through the same `ASSETS` binding that
  * serves the rest of the built site — see brand-icons.ts for the pattern.
  * fontdb matches by family + style + weight, so the five faces below cover
