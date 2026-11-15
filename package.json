@@ -19,7 +19,7 @@
     "dev:tools": "wrangler dev",
     "deploy:tools": "wrangler deploy",
     "typecheck:worker": "tsc --noEmit -p mcp/tsconfig.json",
-    "test": "npm --prefix signature-generator test && npm run test:worker",
+    "test": "npm --prefix site test && npm run test:worker",
     "test:worker": "vp test run -c vitest.worker.config.ts",
     "check": "vp check",
     "lint": "vp lint",

@@ -49,7 +49,7 @@
  * one dark-surface and one light-surface icon per brand (e.g. nyuchi's GOLD
  * bee for dark surfaces, BROWN bee for light surfaces). All six brands/
  * initiatives with an `icon` field below are vendored under
- * signature-generator/public/assets/brand-icons/; shamwari also has SVG
+ * site/public/assets/brand-icons/; shamwari also has SVG
  * sources vendored alongside its PNGs.
  *
  * Bundu's icons (2026-10-31 refresh: brown ring + navy mark on light surfaces,

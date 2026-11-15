@@ -28,9 +28,8 @@ command = "npm --prefix site ci && npm --prefix site run build"
 #   - everything else          → the built site/ Astro site (the apps/nyuchi
 #     rebuild) as static assets, but ONLY after the login-gate middleware in
 #     mcp/src/index.ts lets the request through — every other human-facing
-#     page requires a valid `nyuchi_session` cookie. signature-generator/
-#     keeps the legacy pages and the engines' original tests until it is
-#     retired; the engines themselves now live in the shared engines/.
+#     page requires a valid `nyuchi_session` cookie. The engines the tools
+#     and the MCP share live in the shared engines/ at the repo root.
 #
 # run_worker_first is now `true` (every request runs the Worker first, for
 # every path) instead of an explicit path list: the Worker itself gates

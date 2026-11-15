@@ -29,12 +29,12 @@ can use the same tools.
 Four sub-projects. They share branding but no code — the Apps Script projects each
 keep their own copy of the brand list, because Apps Script cannot import npm modules.
 
-| Directory              | Stack                                                                                        | Purpose                                                                             | Deploys to                                                                                                            |
-| ---------------------- | -------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `signature-generator/` | Astro + React 19 islands + TypeScript + [@bundu/ui](https://www.npmjs.com/package/@bundu/ui) | The web app: signature builder, Nyuchi Studio, docs pages                           | Bundled into the `nyuchi-tools` Worker as static assets                                                               |
-| `mcp/src/`             | Cloudflare Workers + Hono + `@modelcontextprotocol/server` (MCP SDK v2)                      | The `nyuchi-tools` Worker: serves the built static site **and** the MCP HTTP server | `tools.nyuchi.com` (site) + `tools.nyuchi.dev` (MCP) — same Worker, two Custom Domains (config: root `wrangler.toml`) |
-| `gmail-addon/`         | Google Apps Script (V8)                                                                      | Gmail Add-on (User + Admin tabs) and the admin web dashboard                        | Apps Script via clasp — see [gmail-addon/README.md](gmail-addon/README.md)                                            |
-| `email-signature/`     | Google Apps Script (V8)                                                                      | Admin batch script: push signatures to all domain users and their aliases           | Apps Script via clasp — see [email-signature/README.md](email-signature/README.md)                                    |
+| Directory          | Stack                                                                                        | Purpose                                                                                  | Deploys to                                                                                                            |
+| ------------------ | -------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `site/`            | Astro + React 19 islands + TypeScript + [@bundu/ui](https://www.npmjs.com/package/@bundu/ui) | The web app: signature builder, Nyuchi Studio, docs pages, and the engines' vitest suite | Bundled into the `nyuchi-tools` Worker as static assets                                                               |
+| `mcp/src/`         | Cloudflare Workers + Hono + `@modelcontextprotocol/server` (MCP SDK v2)                      | The `nyuchi-tools` Worker: serves the built static site **and** the MCP HTTP server      | `tools.nyuchi.com` (site) + `tools.nyuchi.dev` (MCP) — same Worker, two Custom Domains (config: root `wrangler.toml`) |
+| `gmail-addon/`     | Google Apps Script (V8)                                                                      | Gmail Add-on (User + Admin tabs) and the admin web dashboard                             | Apps Script via clasp — see [gmail-addon/README.md](gmail-addon/README.md)                                            |
+| `email-signature/` | Google Apps Script (V8)                                                                      | Admin batch script: push signatures to all domain users and their aliases                | Apps Script via clasp — see [email-signature/README.md](email-signature/README.md)                                    |
 
 The canonical brand taxonomy for the TypeScript side lives in
 `engines/brands/` (the Bundu-ecosystem registry); the
@@ -56,10 +56,10 @@ cd workspace-tools
 npm install                    # root deps: wrangler, Worker runtime deps, clasp
 ```
 
-### Web app (`signature-generator/`)
+### Web app (`site/`)
 
 ```bash
-cd signature-generator
+cd site
 npm install
 npm run dev                    # Astro dev server
 npm run build                  # tsc -b && astro build (type-check included)
@@ -69,7 +69,7 @@ npm run lint                   # eslint
 ### The `nyuchi-tools` Worker (root)
 
 ```bash
-npm run build:web              # build the site into signature-generator/dist
+npm run build:web              # build the site into site/dist
 npm run dev:tools              # wrangler dev — local Worker at http://localhost:8787
 npm run deploy:tools           # wrangler deploy (builds the site first via [build])
 npm run typecheck:worker       # tsc against mcp/tsconfig.json
@@ -106,7 +106,7 @@ both:
 
 - `/mcp` and `/mcp/*` are handled by the Worker script (MCP JSON-RPC).
 - Everything else is served from the built Astro site in
-  `signature-generator/dist`; every route is a real HTML file, and unknown
+  `site/dist`; every route is a real HTML file, and unknown
   paths get the built `404.html`.
 
 Deploy manually with `npm run deploy:tools`, or let **Workers Builds** (the
@@ -186,7 +186,7 @@ The web app's UI follows the Mzizi brand registry (the Bundu ecosystem's
 design-system source of truth): 7 mineral palettes, Noto Sans / Noto Serif /
 JetBrains Mono, pill buttons, 14&nbsp;px cards. The canonical tokens, Tailwind
 preset, and marketing components ship in the **[@bundu/ui](https://www.npmjs.com/package/@bundu/ui)**
-npm package (imported by `signature-generator/src/styles/global.css`) — change
+npm package (imported by `site/src/styles/global.css`) — change
 them in Mzizi/@bundu/ui first. The _emitted signature HTML_ deliberately keeps
 the historical signature styling so signatures render consistently in every
 inbox; it is not part of the web app's design system.

@@ -86,14 +86,14 @@ const ICON_ASSETS_STUB = {
 }
 
 /** Like ICON_ASSETS_STUB, but additionally serves the vendored raster TTFs
- * straight from signature-generator/public — what the real ASSETS binding
+ * straight from site/public — what the real ASSETS binding
  * does in production — so tests can exercise the actual resvg pipeline. */
 const FONT_ASSETS_STUB = {
   fetch: async (req: Request) => {
     const url = new URL(req.url)
     if (url.pathname.endsWith('.b64.txt')) return new Response(FAKE_ICON_B64)
     if (url.pathname.startsWith('/fonts/raster/')) {
-      const file = join(__dirname, '../../signature-generator/public', url.pathname)
+      const file = join(__dirname, '../../site/public', url.pathname)
       return new Response(new Uint8Array(readFileSync(file)))
     }
     return new Response('not found', { status: 404 })

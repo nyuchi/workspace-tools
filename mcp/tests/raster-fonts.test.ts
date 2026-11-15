@@ -10,7 +10,7 @@ import { describe, expect, it, vi } from "vitest";
 
 const RASTER = resolve(
   __dirname,
-  "../../signature-generator/public/fonts/raster",
+  "../../site/public/fonts/raster",
 );
 
 interface Face {

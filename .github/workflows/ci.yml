@@ -25,33 +25,18 @@ jobs:
           cache: npm
           cache-dependency-path: |
             package-lock.json
-            signature-generator/package-lock.json
             site/package-lock.json
 
       # Root project: Worker deps (hono, MCP SDK) + worker test runner.
       - name: Install root dependencies
         run: npm ci
 
-      # signature-generator is its own npm project with its own lockfile.
-      - name: Install signature-generator dependencies
-        run: npm ci
-        working-directory: signature-generator
-
-      - name: Lint (signature-generator)
-        run: npm run lint
-        working-directory: signature-generator
-
       - name: Typecheck Worker
         run: npm run typecheck:worker
 
-      # tsc -b && vite build — type-check is part of the build. Still built:
-      # the shared engines/' original home and tests, until retirement.
-      - name: Build SPA (legacy signature-generator)
-        run: npm run build
-        working-directory: signature-generator
-
-      # site/ is the tools-site rebuild on the apps/nyuchi pattern — its own
-      # npm project, and what the Worker now deploys (wrangler.toml [assets]).
+      # site/ is the tools site on the apps/nyuchi pattern — its own npm
+      # project, and what the Worker deploys (wrangler.toml [assets]). It
+      # also carries the engines' vitest suite (npm test below).
       - name: Install site dependencies
         run: npm ci
         working-directory: site
@@ -60,6 +45,6 @@ jobs:
         run: npm run build
         working-directory: site
 
-      # Runs both suites: signature-generator engines + Worker HTTP tests.
+      # Runs both suites: the engines' tests (in site) + Worker HTTP tests.
       - name: Test
         run: npm test
