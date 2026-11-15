@@ -30,5 +30,7 @@ npm-debug.log*
 # Claude Code agent worktrees (transient)
 .claude/worktrees/
 
-# Rust (next/)
-next/target/
+# Rust — the crates/ workspace and the worker build output
+/target/
+crates/*/target/
+crates/worker/build/
