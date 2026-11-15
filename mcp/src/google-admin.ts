@@ -34,6 +34,7 @@ import {
   buildSignatureHtml,
   type BrandKey,
 } from "../../engines/signature";
+import { DOMAIN_TO_BRAND_SLUG } from "../../engines/brands";
 import {
   decryptGoogleSession,
   GOOGLE_COOKIE_NAME,
@@ -97,26 +98,12 @@ async function googleFetch(url: string, init: RequestInit): Promise<Response> {
 
 // -----------------------------------------------------------------------------
 // Brand derivation — the Worker port of Code.js getDivisionFromEmail.
-//
-// Code.js maps email DOMAINS to division identities; the signature engine
-// keys brands by slug, so each Code.js division maps onto the engine brand
-// that carries its (byte-locked) signature identity. Divisions without a
-// legacy signature key (Lingo, Development, Mukoko News) render under their
-// parent brand, exactly as unknown domains default to nyuchi in Code.js.
 // -----------------------------------------------------------------------------
 
-const BRAND_BY_DOMAIN: Record<string, BrandKey> = {
-  "nyuchi.com": "nyuchi",
-  "lingo.nyuchi.com": "nyuchi", // Nyuchi Lingo — no legacy signature key; parent brand
-  "services.nyuchi.com": "nyuchi", // Nyuchi Development — no legacy signature key; parent brand
-  "learning.nyuchi.com": "learning", // legacy signature key
-  "travel-info.co.zw": "travel", // legacy signature key (Zimbabwe Travel Information)
-  "mukoko.com": "mukoko",
-  "hararemetro.co.zw": "mukoko", // Mukoko News — no signature key; parent brand
-  "news.mukoko.com": "mukoko", // Mukoko News — no signature key; parent brand
-  "bundu.org": "bundu",
-  "shamwari.ai": "shamwari",
-};
+// The single TS source is engines/brands DOMAIN_TO_BRAND_SLUG (divisions
+// without a legacy signature key render under their parent brand); the
+// Apps Script copies mirror it by hand.
+const BRAND_BY_DOMAIN: Record<string, BrandKey> = DOMAIN_TO_BRAND_SLUG as Record<string, BrandKey>;
 
 export function brandFromEmail(email: string): BrandKey {
   const domain = email.split("@")[1]?.toLowerCase();

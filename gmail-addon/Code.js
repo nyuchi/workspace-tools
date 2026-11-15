@@ -24,7 +24,7 @@
  * the canonical Bundu-ecosystem brand registry; this file is a hand-synced
  * copy because Apps Script cannot import npm modules):
  * - Bundu Foundation (bundu.org — the parent)
- * - Nyuchi Africa (and divisions: Lingo, Learning, Development, Foundation)
+ * - Nyuchi Africa (and divisions: Learning, Development, Foundation)
  * - Mukoko (and Mukoko News, Mukoko ID)
  * - Shamwari AI
  * - Zimbabwe Travel Information
@@ -50,12 +50,14 @@ const BRANDS = {
     }
   },
   lingo: {
-    name: 'Nyuchi Lingo',
+    // Mukoko sub-app (owner decision, Lingo-is-Mukoko) — cobalt in the
+    // Mzizi canon; mirrors engines/brands (the TS registry).
+    name: 'Mukoko Lingo',
     tagline: 'Language Learning for Africa',
-    website: 'lingo.nyuchi.com',
-    websiteUrl: 'https://lingo.nyuchi.com',
-    logo: 'https://assets.nyuchi.com/logos/nyuchi/Nyuchi_Lingo_Logo_dark.svg',
-    parent: 'Nyuchi Africa',
+    website: 'lingo.mukoko.com',
+    websiteUrl: 'https://lingo.mukoko.com',
+    logo: 'https://assets.nyuchi.com/logos/nyuchi/Nyuchi_Lingo_Logo_dark.svg', // TODO(brand): Mukoko Lingo mark pending
+    parent: 'Mukoko',
     socials: {
       linkedin: 'https://www.linkedin.com/company/nyuchi/',
       instagram: 'https://instagram.com/nyuchi.africa'

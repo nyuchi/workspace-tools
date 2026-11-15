@@ -10,25 +10,32 @@
  *   we are" (Ndiri nekuti tiri).
  *
  *   Three pillars — top-level brands alongside bundu itself:
- *   ├─ Nyuchi Africa (nyuchi.com)   — commercial pillar
- *   │    divisions: Lingo, Learning, Development, Foundation
- *   ├─ Mukoko (mukoko.com)          — consumer pillar,
+ *   ├─ Nyuchi Africa (nyuchi.com)   — commercial pillar (gold)
+ *   │    divisions: Learning, Development, Foundation — all gold
+ *   ├─ Mukoko (mukoko.com)          — consumer pillar (tanzanite),
  *   │    "Africa's privacy-first social super-app"
- *   │    divisions: Mukoko News
+ *   │    divisions: Mukoko News (river), Mukoko Lingo (cobalt),
+ *   │      Mukoko Events (malachite)
  *   └─ Shamwari AI (shamwari.ai)    — intelligence pillar (sodalite),
  *        "AI that actually works for Africa"
  *
  *   Bundu Foundation initiatives (projects, NOT brands):
- *   - Zimbabwe Information Platform (travel-info.co.zw)
- *   - TELIA — Technology Leaders in Africa (telia.bundu.org)
- *   - Bundu Education
+ *   - Zimbabwe Information Platform (travel-info.co.zw, malachite)
+ *   - TELIA — Technology Leaders in Africa (telia.bundu.org, indigo)
+ *   - Bundu Education (savanna)
+ *
+ *   Colour rules (owner, issue 70; Mzizi ecosystem canon): bundu is copper; every Nyuchi brand is
+ *   gold; Mukoko the super-app is tanzanite; Shamwari sodalite. Sub-apps
+ *   vary across the minerals and heritage colours but never take gold or
+ *   tanzanite — a Nyuchi division is Nyuchi, and so gold.
  *
  * ── Consumers / sync obligations ───────────────────────────────────────────
  *
- * - engines/signature keeps its own BRANDS map: those entries are the
- *   HISTORICAL signature copies (byte-locked emitted HTML — including the
- *   legacy `travel` and `learning` keys). Do not re-sync their wording to
- *   this registry.
+ * - engines/signature keeps its own BRANDS map (including the legacy
+ *   `travel` and `learning` keys). Its wording follows this registry —
+ *   owner decision 2 on issue 70 ended the byte-lock on the historical
+ *   signature: where the copies differed (Mukoko's tagline, Learning's
+ *   tagline), the registry wins.
  * - engines/nyuchi reads `lockupLabel` from here for the
  *   card lockup wordmark.
  * - gmail-addon/Code.js (BRANDS, slug-keyed) and email-signature/Code.js
@@ -71,6 +78,8 @@ export interface TopBrand {
   /** Short wordmark text rendered by the studio lockups. */
   lockupLabel: string
   pillar: PillarRole
+  /** The brand's Mzizi colour family (see the colour rules above). */
+  mineral: string
   /**
    * Per-theme brand icon (URL or asset path) from the
    * "bundu-ecosystem-icons" collection: `light` renders on light surfaces,
@@ -89,6 +98,7 @@ export const TOP_BRANDS: Record<TopBrandKey, TopBrand> = {
     tagline: 'The wilderness holds the hive',
     lockupLabel: 'bundu.org',
     pillar: 'foundation',
+    mineral: 'copper',
     // Constellation mark. NOTE: current PNGs have baked backgrounds (no
     // alpha) — replace with transparent exports when available.
     icon: {
@@ -106,6 +116,7 @@ export const TOP_BRANDS: Record<TopBrandKey, TopBrand> = {
     tagline: 'I am because we are',
     lockupLabel: 'nyuchi.com',
     pillar: 'commercial',
+    mineral: 'gold',
     // Brown bee on light surfaces, gold bee on dark.
     icon: {
       light: '/assets/brand-icons/nyuchi-icon-light.png',
@@ -122,11 +133,12 @@ export const TOP_BRANDS: Record<TopBrandKey, TopBrand> = {
     name: 'Mukoko',
     domain: 'mukoko.com',
     url: 'https://mukoko.com',
-    // Canonical bundu.org descriptor. engines/signature deliberately keeps
-    // the historical signature tagline ('Your Digital Twin Ecosystem').
+    // Canonical bundu.org descriptor; the signature engine follows it
+    // (owner decision 2, issue 70, ended the wording byte-lock).
     tagline: "Africa's privacy-first social super-app",
     lockupLabel: 'mukoko.com',
     pillar: 'consumer',
+    mineral: 'tanzanite',
     icon: {
       light: '/assets/brand-icons/mukoko-icon-light.png',
       dark: '/assets/brand-icons/mukoko-icon-dark.png',
@@ -144,6 +156,7 @@ export const TOP_BRANDS: Record<TopBrandKey, TopBrand> = {
     tagline: 'AI that actually works for Africa',
     lockupLabel: 'shamwari.ai',
     pillar: 'intelligence',
+    mineral: 'sodalite',
     // Hexagonal lattice mark in the sodalite pair (#3D5AFE dark / #283593
     // light); source SVGs vendored beside the PNGs. TODO(brand): socials.
     icon: {
@@ -158,9 +171,13 @@ export interface Division {
   key: string
   parent: TopBrandKey
   name: string
+  /** Short display label where the full name is too long. */
+  shortName?: string
   domain: string
   url: string
   tagline: string
+  /** The brand's Mzizi colour family (see the colour rules above). */
+  mineral: string
 }
 
 /** Divisions per top-level brand (slugs match gmail-addon/Code.js BRANDS). */
@@ -168,20 +185,13 @@ export const DIVISIONS: Record<TopBrandKey, readonly Division[]> = {
   bundu: [],
   nyuchi: [
     {
-      key: 'lingo',
-      parent: 'nyuchi',
-      name: 'Nyuchi Lingo',
-      domain: 'lingo.nyuchi.com',
-      url: 'https://lingo.nyuchi.com',
-      tagline: 'Language Learning for Africa',
-    },
-    {
       key: 'learning',
       parent: 'nyuchi',
       name: 'Nyuchi Learning',
       domain: 'learning.nyuchi.com',
       url: 'https://learning.nyuchi.com',
       tagline: 'Education for All',
+      mineral: 'gold',
     },
     {
       key: 'development',
@@ -190,6 +200,7 @@ export const DIVISIONS: Record<TopBrandKey, readonly Division[]> = {
       domain: 'services.nyuchi.com',
       url: 'https://services.nyuchi.com',
       tagline: 'Building Digital Africa',
+      mineral: 'gold',
     },
     {
       key: 'foundation',
@@ -198,6 +209,7 @@ export const DIVISIONS: Record<TopBrandKey, readonly Division[]> = {
       domain: 'foundation.nyuchi.com',
       url: 'https://foundation.nyuchi.com',
       tagline: 'Empowering Communities',
+      mineral: 'gold',
     },
   ],
   mukoko: [
@@ -208,6 +220,30 @@ export const DIVISIONS: Record<TopBrandKey, readonly Division[]> = {
       domain: 'news.mukoko.com',
       url: 'https://news.mukoko.com',
       tagline: 'Pan-African Journalism',
+      mineral: 'river',
+    },
+    // Lingo is a Mukoko sub-app (owner decision, Lingo-is-Mukoko): cobalt
+    // is the Mzizi canon colour; it was never a Nyuchi division.
+    {
+      key: 'lingo',
+      parent: 'mukoko',
+      name: 'Mukoko Lingo',
+      domain: 'lingo.mukoko.com',
+      url: 'https://lingo.mukoko.com',
+      tagline: 'Language Learning for Africa',
+      mineral: 'cobalt',
+    },
+    // The events platform once branded nhimbe; the nhimbe brand is retired
+    // (owner decision 2026-10-04), the alias keeps old lookups working.
+    {
+      key: 'mukokoEvents',
+      shortName: 'Events',
+      parent: 'mukoko',
+      name: 'Mukoko Events',
+      domain: 'events.mukoko.com',
+      url: 'https://events.mukoko.com',
+      tagline: 'Community Events and Gatherings',
+      mineral: 'malachite',
     },
   ],
   shamwari: [],
@@ -222,6 +258,8 @@ export interface Initiative {
   shortLabel?: string
   domain?: string
   url?: string
+  /** The initiative's Mzizi colour family (see the colour rules above). */
+  mineral: string
   /** Per-theme initiative icon, same convention as TopBrand.icon. */
   icon?: { light?: string; dark?: string }
 }
@@ -234,6 +272,7 @@ export const INITIATIVES = {
     name: 'Zimbabwe Information Platform',
     domain: 'travel-info.co.zw',
     url: 'https://travel-info.co.zw',
+    mineral: 'malachite',
     icon: {
       light: '/assets/brand-icons/travel-icon-light.png',
       dark: '/assets/brand-icons/travel-icon-dark.png',
@@ -248,6 +287,7 @@ export const INITIATIVES = {
     shortLabel: 'TELIA',
     domain: 'telia.bundu.org',
     url: 'https://telia.bundu.org',
+    mineral: 'indigo',
     icon: {
       light: '/assets/brand-icons/telia-icon-light.png',
       dark: '/assets/brand-icons/telia-icon-dark.png',
@@ -261,10 +301,35 @@ export const INITIATIVES = {
     name: 'Bundu Education',
     domain: 'bundu.org',
     url: 'https://bundu.org', // TODO(brand): dedicated site pending (likely education.bundu.org)
+    mineral: 'savanna',
   },
 } as const satisfies Record<string, Initiative>
 
 export type InitiativeKey = keyof typeof INITIATIVES
+
+/**
+ * Staff email domain → the engine brand that carries its signature
+ * identity. Divisions without their own signature key (Lingo,
+ * Development, Mukoko News, Mukoko Events) render under their parent
+ * brand; unknown domains default to nyuchi. gmail-addon/Code.js and
+ * email-signature/Code.js mirror this map by hand (Apps Script cannot
+ * import npm modules) — change it here first.
+ */
+export const DOMAIN_TO_BRAND_SLUG: Record<string, string> = {
+  'nyuchi.com': 'nyuchi',
+  'services.nyuchi.com': 'nyuchi',
+  'learning.nyuchi.com': 'learning',
+  'travel-info.co.zw': 'travel',
+  'mukoko.com': 'mukoko',
+  'lingo.mukoko.com': 'mukoko',
+  'events.mukoko.com': 'mukoko',
+  'news.mukoko.com': 'mukoko',
+  'hararemetro.co.zw': 'mukoko',
+  // Legacy mailbox domain until lingo.nyuchi.com mail migrates.
+  'lingo.nyuchi.com': 'mukoko',
+  'bundu.org': 'bundu',
+  'shamwari.ai': 'shamwari',
+}
 
 /** Look up a top-level brand; returns undefined for unknown keys. */
 export function getBrand(key: TopBrandKey): TopBrand
