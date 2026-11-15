@@ -1,0 +1,11 @@
+[package]
+name = "nyuchi-signature"
+version = "0.1.0"
+description = "The email signature on Mzizi: email-safe HTML and plain text."
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+nyuchi-brands = { path = "../brands" }
+serde = { version = "1", features = ["derive"] }

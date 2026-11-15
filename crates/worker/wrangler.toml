@@ -1,0 +1,28 @@
+# The Rust half of the Astro + Rust pairing: workers-rs API + MCP, with the
+# Astro site (site/) as static assets. NOT LIVE: no routes and no workers.dev
+# URL — it takes the production routes only at cut-over, when the WorkOS gate
+# (phase 3) matches the TypeScript Worker's (mcp/src/site-auth.ts). Until
+# then it runs under `wrangler dev` from this directory.
+name = "nyuchi-tools-rs"
+main = "build/index.js"
+account_id = "125a2dfbc21f76a25c980609609e8218" # Nyuchi Web Services
+compatibility_date = "2026-01-01"
+workers_dev = false
+preview_urls = false
+
+# Builds the site, then the Worker. worker-build compiles the crate to wasm
+# and writes crates/worker/build/.
+[build]
+command = "npm --prefix ../../site ci && npm --prefix ../../site run build && (command -v worker-build >/dev/null || cargo install -q worker-build --locked) && worker-build --release"
+
+# /api/* and /mcp run the Worker; everything else is the static site.
+[assets]
+directory = "../../site/dist"
+binding = "ASSETS"
+not_found_handling = "404-page"
+run_worker_first = ["/api/*", "/mcp"]
+
+# Secrets (optional, `wrangler secret put` — never committed):
+#   BLOCKED_TERMS — school, student and staff names that must never appear
+#     in an image, one per line. The privacy gate refuses any render whose
+#     text contains one, without echoing it.
