@@ -1,0 +1,11 @@
+[package]
+name = "nyuchi-brands"
+version = "0.1.0"
+description = "The one Bundu-ecosystem brand list, as data."
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+toml = "1"

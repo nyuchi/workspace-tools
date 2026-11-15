@@ -42,11 +42,13 @@ signature template and its historical brand copies live in
 `engines/signature/` — pure modules imported by both the
 web app and the Worker's MCP tools, so both emit identical signature HTML.
 
-**The site.** `site/` is the tools front end on the apps/nyuchi pattern
-(Astro + @bundu/ui), served by the Worker — see `site/` and the registry in
-`engines/brands/`. The Rust rebuild that lived in `next/` is retired: its
-TODO(mzizi) blockers shipped in @bundu/ui 0.13 and the cut-over landed in
-v0.5.0; the canon brand registry lives on in `engines/brands/`.
+**The Rust pairing.** `site/` (Astro + @bundu/ui) is the front end; Rust is
+the backend — `crates/` is one Cargo workspace: the brand registry, the
+imaging/signature engines, the release pipeline, and the Rust Worker
+(workers-rs → WASM) that pairs with the site and takes the production routes
+at cut-over. See [docs/rust.md](docs/rust.md) for the architecture and the
+plan. The TypeScript Worker (`mcp/`) stays production until the Rust one
+reaches parity.
 
 ## Quickstart
 
