@@ -42,12 +42,11 @@ signature template and its historical brand copies live in
 `engines/signature/` — pure modules imported by both the
 web app and the Worker's MCP tools, so both emit identical signature HTML.
 
-**The rebuild.** `next/` holds the rebuild of nyuchi-tools on Astro + Rust
-(workers-rs), phase by phase; nothing in it is deployed yet, and the live app
-above is untouched until cut-over. Phase 1 is the image system
-([next/README.md](next/README.md)): a preset catalogue (stories with platform
-safe areas, feed, OG, store, email, icons) and a Rust renderer, with a sample
-launch set in [samples/](samples/).
+**The site.** `site/` is the tools front end on the apps/nyuchi pattern
+(Astro + @bundu/ui), served by the Worker — see `site/` and the registry in
+`engines/brands/`. The Rust rebuild that lived in `next/` is retired: its
+TODO(mzizi) blockers shipped in @bundu/ui 0.13 and the cut-over landed in
+v0.5.0; the canon brand registry lives on in `engines/brands/`.
 
 ## Quickstart
 

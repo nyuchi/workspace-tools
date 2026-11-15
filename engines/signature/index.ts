@@ -116,7 +116,7 @@ export const BRANDS: Record<BrandKey, SignatureBrand> = {
   },
   mukoko: {
     name: 'Mukoko',
-    tagline: 'Your Digital Twin Ecosystem',
+    tagline: "Africa's privacy-first social super-app", // registry wording (owner decision 2, issue 70)
     website: 'mukoko.com',
     websiteUrl: 'https://mukoko.com',
     primaryColor: '#4B0082',
@@ -140,7 +140,7 @@ export const BRANDS: Record<BrandKey, SignatureBrand> = {
   },
   learning: {
     name: 'Nyuchi Learning',
-    tagline: 'Education for Africa\'s Future',
+    tagline: 'Education for All', // registry wording (owner decision 2, issue 70)
     website: 'learning.nyuchi.com',
     websiteUrl: 'https://learning.nyuchi.com',
     primaryColor: '#0047AB',

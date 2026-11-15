@@ -144,7 +144,7 @@ describe('buildSignatureHtml — minimal params (mukoko)', () => {
 
   it('renders the mukoko brand block and color', () => {
     expect(html).toContain('color: #4B0082;">Mukoko</span>')
-    expect(html).toContain('"Your Digital Twin Ecosystem"')
+    expect(html).toContain('"Africa&#039;s privacy-first social super-app"')
     expect(html).toContain('href="mailto:thandi%40mukoko.com"')
   })
 
@@ -302,7 +302,7 @@ describe('buildSignatureText', () => {
         '\n' +
         '\n' +
         'Mukoko\n' +
-        '"Your Digital Twin Ecosystem"\n' +
+        '"Africa\'s privacy-first social super-app"\n' +
         '\n' +
         'thandi@mukoko.com\n' +
         'mukoko.com',

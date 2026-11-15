@@ -2469,8 +2469,8 @@ describe('GET /api/admin/users', () => {
     // Suspended users are filtered out entirely.
     expect(body.users.map((u) => u.email)).toEqual(['tino@lingo.nyuchi.com', 'rudo@learning.nyuchi.com'])
 
-    // lingo.nyuchi.com is a Code.js division WITHOUT a legacy signature key
-    // → renders under the parent brand, like Code.js's nyuchi.com default.
+    // lingo.nyuchi.com is the LEGACY mailbox domain of a Mukoko sub-app
+    // (Lingo-is-Mukoko): no engine identity, renders under Mukoko.
     expect(body.users[0]).toEqual({
       email: 'tino@lingo.nyuchi.com',
       name: 'Tino Moyo',
@@ -2478,7 +2478,7 @@ describe('GET /api/admin/users', () => {
       phone: LINGO_PHONE_FORMATTED, // work phone wins; Code.js formatting port
       // aliases field + emails list, deduped, primary excluded.
       aliases: ['tino@nyuchi.com', 't.moyo@travel-info.co.zw'],
-      brand: 'nyuchi',
+      brand: 'mukoko',
     })
     // learning.nyuchi.com keeps its LEGACY signature key, per Code.js.
     expect(body.users[1]).toEqual({
@@ -2681,7 +2681,7 @@ describe('POST /api/admin/push', () => {
     expect(patches.every((p) => p.auth === 'Bearer sa-token')).toBe(true)
     expect(patches[0].signature).toBe(
       buildSignatureHtml({
-        brand: 'nyuchi',
+        brand: 'mukoko',
         name: 'Tino Moyo',
         email: 'tino@lingo.nyuchi.com',
         title: 'Language Lead',
@@ -2769,7 +2769,7 @@ describe('POST /mcp — resources & prompts (catalog)', () => {
     expect(Object.keys(data.brands).sort()).toEqual(['bundu', 'mukoko', 'nyuchi', 'shamwari'])
     expect(data.brands.nyuchi.name).toBe('Nyuchi Africa')
     expect(data.brands.nyuchi.pillar).toBe('commercial')
-    expect(data.divisions.nyuchi).toHaveLength(4)
+    expect(data.divisions.nyuchi).toHaveLength(3)
     expect(data.initiatives.telia.name).toContain('TELIA')
   })
 
@@ -2780,7 +2780,7 @@ describe('POST /mcp — resources & prompts (catalog)', () => {
     const brand = JSON.parse(contents[0].text) as { key: string; domain: string; divisions: unknown[] }
     expect(brand.key).toBe('mukoko')
     expect(brand.domain).toBe('mukoko.com')
-    expect(brand.divisions).toHaveLength(1)
+    expect(brand.divisions).toHaveLength(3)
 
     const bad = await post('/mcp', rpc('resources/read', { uri: 'nyuchi://brands/acme' }, 2))
     const badBody = await readRpc(bad)

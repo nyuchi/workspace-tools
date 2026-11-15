@@ -19,7 +19,7 @@ const user = (over: Partial<DirectoryUser> = {}): DirectoryUser => ({
   name: 'Amara Moyo',
   title: 'Head of Learning',
   phone: '+263 77 123 4567',
-  aliases: ['amara@lingo.nyuchi.com', 'a.moyo@nyuchi.com'],
+  aliases: ['amara@lingo.mukoko.com', 'a.moyo@nyuchi.com'],
   brand: 'nyuchi',
   ...over,
 })
@@ -65,8 +65,11 @@ describe('mapDirectoryUserToParams', () => {
     }
   })
 
-  it('falls back to nyuchi for unknown brands', () => {
-    expect(mapDirectoryUserToParams(user({ brand: 'lingo.nyuchi.com' })).brand).toBe('nyuchi')
+  it('resolves staff domains through the registry; nyuchi for unknown', () => {
+    // Lingo is a Mukoko sub-app (Lingo-is-Mukoko): the domain renders under
+    // the parent brand. The legacy mailbox domain maps the same way.
+    expect(mapDirectoryUserToParams(user({ brand: 'lingo.mukoko.com' })).brand).toBe('mukoko')
+    expect(mapDirectoryUserToParams(user({ brand: 'lingo.nyuchi.com' })).brand).toBe('mukoko')
     expect(mapDirectoryUserToParams(user({ brand: '' })).brand).toBe('nyuchi')
   })
 
