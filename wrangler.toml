@@ -19,7 +19,7 @@ preview_urls = true
 # The Rust Worker: worker-build compiles crates/worker to wasm. The site
 # build stays on npm — Deno 2.9's symlink node_modules breaks Astro 7's
 # vite stack (@tybys/wasm-util); revisit when either side fixes it.
-command = 'export PATH="$HOME/.cargo/bin:$PATH" && unset npm_config_allow_scripts && npm --prefix site ci && npm --prefix site run build && (command -v worker-build >/dev/null || cargo install -q worker-build --locked) && cd crates/worker && worker-build --release'
+command = 'export PATH="$HOME/.cargo/bin:$PATH" && unset npm_config_allow_scripts && npm --prefix site ci && npm --prefix site run build && if command -v cargo >/dev/null 2>&1; then (command -v worker-build >/dev/null || cargo install -q worker-build --locked) && cd crates/worker && worker-build --release; else echo "no rust toolchain — serving the committed crates/worker/build"; fi'
 
 # This Worker serves ALL of tools.nyuchi.com:
 #   - /mcp                     → MCP JSON-RPC endpoint (tools.nyuchi.dev only;
