@@ -30,7 +30,9 @@ npm-debug.log*
 # Claude Code agent worktrees (transient)
 .claude/worktrees/
 
-# Rust — the crates/ workspace and the worker build output
+# Rust — the crates/ workspace. NOTE: crates/worker/build (the wasm
+# artifact) is COMMITTED: Workers Builds has no Rust toolchain, so its
+# check builds the site and serves the committed worker; a local deploy
+# with cargo recompiles it fresh.
 /target/
 crates/*/target/
-crates/worker/build/

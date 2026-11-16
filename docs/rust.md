@@ -36,11 +36,16 @@ Gates (run locally; the org's required workflows run on every PR as-is):
 3. **The WorkOS gate.** `crates/worker` grows the login gate the TypeScript
    Worker has (`mcp/src/site-auth.ts`): session cookie, PKCE round trip,
    bearer-JWT `/mcp`, the Nyuchi-org claim, one MCP URL (410 off-host).
-4. **Cut-over.** `crates/worker/wrangler.toml` takes the production routes
-   (`tools.nyuchi.com`, `tools.nyuchi.dev`) and the TypeScript Worker
-   (`mcp/`) is retired. Secrets carry over by name — the same
-   `AUTHKIT_DOMAIN` / `SESSION_SECRET` / `WORKOS_CLIENT_ID` the TypeScript
-   Worker already holds.
+4. **Cut-over — SHIPPED (2026-11-16).** The root `wrangler.toml` serves the
+   Rust Worker on the production routes (`tools.nyuchi.com`,
+   `tools.nyuchi.dev`); the TypeScript Worker (`mcp/`) is retired. Secrets
+   carried over by name — the same `AUTHKIT_DOMAIN` / `SESSION_SECRET` /
+   `WORKOS_CLIENT_ID`. Still porting from the TS side: the Google-console
+   APIs (`/api/google/*`, `/api/admin/*`, `/api/self/*` — they answer 501),
+   and the `nyuchi_upload_asset` / `nyuchi_report_issue` MCP tools (the tool
+   list and honest errors until then). Deno: attempted for the site build —
+   Deno 2.9's symlink `node_modules` breaks Astro 7's vite stack
+   (`@tybys/wasm-util`); npm stays until either side fixes it.
 5. **WASM and beyond.** The engines compile to WASM for the site (the
    signature preview and the Studio render in-browser through the same Rust
    the Worker runs — one implementation, two hosts), and the front end

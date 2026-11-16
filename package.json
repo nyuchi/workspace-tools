@@ -3,10 +3,6 @@
   "version": "2.0.0",
   "description": "Nyuchi workspace tools - Gmail Add-on, email signature generator, Nyuchi Studio, and the nyuchi-tools Cloudflare Worker (SPA + MCP)",
   "private": true,
-  "workspaces": [
-    "gmail-addon",
-    "email-signature"
-  ],
   "scripts": {
     "push:gmail": "cd gmail-addon && clasp push",
     "push:signature": "cd email-signature && clasp push",
@@ -18,14 +14,14 @@
     "build:web": "npm run build --prefix site",
     "dev:tools": "wrangler dev",
     "deploy:tools": "wrangler deploy",
-    "typecheck:worker": "tsc --noEmit -p mcp/tsconfig.json",
-    "test": "npm --prefix site test && npm run test:worker",
-    "test:worker": "vp test run -c vitest.worker.config.ts",
+    "typecheck:worker": "cargo clippy --all-targets -- -D warnings",
+    "test": "npm --prefix site test && cargo test --workspace",
+    "test:worker": "cargo test --workspace",
     "check": "vp check",
     "lint": "vp lint",
     "fmt": "vp fmt",
     "ci:check": "vp lint",
-    "ci:test": "npm run test:worker"
+    "ci:test": "cargo test --workspace"
   },
   "keywords": [
     "google-workspace",
@@ -56,16 +52,12 @@
   "homepage": "https://github.com/nyuchi/workspace-tools#readme",
   "dependencies": {
     "@braintree/sanitize-url": ">=7.1.2",
-    "@modelcontextprotocol/server": ">=2.4.0",
     "@resvg/resvg-wasm": ">=2.6.2",
-    "hono": ">=4.13.17",
-    "jose": ">=6.2.15",
     "zod": ">=4.6.7"
   },
   "devDependencies": {
     "@cloudflare/workers-types": ">=5.20261108.1",
     "@google/clasp": ">=3.4.1",
-    "@modelcontextprotocol/client": ">=2.4.0",
     "@types/google-apps-script": ">=2.0.15",
     "@types/node": ">=26.6.6",
     "typescript": ">=7.0.2",
