@@ -21,6 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and `nyuchi_report_issue` follow. `typecheck:worker`/`test:worker` now run
   cargo clippy -D warnings and the crate suites.
 
+## [v0.9.0] — 2026-11-15
+
 ### Changed
 
 - **The brand registry follows the canon taxonomy** ([#147](https://github.com/nyuchi/workspace-tools/issues/147)):
