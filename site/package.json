@@ -28,5 +28,10 @@
     "typescript": "~6.0.3",
     "vitest": ">=5.1.0",
     "@nyuchi/mzizi-cli": ">=0.10.0"
+  },
+  "allowScripts": {
+    "esbuild": true,
+    "sharp": false,
+    "fsevents": false
   }
 }

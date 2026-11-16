@@ -47,8 +47,9 @@ the backend — `crates/` is one Cargo workspace: the brand registry, the
 imaging/signature engines, the release pipeline, and the Rust Worker
 (workers-rs → WASM) that pairs with the site and takes the production routes
 at cut-over. See [docs/rust.md](docs/rust.md) for the architecture and the
-plan. The TypeScript Worker (`mcp/`) stays production until the Rust one
-reaches parity.
+plan. **The cut-over shipped**: the Rust Worker serves production; the
+TypeScript Worker (`mcp/`) is retired in git history (v0.9.x) if an
+emergency rollback is ever needed.
 
 ## Quickstart
 
@@ -74,7 +75,7 @@ npm run lint                   # eslint
 npm run build:web              # build the site into site/dist
 npm run dev:tools              # wrangler dev — local Worker at http://localhost:8787
 npm run deploy:tools           # wrangler deploy (builds the site first via [build])
-npm run typecheck:worker       # tsc against mcp/tsconfig.json
+npm run typecheck:worker       # cargo clippy --all-targets -D warnings
 ```
 
 `wrangler` reads `CLOUDFLARE_API_TOKEN` from the environment; the account id is
@@ -106,7 +107,7 @@ Worker (`nyuchi-tools`) on two Workers Custom Domains: `tools.nyuchi.com`
 mitigation for legitimate MCP client traffic). Same code, same behavior on
 both:
 
-- `/mcp` and `/mcp/*` are handled by the Worker script (MCP JSON-RPC).
+- `/mcp` and `/mcp/*` are handled by the Rust Worker (MCP JSON-RPC).
 - Everything else is served from the built Astro site in
   `site/dist`; every route is a real HTML file, and unknown
   paths get the built `404.html`.
