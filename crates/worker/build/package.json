@@ -1,0 +1,20 @@
+{
+  "description": "The nyuchi-tools Worker on workers-rs: the image and signature API, serving the Astro site.",
+  "files": [
+    "index_bg.wasm",
+    "index.js",
+    "index.d.ts"
+  ],
+  "license": "UNLICENSED",
+  "main": "index.js",
+  "name": "nyuchi-tools-worker",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nyuchi/workspace-tools"
+  },
+  "sideEffects": [
+    "./index.js"
+  ],
+  "type": "module",
+  "version": "0.1.0"
+}

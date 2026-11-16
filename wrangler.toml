@@ -1,5 +1,5 @@
 name = "nyuchi-tools"
-main = "mcp/src/index.ts"
+main = "crates/worker/build/index.js"
 account_id = "125a2dfbc21f76a25c980609609e8218" # Nyuchi Web Services
 compatibility_date = "2026-01-01"
 compatibility_flags = ["nodejs_compat"]
@@ -16,7 +16,10 @@ preview_urls = true
 # Builds CI, whose trigger has no build command of its own) so the assets
 # directory below always exists in a fresh checkout.
 [build]
-command = "npm --prefix site ci && npm --prefix site run build"
+# The Rust Worker: worker-build compiles crates/worker to wasm. The site
+# build stays on npm — Deno 2.9's symlink node_modules breaks Astro 7's
+# vite stack (@tybys/wasm-util); revisit when either side fixes it.
+command = 'export PATH="$HOME/.cargo/bin:$PATH" && unset npm_config_allow_scripts && npm --prefix site ci && npm --prefix site run build && { (command -v worker-build >/dev/null || cargo install -q worker-build --locked) && cd crates/worker && worker-build --release || echo "rust build unavailable — serving the committed crates/worker/build"; }'
 
 # This Worker serves ALL of tools.nyuchi.com:
 #   - /mcp                     → MCP JSON-RPC endpoint (tools.nyuchi.dev only;

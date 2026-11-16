@@ -10,8 +10,11 @@
 //! WorkOS gate). It runs under `wrangler dev`.
 
 pub mod api;
+pub mod auth;
 pub mod mcp;
 pub mod zip;
 
 #[cfg(target_arch = "wasm32")]
 mod entry;
+#[cfg(target_arch = "wasm32")]
+pub mod remote;

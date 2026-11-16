@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **The Rust Worker serves production** — the cut-over shipped. `crates/worker`
+  (workers-rs → wasm) answers `tools.nyuchi.com` and `tools.nyuchi.dev`: the
+  full WorkOS gate ported to Rust (PKCE login, HS256 session, JWKS/RS256
+  bearer verification via WebCrypto, the Nyuchi org claim, one MCP URL with
+  410 off-host, Origin validation), `/api/signature` (serde aliases accept
+  the Apps Script shape), the public `/images/*` R2 surface, the OAuth and
+  MCP discovery documents, and the Astro site behind the gate. The
+  TypeScript Worker (`mcp/`) is retired — git history keeps it at v0.9.x.
+  Still porting (honest 501s): the Google-console APIs; `nyuchi_upload_asset`
+  and `nyuchi_report_issue` follow. `typecheck:worker`/`test:worker` now run
+  cargo clippy -D warnings and the crate suites.
+
+## [v0.9.0] — 2026-11-15
+
+### Changed
+
 - **The brand registry follows the canon taxonomy** ([#147](https://github.com/nyuchi/workspace-tools/issues/147)):
   Lingo is a Mukoko sub-app (Mukoko Lingo, lingo.mukoko.com, cobalt),
   Mukoko Events joins as a division, every entry carries its Mzizi

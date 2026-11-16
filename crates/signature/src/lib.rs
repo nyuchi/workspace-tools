@@ -61,14 +61,18 @@ pub struct Params {
     pub phone: String,
     pub whatsapp: String,
     /// `https://` URL of a square photo.
+    #[serde(alias = "profileImage")]
     pub photo: String,
     /// Personal profiles, shown before the brand's own accounts.
     pub linkedin: String,
+    #[serde(alias = "twitter")]
     pub x: String,
     pub instagram: String,
     pub facebook: String,
     /// Optional banner: `https://` image URL, link and alt text.
+    #[serde(alias = "promoBanner")]
     pub promo_image: String,
+    #[serde(alias = "promoLink")]
     pub promo_link: String,
     pub promo_alt: String,
 }
