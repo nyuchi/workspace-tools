@@ -56,14 +56,14 @@
     "zod": ">=4.6.7"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": ">=5.20261108.1",
+    "@cloudflare/workers-types": ">=5.20261109.1",
     "@google/clasp": ">=3.4.1",
     "@types/google-apps-script": ">=2.0.15",
     "@types/node": ">=26.6.6",
     "typescript": ">=7.0.2",
-    "vite-plus": ">=1.5.0",
+    "vite-plus": ">=1.5.1",
     "vitest": ">=5.1.0",
-    "wrangler": ">=4.158.0"
+    "wrangler": ">=4.159.0"
   },
   "packageManager": "npm@11.12.1",
   "overrides": {
