@@ -51,7 +51,7 @@ jobs:
 
       - name: Compute next version (org versioning policy)
         id: policy
-        uses: nyuchi/.github/.github/actions/next-version@c2be05a22aeb6a98a80a9301f6b3e33bb88b20b0  # v0.2.0
+        uses: nyuchi/.github/.github/actions/next-version@925d067322defd676dacd90f2c2b0540cb10f644  # v0.11.1
         with:
           channel: main
           bump: ${{ inputs.bump || '' }}
