@@ -39,9 +39,7 @@ fn gate_config(env: &Env) -> Gate {
             mcp_resource: secret_or_var("MCP_RESOURCE"),
             org_id: secret_or_var("NYUCHI_ORG_ID"),
             redirect_uri: secret("OAUTH_REDIRECT_URI"),
-            internal_environment: secret("WORKOS_INTERNAL_ENVIRONMENT")
-                .trim()
-                .eq_ignore_ascii_case("true"),
+            required_permission: secret("WORKOS_REQUIRED_PERMISSION"),
             client_id: secret("WORKOS_CLIENT_ID"),
             session_secret: secret("SESSION_SECRET"),
             allow_unauthenticated_dev: var("ALLOW_UNAUTHENTICATED_DEV") == "true",
@@ -281,14 +279,20 @@ async fn fetch(mut req: Request, env: Env, _ctx: Context) -> Result<Response> {
                 Some(v) => v,
                 None => return deny(),
             };
+            // The organization and the permissions are on the access token
+            // (the id_token may not carry them): read both from it.
             let mut org = verified.org_id.clone();
-            if org.is_none() {
-                let access = crate::remote::verify_jwt(&g.auth, Some(&access_token), None).await;
-                if let Some(a) = access.filter(|a| a.sub == verified.sub) {
-                    org = a.org_id;
+            let mut permissions = verified.permissions.clone();
+            let access = crate::remote::verify_jwt(&g.auth, Some(&access_token), None).await;
+            if let Some(a) = access.filter(|a| a.sub == verified.sub) {
+                org = org.or(a.org_id);
+                for p in a.permissions {
+                    if !permissions.contains(&p) {
+                        permissions.push(p);
+                    }
                 }
             }
-            if !g.auth.identity_allowed(org.as_deref(), verified.sub.as_deref()) {
+            if !g.auth.identity_allowed(org.as_deref(), &permissions) {
                 return deny();
             }
             match auth::mint_session(
@@ -436,10 +440,10 @@ async fn fetch(mut req: Request, env: Env, _ctx: Context) -> Result<Response> {
                     )],
                 );
             };
-            if !g.auth.identity_allowed(verified.org_id.as_deref(), verified.sub.as_deref()) {
+            if !g.auth.identity_allowed(verified.org_id.as_deref(), &verified.permissions) {
                 return json_reply(
                     403,
-                    &serde_json::json!({"error": "forbidden", "detail": "This account is not authorized to use these tools."}),
+                    &serde_json::json!({"error": "forbidden", "detail": "This account does not hold the permission these tools need."}),
                     &[],
                 );
             }

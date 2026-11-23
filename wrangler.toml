@@ -115,14 +115,12 @@ GOOGLE_WORKSPACE_DOMAIN = "nyuchi.com"
 #   MCP_RESOURCE, NYUCHI_ORG_ID — formerly [vars] above; set them as secrets
 #     instead (a secret wins over a var of the same name here). Move them with
 #     the cutover; the code holds no environment-specific value for them.
-#   WORKOS_INTERNAL_ENVIRONMENT — OPTIONAL. Exactly "true" for an internal
-#     WorkOS environment with no organizations (the Nyuchi one), where WorkOS
-#     holds who may sign in (sign-up is off): every signed-in user is admitted
-#     to the site login and /mcp, NYUCHI_ORG_ID is not consulted and the login
-#     flow is not pinned to an organization. Unset or any other value, the
-#     NYUCHI_ORG_ID gate applies unchanged. A secret, so that the cutover is
-#     one set of `wrangler secret put` commands (AUTHKIT_DOMAIN,
-#     WORKOS_CLIENT_ID, WORKOS_INTERNAL_ENVIRONMENT) with no deploy in between.
+#   WORKOS_REQUIRED_PERMISSION — the permission a user must hold, on top of
+#     the NYUCHI_ORG_ID organization: `tools:marketing`. WorkOS maintains who
+#     holds it (a role granted on an organization membership; it arrives in
+#     the token's `permissions` claim). Unset = the organization alone is the
+#     gate. Checked at login and on every /mcp call; a session cookie lives up
+#     to 7 days, so removing the permission takes full effect on the next login.
 #   WORKOS_CLIENT_ID       — the WorkOS Connect public client ID for the
 #     site login ("Nyuchi Internal Tools"). Public but per environment;
 #     REQUIRED. Set by the owner script from 1Password (nyuchi/workos, field

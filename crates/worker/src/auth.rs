@@ -41,11 +41,11 @@ pub struct AuthConfig {
     /// The site login's OAuth redirect URI (OAUTH_REDIRECT_URI, a secret); it
     /// must be registered on the WorkOS application. Unset fails closed.
     pub redirect_uri: String,
-    /// WORKOS_INTERNAL_ENVIRONMENT is exactly "true": the internal Nyuchi
-    /// WorkOS environment, which has no organizations and has sign-up off, so
-    /// WorkOS holds who may sign in. Every signed-in user is admitted and
-    /// `org_id` is not consulted.
-    pub internal_environment: bool,
+    /// The permission a user must hold (WORKOS_REQUIRED_PERMISSION, a secret;
+    /// `tools:marketing`). WorkOS maintains who holds it: it is granted by a
+    /// role and arrives in the token's `permissions` claim. Unset = no
+    /// permission is required beyond the organization.
+    pub required_permission: String,
     pub client_id: String,
     pub session_secret: String,
     pub allow_unauthenticated_dev: bool,
@@ -93,17 +93,20 @@ impl AuthConfig {
     /// Whether who-may-sign-in is configured at all: a user allowlist or an
     /// organization. Neither set means nobody is admitted.
     pub fn gate_configured(&self) -> bool {
-        self.internal_environment || !self.org_id.trim().is_empty()
+        !self.org_id.trim().is_empty()
     }
 
-    /// The gate: in the internal environment a signed-in user (a token with a
-    /// `sub`) is admitted and no organization is needed; otherwise the
-    /// organization gate applies unchanged.
-    pub fn identity_allowed(&self, org: Option<&str>, sub: Option<&str>) -> bool {
-        if self.internal_environment {
-            return sub.is_some_and(|s| !s.is_empty());
-        }
-        self.org_allowed(org)
+    /// Whether the permissions a token carries include the required one (or
+    /// none is required).
+    pub fn permission_allowed(&self, permissions: &[String]) -> bool {
+        let want = self.required_permission.trim();
+        want.is_empty() || permissions.iter().any(|p| p == want)
+    }
+
+    /// The gate: the organization must match AND the token must carry the
+    /// required permission. Both are maintained in WorkOS.
+    pub fn identity_allowed(&self, org: Option<&str>, permissions: &[String]) -> bool {
+        self.org_allowed(org) && self.permission_allowed(permissions)
     }
 
     /// The local-development opt-out: auth unconfigured, the flag exactly on,
@@ -263,7 +266,8 @@ pub fn verify_session(cfg: &AuthConfig, cookie: Option<&str>) -> Option<Value> {
     }
     let claims = hs256_verify(value, &cfg.session_secret)?;
     let org = claims["org"].as_str().filter(|o| !o.is_empty());
-    if !cfg.identity_allowed(org, claims["sub"].as_str()) {
+    // The permission was checked when the session was minted (at login).
+    if !cfg.org_allowed(org) {
         return None;
     }
     Some(claims)
@@ -306,10 +310,7 @@ pub fn authorize_url(cfg: &AuthConfig, state: &str, challenge: &str) -> Result<S
             .append_pair("code_challenge_method", "S256")
             .append_pair("state", state)
             .append_pair("scope", "openid profile email");
-        // The internal environment has no organizations: do not pin the flow.
-        if !cfg.internal_environment {
-            q.append_pair("organization_id", cfg.org_id.trim());
-        }
+        q.append_pair("organization_id", cfg.org_id.trim());
     }
     Ok(url.to_string())
 }
@@ -362,6 +363,9 @@ pub struct VerifiedJwt {
     pub email: Option<String>,
     pub org_id: Option<String>,
     pub scopes: Vec<String>,
+    /// The token's `permissions` claim (granted in WorkOS through a role),
+    /// plus any permission-shaped OAuth scopes.
+    pub permissions: Vec<String>,
 }
 
 /// Parse (not verify) a JWT's claims — used only inside
@@ -404,19 +408,30 @@ pub fn claims_pass(cfg: &AuthConfig, claims: &Value, audience: Option<&str>) -> 
 }
 
 pub fn verified_from_claims(claims: &Value) -> VerifiedJwt {
+    let scopes: Vec<String> = claims["scope"]
+        .as_str()
+        .map(|s| {
+            s.split(' ')
+                .filter(|p| !p.is_empty())
+                .map(str::to_string)
+                .collect()
+        })
+        .unwrap_or_default();
+    let mut permissions: Vec<String> = claims["permissions"]
+        .as_array()
+        .map(|a| a.iter().filter_map(|p| p.as_str().map(str::to_string)).collect())
+        .unwrap_or_default();
+    for s in &scopes {
+        if !permissions.contains(s) {
+            permissions.push(s.clone());
+        }
+    }
     VerifiedJwt {
         sub: claims["sub"].as_str().map(str::to_string),
         email: claims["email"].as_str().map(str::to_string),
         org_id: claims["org_id"].as_str().map(str::to_string),
-        scopes: claims["scope"]
-            .as_str()
-            .map(|s| {
-                s.split(' ')
-                    .filter(|p| !p.is_empty())
-                    .map(str::to_string)
-                    .collect()
-            })
-            .unwrap_or_default(),
+        scopes,
+        permissions,
     }
 }
 
@@ -470,11 +485,15 @@ mod tests {
         }
     }
 
-    fn internal_cfg() -> AuthConfig {
+    fn marketing_cfg() -> AuthConfig {
         AuthConfig {
-            internal_environment: true,
+            required_permission: "tools:marketing".into(),
             ..cfg()
         }
+    }
+
+    fn perms(list: &[&str]) -> Vec<String> {
+        list.iter().map(|s| s.to_string()).collect()
     }
 
     #[test]
@@ -492,48 +511,45 @@ mod tests {
     }
 
     #[test]
-    fn internal_environment_admits_a_signed_in_user_with_no_org() {
-        let c = internal_cfg();
-        assert!(c.gate_configured());
-        assert!(c.identity_allowed(None, Some("user_a")));
-        assert!(c.identity_allowed(Some("org_other"), Some("user_b")));
+    fn the_required_permission_must_be_in_the_token() {
+        let c = marketing_cfg();
+        assert!(c.identity_allowed(Some("org_123"), &perms(&["tools:marketing"])));
+        assert!(c.identity_allowed(Some("org_123"), &perms(&["data:read", "tools:marketing"])));
+        // Right org, wrong or no permission.
+        assert!(!c.identity_allowed(Some("org_123"), &perms(&["data:read"])));
+        assert!(!c.identity_allowed(Some("org_123"), &[]));
+        // Right permission, wrong org.
+        assert!(!c.identity_allowed(Some("org_other"), &perms(&["tools:marketing"])));
+        assert!(!c.identity_allowed(None, &perms(&["tools:marketing"])));
     }
 
     #[test]
-    fn internal_environment_refuses_a_token_with_no_subject() {
-        let c = internal_cfg();
-        assert!(!c.identity_allowed(Some("org_123"), None));
-        assert!(!c.identity_allowed(None, Some("")));
-    }
-
-    #[test]
-    fn without_the_switch_the_org_gate_applies_unchanged() {
+    fn no_required_permission_leaves_only_the_org_gate() {
         let c = cfg();
-        assert!(c.identity_allowed(Some("org_123"), Some("anyone")));
-        assert!(!c.identity_allowed(Some("org_other"), Some("user_a")));
-        assert!(!c.identity_allowed(None, Some("user_a")));
+        assert!(c.identity_allowed(Some("org_123"), &[]));
+        assert!(!c.identity_allowed(Some("org_other"), &perms(&["tools:marketing"])));
         // Nothing configured at all admits nobody.
         let none = AuthConfig::default();
         assert!(!none.gate_configured());
-        assert!(!none.identity_allowed(Some("org_123"), Some("user_a")));
+        assert!(!none.identity_allowed(Some("org_123"), &perms(&["tools:marketing"])));
     }
 
     #[test]
-    fn internal_session_needs_no_org_and_old_org_sessions_still_verify_for_a_subject() {
-        let c = internal_cfg();
-        let ok = mint_session(&c, Some("user_a"), Some("a@b.c"), "").unwrap();
-        assert!(verify_session(&c, Some(&ok)).is_some());
-        // A session with no subject is not admitted.
-        let nosub = mint_session(&c, None, None, "org_123").unwrap();
-        assert!(verify_session(&c, Some(&nosub)).is_none());
+    fn permissions_come_from_the_permissions_claim_and_scopes() {
+        let v = verified_from_claims(&json!({
+            "sub": "u", "org_id": "org_123",
+            "permissions": ["tools:marketing", "data:read"],
+            "scope": "openid data:admin"
+        }));
+        assert!(v.permissions.contains(&"tools:marketing".to_string()));
+        assert!(v.permissions.contains(&"data:admin".to_string()));
+        assert!(verified_from_claims(&json!({"sub": "u"})).permissions.is_empty());
     }
 
     #[test]
-    fn authorize_url_pins_the_org_only_outside_the_internal_environment() {
-        let pinned = authorize_url(&cfg(), "s", "c").unwrap();
-        assert!(pinned.contains("organization_id=org_123"));
-        let internal = authorize_url(&internal_cfg(), "s", "c").unwrap();
-        assert!(!internal.contains("organization_id"));
+    fn the_authorize_url_pins_the_org() {
+        let url = authorize_url(&marketing_cfg(), "s", "c").unwrap();
+        assert!(url.contains("organization_id=org_123"));
     }
 
     #[test]
