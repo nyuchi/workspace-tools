@@ -32,6 +32,12 @@ fn gate_config(env: &Env) -> Gate {
             authkit_domain: secret("AUTHKIT_DOMAIN"),
             mcp_resource: var("MCP_RESOURCE"),
             org_id: var("NYUCHI_ORG_ID"),
+            allowed_users: secret("WORKOS_ALLOWED_USERS")
+                .split(',')
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .map(str::to_string)
+                .collect(),
             client_id: secret("WORKOS_CLIENT_ID"),
             session_secret: secret("SESSION_SECRET"),
             allow_unauthenticated_dev: var("ALLOW_UNAUTHENTICATED_DEV") == "true",
@@ -190,7 +196,7 @@ async fn fetch(mut req: Request, env: Env, _ctx: Context) -> Result<Response> {
                     "text/plain",
                 );
             }
-            if g.auth.org_id.trim().is_empty() {
+            if !g.auth.gate_configured() {
                 return text_reply(
                     503,
                     &format!("Service Unavailable: {}", auth::NYUCHI_ORG_ID_MISSING),
@@ -278,7 +284,7 @@ async fn fetch(mut req: Request, env: Env, _ctx: Context) -> Result<Response> {
                     org = a.org_id;
                 }
             }
-            if !g.auth.org_allowed(org.as_deref()) {
+            if !g.auth.identity_allowed(org.as_deref(), verified.sub.as_deref()) {
                 return deny();
             }
             match auth::mint_session(
@@ -406,7 +412,7 @@ async fn fetch(mut req: Request, env: Env, _ctx: Context) -> Result<Response> {
                     &[],
                 );
             }
-            if g.auth.org_id.trim().is_empty() {
+            if !g.auth.gate_configured() {
                 return json_reply(
                     503,
                     &serde_json::json!({"error": "authorization_not_configured", "detail": format!("Service Unavailable: {}", auth::NYUCHI_ORG_ID_MISSING)}),
@@ -426,10 +432,10 @@ async fn fetch(mut req: Request, env: Env, _ctx: Context) -> Result<Response> {
                     )],
                 );
             };
-            if !g.auth.org_allowed(verified.org_id.as_deref()) {
+            if !g.auth.identity_allowed(verified.org_id.as_deref(), verified.sub.as_deref()) {
                 return json_reply(
                     403,
-                    &serde_json::json!({"error": "forbidden", "detail": "This account is not a member of the Nyuchi organization, so it cannot use these tools."}),
+                    &serde_json::json!({"error": "forbidden", "detail": "This account is not authorized to use these tools."}),
                     &[],
                 );
             }

@@ -15,7 +15,8 @@ use sha2::Sha256;
 type HmacSha256 = Hmac<Sha256>;
 
 pub const AUTHKIT_DOMAIN_MISSING: &str = "AUTHKIT_DOMAIN is not configured";
-pub const NYUCHI_ORG_ID_MISSING: &str = "NYUCHI_ORG_ID is not configured";
+pub const NYUCHI_ORG_ID_MISSING: &str =
+    "NYUCHI_ORG_ID or WORKOS_ALLOWED_USERS is not configured";
 pub const WORKOS_CLIENT_ID_MISSING: &str = "WORKOS_CLIENT_ID is not configured";
 
 pub const SESSION_COOKIE: &str = "nyuchi_session";
@@ -37,6 +38,10 @@ pub struct AuthConfig {
     pub authkit_domain: String,
     pub mcp_resource: String,
     pub org_id: String,
+    /// Comma-separated WorkOS user ids (WORKOS_ALLOWED_USERS), parsed. For the
+    /// internal Nyuchi WorkOS environment, which has no organizations: when
+    /// non-empty it is the whole gate and `org_id` is not consulted.
+    pub allowed_users: Vec<String>,
     pub client_id: String,
     pub session_secret: String,
     pub allow_unauthenticated_dev: bool,
@@ -70,6 +75,22 @@ impl AuthConfig {
 
     pub fn org_allowed(&self, org: Option<&str>) -> bool {
         !self.org_id.trim().is_empty() && org == Some(self.org_id.trim())
+    }
+
+    /// Whether who-may-sign-in is configured at all: a user allowlist or an
+    /// organization. Neither set means nobody is admitted.
+    pub fn gate_configured(&self) -> bool {
+        !self.allowed_users.is_empty() || !self.org_id.trim().is_empty()
+    }
+
+    /// The gate: with a user allowlist the token's `sub` must be listed and no
+    /// organization is needed; without one the organization gate applies
+    /// unchanged. A blank allowlist never opens the gate.
+    pub fn identity_allowed(&self, org: Option<&str>, sub: Option<&str>) -> bool {
+        if !self.allowed_users.is_empty() {
+            return sub.is_some_and(|s| self.allowed_users.iter().any(|u| u == s));
+        }
+        self.org_allowed(org)
     }
 
     /// The local-development opt-out: auth unconfigured, the flag exactly on,
@@ -228,8 +249,8 @@ pub fn verify_session(cfg: &AuthConfig, cookie: Option<&str>) -> Option<Value> {
         return None;
     }
     let claims = hs256_verify(value, &cfg.session_secret)?;
-    let org = claims["org"].as_str()?;
-    if !cfg.org_allowed(Some(org)) {
+    let org = claims["org"].as_str().filter(|o| !o.is_empty());
+    if !cfg.identity_allowed(org, claims["sub"].as_str()) {
         return None;
     }
     Some(claims)
@@ -262,15 +283,20 @@ pub fn authorize_url(cfg: &AuthConfig, state: &str, challenge: &str) -> Result<S
     let issuer = cfg.issuer_url()?;
     let mut url =
         url::Url::parse(&format!("{issuer}/oauth2/authorize")).map_err(|e| e.to_string())?;
-    url.query_pairs_mut()
-        .append_pair("response_type", "code")
-        .append_pair("client_id", cfg.client_id.trim())
-        .append_pair("redirect_uri", REDIRECT_URI)
-        .append_pair("code_challenge", challenge)
-        .append_pair("code_challenge_method", "S256")
-        .append_pair("state", state)
-        .append_pair("scope", "openid profile email")
-        .append_pair("organization_id", cfg.org_id.trim());
+    {
+        let mut q = url.query_pairs_mut();
+        q.append_pair("response_type", "code")
+            .append_pair("client_id", cfg.client_id.trim())
+            .append_pair("redirect_uri", REDIRECT_URI)
+            .append_pair("code_challenge", challenge)
+            .append_pair("code_challenge_method", "S256")
+            .append_pair("state", state)
+            .append_pair("scope", "openid profile email");
+        // The internal environment has no organizations: do not pin the flow.
+        if cfg.allowed_users.is_empty() {
+            q.append_pair("organization_id", cfg.org_id.trim());
+        }
+    }
     Ok(url.to_string())
 }
 
@@ -427,6 +453,62 @@ mod tests {
             session_secret: "secret".into(),
             ..Default::default()
         }
+    }
+
+    fn internal_cfg() -> AuthConfig {
+        AuthConfig {
+            allowed_users: vec!["user_a".into(), "user_b".into()],
+            ..cfg()
+        }
+    }
+
+    #[test]
+    fn allowlist_admits_listed_users_with_no_org() {
+        let c = internal_cfg();
+        assert!(c.gate_configured());
+        assert!(c.identity_allowed(None, Some("user_a")));
+        assert!(c.identity_allowed(None, Some("user_b")));
+    }
+
+    #[test]
+    fn allowlist_refuses_unlisted_users_even_in_the_old_org() {
+        let c = internal_cfg();
+        assert!(!c.identity_allowed(Some("org_123"), Some("user_stranger")));
+        assert!(!c.identity_allowed(Some("org_123"), None));
+        assert!(!c.identity_allowed(None, None));
+    }
+
+    #[test]
+    fn blank_allowlist_does_not_open_the_gate() {
+        // No allowlist: the organization gate applies unchanged.
+        let c = cfg();
+        assert!(c.identity_allowed(Some("org_123"), Some("anyone")));
+        assert!(!c.identity_allowed(Some("org_other"), Some("user_a")));
+        assert!(!c.identity_allowed(None, Some("user_a")));
+        // Nothing configured at all admits nobody.
+        let none = AuthConfig::default();
+        assert!(!none.gate_configured());
+        assert!(!none.identity_allowed(Some("org_123"), Some("user_a")));
+    }
+
+    #[test]
+    fn allowlist_session_needs_no_org_and_rejects_other_subs() {
+        let c = internal_cfg();
+        let ok = mint_session(&c, Some("user_a"), Some("a@b.c"), "").unwrap();
+        assert!(verify_session(&c, Some(&ok)).is_some());
+        let other = mint_session(&c, Some("user_stranger"), None, "org_123").unwrap();
+        assert!(verify_session(&c, Some(&other)).is_none());
+        // A session minted under the old org gate dies when the allowlist is on.
+        let old = mint_session(&cfg(), Some("user_old"), None, "org_123").unwrap();
+        assert!(verify_session(&c, Some(&old)).is_none());
+    }
+
+    #[test]
+    fn authorize_url_pins_the_org_only_without_an_allowlist() {
+        let pinned = authorize_url(&cfg(), "s", "c").unwrap();
+        assert!(pinned.contains("organization_id=org_123"));
+        let internal = authorize_url(&internal_cfg(), "s", "c").unwrap();
+        assert!(!internal.contains("organization_id"));
     }
 
     #[test]

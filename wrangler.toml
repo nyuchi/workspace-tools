@@ -121,6 +121,14 @@ GOOGLE_WORKSPACE_DOMAIN = "nyuchi.com"
 #     entry: a var of the same name wins on every deploy. Without it /login
 #     answers 503 "AUTHKIT_DOMAIN is not configured" and so does /mcp —
 #     it never serves tools unauthenticated. Set it before deploying.
+#   WORKOS_ALLOWED_USERS   — OPTIONAL. Comma-separated WorkOS user ids, for the
+#     internal Nyuchi WorkOS environment (AuthKit domain https://auth.nyuchi.dev),
+#     which has no organizations. When set it is the whole gate for the site
+#     login and /mcp: the token's `sub` must be listed, NYUCHI_ORG_ID is not
+#     consulted and the login flow is not pinned to an organization. Blank or
+#     unset, the NYUCHI_ORG_ID gate applies unchanged. A secret, so that the
+#     cutover is one set of `wrangler secret put` commands (AUTHKIT_DOMAIN,
+#     WORKOS_CLIENT_ID, WORKOS_ALLOWED_USERS) with no deploy in between.
 #   WORKOS_CLIENT_ID       — the WorkOS Connect public client ID for the
 #     site login ("Nyuchi Internal Tools"). Public but per environment;
 #     REQUIRED. Set by the owner script from 1Password (nyuchi/workos, field
