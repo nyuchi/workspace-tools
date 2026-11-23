@@ -11,6 +11,10 @@ AUTHKIT_DOMAIN=
 # nyuchi/workos, field WORKOS_INTERNAL_TOOLS_CLIENT_ID.
 WORKOS_CLIENT_ID=
 
+# Optional: the permission a user must hold (maintained in WorkOS), e.g.
+# tools:marketing, on top of the NYUCHI_ORG_ID organization.
+WORKOS_REQUIRED_PERMISSION=
+
 # Signs the site session cookie. Any long random string locally.
 SESSION_SECRET=
 

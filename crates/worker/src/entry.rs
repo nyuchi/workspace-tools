@@ -27,11 +27,19 @@ struct Gate {
 fn gate_config(env: &Env) -> Gate {
     let var = |k: &str| env.var(k).map(|v| v.to_string()).unwrap_or_default();
     let secret = |k: &str| env.secret(k).map(|v| v.to_string()).unwrap_or_default();
+    // Deployment values are Worker secrets; a plain var of the same name is
+    // still honoured so an existing deployment keeps working until it is moved.
+    let secret_or_var = |k: &str| {
+        let s = secret(k);
+        if s.is_empty() { var(k) } else { s }
+    };
     Gate {
         auth: AuthConfig {
             authkit_domain: secret("AUTHKIT_DOMAIN"),
-            mcp_resource: var("MCP_RESOURCE"),
-            org_id: var("NYUCHI_ORG_ID"),
+            mcp_resource: secret_or_var("MCP_RESOURCE"),
+            org_id: secret_or_var("NYUCHI_ORG_ID"),
+            redirect_uri: secret("OAUTH_REDIRECT_URI"),
+            required_permission: secret("WORKOS_REQUIRED_PERMISSION"),
             client_id: secret("WORKOS_CLIENT_ID"),
             session_secret: secret("SESSION_SECRET"),
             allow_unauthenticated_dev: var("ALLOW_UNAUTHENTICATED_DEV") == "true",
@@ -190,7 +198,7 @@ async fn fetch(mut req: Request, env: Env, _ctx: Context) -> Result<Response> {
                     "text/plain",
                 );
             }
-            if g.auth.org_id.trim().is_empty() {
+            if !g.auth.gate_configured() {
                 return text_reply(
                     503,
                     &format!("Service Unavailable: {}", auth::NYUCHI_ORG_ID_MISSING),
@@ -271,14 +279,20 @@ async fn fetch(mut req: Request, env: Env, _ctx: Context) -> Result<Response> {
                 Some(v) => v,
                 None => return deny(),
             };
+            // The organization and the permissions are on the access token
+            // (the id_token may not carry them): read both from it.
             let mut org = verified.org_id.clone();
-            if org.is_none() {
-                let access = crate::remote::verify_jwt(&g.auth, Some(&access_token), None).await;
-                if let Some(a) = access.filter(|a| a.sub == verified.sub) {
-                    org = a.org_id;
+            let mut permissions = verified.permissions.clone();
+            let access = crate::remote::verify_jwt(&g.auth, Some(&access_token), None).await;
+            if let Some(a) = access.filter(|a| a.sub == verified.sub) {
+                org = org.or(a.org_id);
+                for p in a.permissions {
+                    if !permissions.contains(&p) {
+                        permissions.push(p);
+                    }
                 }
             }
-            if !g.auth.org_allowed(org.as_deref()) {
+            if !g.auth.identity_allowed(org.as_deref(), &permissions) {
                 return deny();
             }
             match auth::mint_session(
@@ -406,7 +420,7 @@ async fn fetch(mut req: Request, env: Env, _ctx: Context) -> Result<Response> {
                     &[],
                 );
             }
-            if g.auth.org_id.trim().is_empty() {
+            if !g.auth.gate_configured() {
                 return json_reply(
                     503,
                     &serde_json::json!({"error": "authorization_not_configured", "detail": format!("Service Unavailable: {}", auth::NYUCHI_ORG_ID_MISSING)}),
@@ -426,10 +440,10 @@ async fn fetch(mut req: Request, env: Env, _ctx: Context) -> Result<Response> {
                     )],
                 );
             };
-            if !g.auth.org_allowed(verified.org_id.as_deref()) {
+            if !g.auth.identity_allowed(verified.org_id.as_deref(), &verified.permissions) {
                 return json_reply(
                     403,
-                    &serde_json::json!({"error": "forbidden", "detail": "This account is not a member of the Nyuchi organization, so it cannot use these tools."}),
+                    &serde_json::json!({"error": "forbidden", "detail": "This account does not hold the permission these tools need."}),
                     &[],
                 );
             }

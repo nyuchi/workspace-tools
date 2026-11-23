@@ -174,7 +174,7 @@ pub async fn exchange_code(
     let body = format!(
         "grant_type=authorization_code&code={}&redirect_uri={}&client_id={}&code_verifier={}",
         urlencode(code),
-        urlencode("https://tools.nyuchi.com/callback"),
+        urlencode(cfg.redirect_uri()?),
         urlencode(cfg.client_id.trim()),
         urlencode(verifier)
     );

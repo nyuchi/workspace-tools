@@ -15,7 +15,8 @@ use sha2::Sha256;
 type HmacSha256 = Hmac<Sha256>;
 
 pub const AUTHKIT_DOMAIN_MISSING: &str = "AUTHKIT_DOMAIN is not configured";
-pub const NYUCHI_ORG_ID_MISSING: &str = "NYUCHI_ORG_ID is not configured";
+pub const NYUCHI_ORG_ID_MISSING: &str =
+    "NYUCHI_ORG_ID or WORKOS_INTERNAL_ENVIRONMENT is not configured";
 pub const WORKOS_CLIENT_ID_MISSING: &str = "WORKOS_CLIENT_ID is not configured";
 
 pub const SESSION_COOKIE: &str = "nyuchi_session";
@@ -28,7 +29,7 @@ pub const SESSION_TTL: u64 = 7 * 24 * 60 * 60;
 /// OAuth round-trip cookie lifetime: 10 minutes.
 pub const OAUTH_TTL: u64 = 600;
 
-const REDIRECT_URI: &str = "https://tools.nyuchi.com/callback";
+pub const REDIRECT_URI_MISSING: &str = "OAUTH_REDIRECT_URI is not configured";
 
 /// Everything the gate reads from the environment. `String::new` means
 /// "not configured" — every check treats that as fail-closed.
@@ -37,6 +38,14 @@ pub struct AuthConfig {
     pub authkit_domain: String,
     pub mcp_resource: String,
     pub org_id: String,
+    /// The site login's OAuth redirect URI (OAUTH_REDIRECT_URI, a secret); it
+    /// must be registered on the WorkOS application. Unset fails closed.
+    pub redirect_uri: String,
+    /// The permission a user must hold (WORKOS_REQUIRED_PERMISSION, a secret;
+    /// `tools:marketing`). WorkOS maintains who holds it: it is granted by a
+    /// role and arrives in the token's `permissions` claim. Unset = no
+    /// permission is required beyond the organization.
+    pub required_permission: String,
     pub client_id: String,
     pub session_secret: String,
     pub allow_unauthenticated_dev: bool,
@@ -60,6 +69,15 @@ impl AuthConfig {
         host_of(self.resource_url()).unwrap_or_else(|| "tools.nyuchi.dev".into())
     }
 
+    pub fn redirect_uri(&self) -> Result<&str, String> {
+        let uri = self.redirect_uri.trim();
+        if uri.is_empty() {
+            Err(REDIRECT_URI_MISSING.to_string())
+        } else {
+            Ok(uri)
+        }
+    }
+
     pub fn issuer_url(&self) -> Result<String, String> {
         normalise_origin(&self.authkit_domain)
     }
@@ -70,6 +88,25 @@ impl AuthConfig {
 
     pub fn org_allowed(&self, org: Option<&str>) -> bool {
         !self.org_id.trim().is_empty() && org == Some(self.org_id.trim())
+    }
+
+    /// Whether who-may-sign-in is configured at all: a user allowlist or an
+    /// organization. Neither set means nobody is admitted.
+    pub fn gate_configured(&self) -> bool {
+        !self.org_id.trim().is_empty()
+    }
+
+    /// Whether the permissions a token carries include the required one (or
+    /// none is required).
+    pub fn permission_allowed(&self, permissions: &[String]) -> bool {
+        let want = self.required_permission.trim();
+        want.is_empty() || permissions.iter().any(|p| p == want)
+    }
+
+    /// The gate: the organization must match AND the token must carry the
+    /// required permission. Both are maintained in WorkOS.
+    pub fn identity_allowed(&self, org: Option<&str>, permissions: &[String]) -> bool {
+        self.org_allowed(org) && self.permission_allowed(permissions)
     }
 
     /// The local-development opt-out: auth unconfigured, the flag exactly on,
@@ -228,8 +265,9 @@ pub fn verify_session(cfg: &AuthConfig, cookie: Option<&str>) -> Option<Value> {
         return None;
     }
     let claims = hs256_verify(value, &cfg.session_secret)?;
-    let org = claims["org"].as_str()?;
-    if !cfg.org_allowed(Some(org)) {
+    let org = claims["org"].as_str().filter(|o| !o.is_empty());
+    // The permission was checked when the session was minted (at login).
+    if !cfg.org_allowed(org) {
         return None;
     }
     Some(claims)
@@ -260,17 +298,20 @@ pub fn decode_oauth_cookie(value: Option<&str>) -> Option<(String, String, Strin
 /// The authorize redirect (Authorization Code + PKCE, public client).
 pub fn authorize_url(cfg: &AuthConfig, state: &str, challenge: &str) -> Result<String, String> {
     let issuer = cfg.issuer_url()?;
+    let redirect_uri = cfg.redirect_uri()?;
     let mut url =
         url::Url::parse(&format!("{issuer}/oauth2/authorize")).map_err(|e| e.to_string())?;
-    url.query_pairs_mut()
-        .append_pair("response_type", "code")
-        .append_pair("client_id", cfg.client_id.trim())
-        .append_pair("redirect_uri", REDIRECT_URI)
-        .append_pair("code_challenge", challenge)
-        .append_pair("code_challenge_method", "S256")
-        .append_pair("state", state)
-        .append_pair("scope", "openid profile email")
-        .append_pair("organization_id", cfg.org_id.trim());
+    {
+        let mut q = url.query_pairs_mut();
+        q.append_pair("response_type", "code")
+            .append_pair("client_id", cfg.client_id.trim())
+            .append_pair("redirect_uri", redirect_uri)
+            .append_pair("code_challenge", challenge)
+            .append_pair("code_challenge_method", "S256")
+            .append_pair("state", state)
+            .append_pair("scope", "openid profile email");
+        q.append_pair("organization_id", cfg.org_id.trim());
+    }
     Ok(url.to_string())
 }
 
@@ -322,6 +363,9 @@ pub struct VerifiedJwt {
     pub email: Option<String>,
     pub org_id: Option<String>,
     pub scopes: Vec<String>,
+    /// The token's `permissions` claim (granted in WorkOS through a role),
+    /// plus any permission-shaped OAuth scopes.
+    pub permissions: Vec<String>,
 }
 
 /// Parse (not verify) a JWT's claims — used only inside
@@ -364,19 +408,30 @@ pub fn claims_pass(cfg: &AuthConfig, claims: &Value, audience: Option<&str>) -> 
 }
 
 pub fn verified_from_claims(claims: &Value) -> VerifiedJwt {
+    let scopes: Vec<String> = claims["scope"]
+        .as_str()
+        .map(|s| {
+            s.split(' ')
+                .filter(|p| !p.is_empty())
+                .map(str::to_string)
+                .collect()
+        })
+        .unwrap_or_default();
+    let mut permissions: Vec<String> = claims["permissions"]
+        .as_array()
+        .map(|a| a.iter().filter_map(|p| p.as_str().map(str::to_string)).collect())
+        .unwrap_or_default();
+    for s in &scopes {
+        if !permissions.contains(s) {
+            permissions.push(s.clone());
+        }
+    }
     VerifiedJwt {
         sub: claims["sub"].as_str().map(str::to_string),
         email: claims["email"].as_str().map(str::to_string),
         org_id: claims["org_id"].as_str().map(str::to_string),
-        scopes: claims["scope"]
-            .as_str()
-            .map(|s| {
-                s.split(' ')
-                    .filter(|p| !p.is_empty())
-                    .map(str::to_string)
-                    .collect()
-            })
-            .unwrap_or_default(),
+        scopes,
+        permissions,
     }
 }
 
@@ -423,10 +478,78 @@ mod tests {
             authkit_domain: "accounts.example.com".into(),
             mcp_resource: "https://tools.nyuchi.dev/mcp".into(),
             org_id: "org_123".into(),
+            redirect_uri: "https://tools.example.com/callback".into(),
             client_id: "client_1".into(),
             session_secret: "secret".into(),
             ..Default::default()
         }
+    }
+
+    fn marketing_cfg() -> AuthConfig {
+        AuthConfig {
+            required_permission: "tools:marketing".into(),
+            ..cfg()
+        }
+    }
+
+    fn perms(list: &[&str]) -> Vec<String> {
+        list.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn the_redirect_uri_comes_from_configuration_and_fails_closed() {
+        assert_eq!(cfg().redirect_uri().unwrap(), "https://tools.example.com/callback");
+        let blank = AuthConfig {
+            redirect_uri: "  ".into(),
+            ..cfg()
+        };
+        assert_eq!(blank.redirect_uri().unwrap_err(), REDIRECT_URI_MISSING);
+        assert!(authorize_url(&blank, "s", "c").is_err());
+        assert!(authorize_url(&cfg(), "s", "c")
+            .unwrap()
+            .contains("redirect_uri=https%3A%2F%2Ftools.example.com%2Fcallback"));
+    }
+
+    #[test]
+    fn the_required_permission_must_be_in_the_token() {
+        let c = marketing_cfg();
+        assert!(c.identity_allowed(Some("org_123"), &perms(&["tools:marketing"])));
+        assert!(c.identity_allowed(Some("org_123"), &perms(&["data:read", "tools:marketing"])));
+        // Right org, wrong or no permission.
+        assert!(!c.identity_allowed(Some("org_123"), &perms(&["data:read"])));
+        assert!(!c.identity_allowed(Some("org_123"), &[]));
+        // Right permission, wrong org.
+        assert!(!c.identity_allowed(Some("org_other"), &perms(&["tools:marketing"])));
+        assert!(!c.identity_allowed(None, &perms(&["tools:marketing"])));
+    }
+
+    #[test]
+    fn no_required_permission_leaves_only_the_org_gate() {
+        let c = cfg();
+        assert!(c.identity_allowed(Some("org_123"), &[]));
+        assert!(!c.identity_allowed(Some("org_other"), &perms(&["tools:marketing"])));
+        // Nothing configured at all admits nobody.
+        let none = AuthConfig::default();
+        assert!(!none.gate_configured());
+        assert!(!none.identity_allowed(Some("org_123"), &perms(&["tools:marketing"])));
+    }
+
+    #[test]
+    fn permissions_come_from_the_permissions_claim_and_scopes() {
+        let v = verified_from_claims(&json!({
+            "sub": "u", "org_id": "org_123",
+            "permissions": ["tools:marketing", "data:read"],
+            "scope": "openid data:admin"
+        }));
+        assert!(v.permissions.contains(&"tools:marketing".to_string()));
+        assert!(v.permissions.contains(&"data:admin".to_string()));
+        assert!(verified_from_claims(&json!({"sub": "u"})).permissions.is_empty());
+    }
+
+    #[test]
+    fn the_authorize_url_pins_the_org() {
+        let url = authorize_url(&marketing_cfg(), "s", "c").unwrap();
+        assert!(url.contains("organization_id=org_123"));
     }
 
     #[test]
