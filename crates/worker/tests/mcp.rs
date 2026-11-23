@@ -165,7 +165,7 @@ fn render_returns_image_content_with_alt_text() {
             "image": { "data": png_b64(600, 300), "alt": "A grey test image", "crop": [0, 0, 600, 300], "redact": [[0, 0, 50, 10]], "chrome": "example.test" }
         }),
     );
-    assert!(r.get("isError").is_none(), "{r}");
+    assert_ne!(r["isError"], json!(true), "{r}");
     let img = &r["content"][0];
     assert_eq!(img["type"], "image");
     assert_eq!(img["mimeType"], "image/png");
@@ -217,7 +217,7 @@ fn campaign_returns_zip_and_manifest() {
             "image": png_b64(600, 300)
         }),
     );
-    assert!(r.get("isError").is_none(), "{r}");
+    assert_ne!(r["isError"], json!(true), "{r}");
     let res = &r["content"][0]["resource"];
     assert_eq!(res["mimeType"], "application/zip");
     let zip = base64::engine::general_purpose::STANDARD
@@ -292,4 +292,43 @@ fn protocol_errors() {
         json!({ "preset": "og", "headline": "x", "surprise": 1 }),
     );
     assert_eq!(r["isError"], true);
+}
+
+#[test]
+fn unknown_and_unsupported_methods_are_json_rpc_errors_with_the_request_id() {
+    let (status, body) = mcp::handle(
+        &serde_json::to_vec(&json!({ "jsonrpc": "2.0", "id": 9, "method": "resources/list" }))
+            .unwrap(),
+        &cfg(),
+    );
+    assert_eq!(status, 200);
+    let v: Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(v["id"], 9);
+    assert_eq!(v["error"]["code"], -32601, "{v}");
+    assert!(v.get("result").is_none());
+}
+
+#[test]
+fn the_tool_list_is_rmcp_shaped_with_annotations_and_titles() {
+    let r = rpc(json!({ "jsonrpc": "2.0", "id": 3, "method": "tools/list" }));
+    let tools = r["result"]["tools"].as_array().unwrap();
+    assert_eq!(tools.len(), TOOLS.len());
+    for t in tools {
+        assert!(t["name"].as_str().unwrap().starts_with("nyuchi_"));
+        assert!(t["title"].is_string(), "{t}");
+        assert_eq!(t["inputSchema"]["type"], "object", "{t}");
+        assert_eq!(t["annotations"]["destructiveHint"], false, "{t}");
+        assert!(t["annotations"]["readOnlyHint"].is_boolean(), "{t}");
+    }
+}
+
+#[test]
+fn a_message_without_an_id_is_a_notification_and_gets_no_answer() {
+    let (status, body) = mcp::handle(
+        &serde_json::to_vec(&json!({ "jsonrpc": "2.0", "method": "notifications/initialized" }))
+            .unwrap(),
+        &cfg(),
+    );
+    assert_eq!(status, 202);
+    assert!(body.is_empty());
 }
