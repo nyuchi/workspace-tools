@@ -27,17 +27,21 @@ struct Gate {
 fn gate_config(env: &Env) -> Gate {
     let var = |k: &str| env.var(k).map(|v| v.to_string()).unwrap_or_default();
     let secret = |k: &str| env.secret(k).map(|v| v.to_string()).unwrap_or_default();
+    // Deployment values are Worker secrets; a plain var of the same name is
+    // still honoured so an existing deployment keeps working until it is moved.
+    let secret_or_var = |k: &str| {
+        let s = secret(k);
+        if s.is_empty() { var(k) } else { s }
+    };
     Gate {
         auth: AuthConfig {
             authkit_domain: secret("AUTHKIT_DOMAIN"),
-            mcp_resource: var("MCP_RESOURCE"),
-            org_id: var("NYUCHI_ORG_ID"),
-            allowed_users: secret("WORKOS_ALLOWED_USERS")
-                .split(',')
-                .map(str::trim)
-                .filter(|s| !s.is_empty())
-                .map(str::to_string)
-                .collect(),
+            mcp_resource: secret_or_var("MCP_RESOURCE"),
+            org_id: secret_or_var("NYUCHI_ORG_ID"),
+            redirect_uri: secret("OAUTH_REDIRECT_URI"),
+            internal_environment: secret("WORKOS_INTERNAL_ENVIRONMENT")
+                .trim()
+                .eq_ignore_ascii_case("true"),
             client_id: secret("WORKOS_CLIENT_ID"),
             session_secret: secret("SESSION_SECRET"),
             allow_unauthenticated_dev: var("ALLOW_UNAUTHENTICATED_DEV") == "true",

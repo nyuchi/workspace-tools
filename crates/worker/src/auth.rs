@@ -16,7 +16,7 @@ type HmacSha256 = Hmac<Sha256>;
 
 pub const AUTHKIT_DOMAIN_MISSING: &str = "AUTHKIT_DOMAIN is not configured";
 pub const NYUCHI_ORG_ID_MISSING: &str =
-    "NYUCHI_ORG_ID or WORKOS_ALLOWED_USERS is not configured";
+    "NYUCHI_ORG_ID or WORKOS_INTERNAL_ENVIRONMENT is not configured";
 pub const WORKOS_CLIENT_ID_MISSING: &str = "WORKOS_CLIENT_ID is not configured";
 
 pub const SESSION_COOKIE: &str = "nyuchi_session";
@@ -29,7 +29,7 @@ pub const SESSION_TTL: u64 = 7 * 24 * 60 * 60;
 /// OAuth round-trip cookie lifetime: 10 minutes.
 pub const OAUTH_TTL: u64 = 600;
 
-const REDIRECT_URI: &str = "https://tools.nyuchi.com/callback";
+pub const REDIRECT_URI_MISSING: &str = "OAUTH_REDIRECT_URI is not configured";
 
 /// Everything the gate reads from the environment. `String::new` means
 /// "not configured" — every check treats that as fail-closed.
@@ -38,10 +38,14 @@ pub struct AuthConfig {
     pub authkit_domain: String,
     pub mcp_resource: String,
     pub org_id: String,
-    /// Comma-separated WorkOS user ids (WORKOS_ALLOWED_USERS), parsed. For the
-    /// internal Nyuchi WorkOS environment, which has no organizations: when
-    /// non-empty it is the whole gate and `org_id` is not consulted.
-    pub allowed_users: Vec<String>,
+    /// The site login's OAuth redirect URI (OAUTH_REDIRECT_URI, a secret); it
+    /// must be registered on the WorkOS application. Unset fails closed.
+    pub redirect_uri: String,
+    /// WORKOS_INTERNAL_ENVIRONMENT is exactly "true": the internal Nyuchi
+    /// WorkOS environment, which has no organizations and has sign-up off, so
+    /// WorkOS holds who may sign in. Every signed-in user is admitted and
+    /// `org_id` is not consulted.
+    pub internal_environment: bool,
     pub client_id: String,
     pub session_secret: String,
     pub allow_unauthenticated_dev: bool,
@@ -65,6 +69,15 @@ impl AuthConfig {
         host_of(self.resource_url()).unwrap_or_else(|| "tools.nyuchi.dev".into())
     }
 
+    pub fn redirect_uri(&self) -> Result<&str, String> {
+        let uri = self.redirect_uri.trim();
+        if uri.is_empty() {
+            Err(REDIRECT_URI_MISSING.to_string())
+        } else {
+            Ok(uri)
+        }
+    }
+
     pub fn issuer_url(&self) -> Result<String, String> {
         normalise_origin(&self.authkit_domain)
     }
@@ -80,15 +93,15 @@ impl AuthConfig {
     /// Whether who-may-sign-in is configured at all: a user allowlist or an
     /// organization. Neither set means nobody is admitted.
     pub fn gate_configured(&self) -> bool {
-        !self.allowed_users.is_empty() || !self.org_id.trim().is_empty()
+        self.internal_environment || !self.org_id.trim().is_empty()
     }
 
-    /// The gate: with a user allowlist the token's `sub` must be listed and no
-    /// organization is needed; without one the organization gate applies
-    /// unchanged. A blank allowlist never opens the gate.
+    /// The gate: in the internal environment a signed-in user (a token with a
+    /// `sub`) is admitted and no organization is needed; otherwise the
+    /// organization gate applies unchanged.
     pub fn identity_allowed(&self, org: Option<&str>, sub: Option<&str>) -> bool {
-        if !self.allowed_users.is_empty() {
-            return sub.is_some_and(|s| self.allowed_users.iter().any(|u| u == s));
+        if self.internal_environment {
+            return sub.is_some_and(|s| !s.is_empty());
         }
         self.org_allowed(org)
     }
@@ -281,19 +294,20 @@ pub fn decode_oauth_cookie(value: Option<&str>) -> Option<(String, String, Strin
 /// The authorize redirect (Authorization Code + PKCE, public client).
 pub fn authorize_url(cfg: &AuthConfig, state: &str, challenge: &str) -> Result<String, String> {
     let issuer = cfg.issuer_url()?;
+    let redirect_uri = cfg.redirect_uri()?;
     let mut url =
         url::Url::parse(&format!("{issuer}/oauth2/authorize")).map_err(|e| e.to_string())?;
     {
         let mut q = url.query_pairs_mut();
         q.append_pair("response_type", "code")
             .append_pair("client_id", cfg.client_id.trim())
-            .append_pair("redirect_uri", REDIRECT_URI)
+            .append_pair("redirect_uri", redirect_uri)
             .append_pair("code_challenge", challenge)
             .append_pair("code_challenge_method", "S256")
             .append_pair("state", state)
             .append_pair("scope", "openid profile email");
         // The internal environment has no organizations: do not pin the flow.
-        if cfg.allowed_users.is_empty() {
+        if !cfg.internal_environment {
             q.append_pair("organization_id", cfg.org_id.trim());
         }
     }
@@ -449,6 +463,7 @@ mod tests {
             authkit_domain: "accounts.example.com".into(),
             mcp_resource: "https://tools.nyuchi.dev/mcp".into(),
             org_id: "org_123".into(),
+            redirect_uri: "https://tools.example.com/callback".into(),
             client_id: "client_1".into(),
             session_secret: "secret".into(),
             ..Default::default()
@@ -457,30 +472,42 @@ mod tests {
 
     fn internal_cfg() -> AuthConfig {
         AuthConfig {
-            allowed_users: vec!["user_a".into(), "user_b".into()],
+            internal_environment: true,
             ..cfg()
         }
     }
 
     #[test]
-    fn allowlist_admits_listed_users_with_no_org() {
+    fn the_redirect_uri_comes_from_configuration_and_fails_closed() {
+        assert_eq!(cfg().redirect_uri().unwrap(), "https://tools.example.com/callback");
+        let blank = AuthConfig {
+            redirect_uri: "  ".into(),
+            ..cfg()
+        };
+        assert_eq!(blank.redirect_uri().unwrap_err(), REDIRECT_URI_MISSING);
+        assert!(authorize_url(&blank, "s", "c").is_err());
+        assert!(authorize_url(&cfg(), "s", "c")
+            .unwrap()
+            .contains("redirect_uri=https%3A%2F%2Ftools.example.com%2Fcallback"));
+    }
+
+    #[test]
+    fn internal_environment_admits_a_signed_in_user_with_no_org() {
         let c = internal_cfg();
         assert!(c.gate_configured());
         assert!(c.identity_allowed(None, Some("user_a")));
-        assert!(c.identity_allowed(None, Some("user_b")));
+        assert!(c.identity_allowed(Some("org_other"), Some("user_b")));
     }
 
     #[test]
-    fn allowlist_refuses_unlisted_users_even_in_the_old_org() {
+    fn internal_environment_refuses_a_token_with_no_subject() {
         let c = internal_cfg();
-        assert!(!c.identity_allowed(Some("org_123"), Some("user_stranger")));
         assert!(!c.identity_allowed(Some("org_123"), None));
-        assert!(!c.identity_allowed(None, None));
+        assert!(!c.identity_allowed(None, Some("")));
     }
 
     #[test]
-    fn blank_allowlist_does_not_open_the_gate() {
-        // No allowlist: the organization gate applies unchanged.
+    fn without_the_switch_the_org_gate_applies_unchanged() {
         let c = cfg();
         assert!(c.identity_allowed(Some("org_123"), Some("anyone")));
         assert!(!c.identity_allowed(Some("org_other"), Some("user_a")));
@@ -492,19 +519,17 @@ mod tests {
     }
 
     #[test]
-    fn allowlist_session_needs_no_org_and_rejects_other_subs() {
+    fn internal_session_needs_no_org_and_old_org_sessions_still_verify_for_a_subject() {
         let c = internal_cfg();
         let ok = mint_session(&c, Some("user_a"), Some("a@b.c"), "").unwrap();
         assert!(verify_session(&c, Some(&ok)).is_some());
-        let other = mint_session(&c, Some("user_stranger"), None, "org_123").unwrap();
-        assert!(verify_session(&c, Some(&other)).is_none());
-        // A session minted under the old org gate dies when the allowlist is on.
-        let old = mint_session(&cfg(), Some("user_old"), None, "org_123").unwrap();
-        assert!(verify_session(&c, Some(&old)).is_none());
+        // A session with no subject is not admitted.
+        let nosub = mint_session(&c, None, None, "org_123").unwrap();
+        assert!(verify_session(&c, Some(&nosub)).is_none());
     }
 
     #[test]
-    fn authorize_url_pins_the_org_only_without_an_allowlist() {
+    fn authorize_url_pins_the_org_only_outside_the_internal_environment() {
         let pinned = authorize_url(&cfg(), "s", "c").unwrap();
         assert!(pinned.contains("organization_id=org_123"));
         let internal = authorize_url(&internal_cfg(), "s", "c").unwrap();

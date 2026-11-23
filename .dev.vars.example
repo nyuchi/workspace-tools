@@ -11,9 +11,9 @@ AUTHKIT_DOMAIN=
 # nyuchi/workos, field WORKOS_INTERNAL_TOOLS_CLIENT_ID.
 WORKOS_CLIENT_ID=
 
-# Optional: comma-separated WorkOS user ids for the internal Nyuchi WorkOS
-# environment (no organizations). When set it replaces the NYUCHI_ORG_ID gate.
-WORKOS_ALLOWED_USERS=
+# Optional: exactly "true" for an internal WorkOS environment with no
+# organizations (WorkOS holds who may sign in). Replaces the NYUCHI_ORG_ID gate.
+WORKOS_INTERNAL_ENVIRONMENT=
 
 # Signs the site session cookie. Any long random string locally.
 SESSION_SECRET=

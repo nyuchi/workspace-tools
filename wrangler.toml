@@ -72,22 +72,10 @@ binding = "IMAGES"
 bucket_name = "nyuchi-tools-images"
 
 [vars]
-# Must byte-match the "AuthKit OAuth resource" WorkOS has registered for this
-# integration (dashboard: Connect → API Resources) — every MCP integration in
-# this WorkOS org follows the same <host>/mcp convention (confirmed via the
-# WorkOS API: fundi-ingestion.nyuchi.dev/mcp, mongodb.nyuchi.dev/mcp,
-# news.mukoko.com/mcp, mcp.mzizi.dev/mcp all use the /mcp suffix). Tokens
-# issued with a resource indicator only carry it as `aud` when it matches a
-# registered resource, so this must be exact, not just "the site's origin".
-# tools.nyuchi.com/mcp is permanently dropped: it answers 410 Gone with the
-# one endpoint that exists in the body (mcp/src/index.ts `mcpHostOnly`) —
-# MCP_RESOURCE below is what discovery metadata and audience checks use.
-MCP_RESOURCE = "https://tools.nyuchi.dev/mcp"
-# Internal only: the WorkOS organization ("Nyuchi Africa") whose members may
-# use the site and /mcp. A valid AuthKit token is not enough — accounts.mukoko.com
-# also holds consumer accounts. The token's `org_id` claim must equal this.
-# An org id is an identifier, not a credential. Unset = nobody is admitted.
-NYUCHI_ORG_ID = "org_01KRDAB894DJF5V38PT5617TV1"
+# MCP_RESOURCE (this site's public MCP URL, which must byte-match the "AuthKit
+# OAuth resource" registered in WorkOS: tokens carry it as `aud` only when it
+# matches) and NYUCHI_ORG_ID are deliberately NOT declared here: like every
+# auth value they are Worker secrets (see the secrets note below).
 # AUTHKIT_DOMAIN — the WorkOS Connect / AuthKit domain — and WORKOS_CLIENT_ID —
 # the Connect app's public client ID — are deliberately NOT declared here. It is
 # REQUIRED and set per environment as a Worker secret (see the secrets note
@@ -121,14 +109,20 @@ GOOGLE_WORKSPACE_DOMAIN = "nyuchi.com"
 #     entry: a var of the same name wins on every deploy. Without it /login
 #     answers 503 "AUTHKIT_DOMAIN is not configured" and so does /mcp —
 #     it never serves tools unauthenticated. Set it before deploying.
-#   WORKOS_ALLOWED_USERS   — OPTIONAL. Comma-separated WorkOS user ids, for the
-#     internal Nyuchi WorkOS environment (AuthKit domain https://auth.nyuchi.dev),
-#     which has no organizations. When set it is the whole gate for the site
-#     login and /mcp: the token's `sub` must be listed, NYUCHI_ORG_ID is not
-#     consulted and the login flow is not pinned to an organization. Blank or
-#     unset, the NYUCHI_ORG_ID gate applies unchanged. A secret, so that the
-#     cutover is one set of `wrangler secret put` commands (AUTHKIT_DOMAIN,
-#     WORKOS_CLIENT_ID, WORKOS_ALLOWED_USERS) with no deploy in between.
+#   OAUTH_REDIRECT_URI     — the site login's redirect URI (the /callback URL
+#     of the public site host); must be registered on the WorkOS application.
+#     REQUIRED: unset, /login and /callback fail closed.
+#   MCP_RESOURCE, NYUCHI_ORG_ID — formerly [vars] above; set them as secrets
+#     instead (a secret wins over a var of the same name here). Move them with
+#     the cutover; the code holds no environment-specific value for them.
+#   WORKOS_INTERNAL_ENVIRONMENT — OPTIONAL. Exactly "true" for an internal
+#     WorkOS environment with no organizations (the Nyuchi one), where WorkOS
+#     holds who may sign in (sign-up is off): every signed-in user is admitted
+#     to the site login and /mcp, NYUCHI_ORG_ID is not consulted and the login
+#     flow is not pinned to an organization. Unset or any other value, the
+#     NYUCHI_ORG_ID gate applies unchanged. A secret, so that the cutover is
+#     one set of `wrangler secret put` commands (AUTHKIT_DOMAIN,
+#     WORKOS_CLIENT_ID, WORKOS_INTERNAL_ENVIRONMENT) with no deploy in between.
 #   WORKOS_CLIENT_ID       — the WorkOS Connect public client ID for the
 #     site login ("Nyuchi Internal Tools"). Public but per environment;
 #     REQUIRED. Set by the owner script from 1Password (nyuchi/workos, field
