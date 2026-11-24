@@ -60,7 +60,7 @@
     "@google/clasp": ">=3.4.1",
     "@types/google-apps-script": ">=2.0.15",
     "@types/node": ">=26.6.6",
-    "typescript": ">=7.0.2",
+    "typescript": "^6.0.3",
     "vite-plus": ">=1.5.1",
     "vitest": ">=5.1.0",
     "wrangler": ">=4.159.0"
