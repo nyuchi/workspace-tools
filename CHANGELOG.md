@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — staging wording removed (2026-11-28)
+
+The release workflow comments, AGENTS.md and CONTRIBUTING.md no longer describe a `staging` branch; the repo is trunk-based. No behaviour changes.
+
 ### Changed
 
 - **The Rust Worker serves production** — the cut-over shipped. `crates/worker`

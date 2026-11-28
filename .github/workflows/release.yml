@@ -2,8 +2,7 @@ name: Release (auto version + tag)
 
 # A merge to main is a release. Once CI passes on a push to main, this tags
 # main's tip as the next MINOR above the highest v* tag (org versioning
-# policy, nyuchi/.github#80) and creates the GitHub release. Merges into
-# staging are tagged as patches by staging-version.yml. A MAJOR is only ever
+# policy, nyuchi/.github#80) and creates the GitHub release. A MAJOR is only ever
 # made by hand: run this workflow from the Actions tab on main with
 # bump: major.
 #

@@ -1,0 +1,15 @@
+# tools.nyuchi.com
+#
+# Most of this site is behind the AuthKit login gate (see mcp/src/index.ts) and
+# is neither reachable nor useful to a crawler. Only the outward-facing product
+# and legal pages are public, so those are the only ones allowed here.
+#
+# Longest-match wins for the major crawlers, so the specific Allow lines take
+# precedence over the blanket Disallow below them.
+
+User-agent: *
+Allow: /calendar-overlay
+Allow: /calendar-overlay/privacy
+Allow: /legal/privacy
+Allow: /legal/terms
+Disallow: /
