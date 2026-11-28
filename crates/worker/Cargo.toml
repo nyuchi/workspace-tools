@@ -20,12 +20,15 @@ crc32fast = "1"
 sha2 = "0.10"
 hmac = "0.12"
 url = "2"
+rmcp = { version = "3.11.0", default-features = false, features = ["server"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 worker = "0.8"
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
 js-sys = "0.3"
+# rmcp (protocol types) pulls uuid, which on wasm32 needs a randomness source.
+uuid = { version = "1", features = ["js"] }
 web-sys = { version = "0.3", features = ["Crypto", "CryptoKey", "SubtleCrypto"] }
 
 [dev-dependencies]

@@ -15,8 +15,23 @@
 
 use crate::api::{self, Config, Reply};
 use base64::Engine as _;
+use rmcp::model::{
+    CallToolResult, ClientJsonRpcMessage, ClientRequest, ContentBlock, ErrorData, Implementation,
+    InitializeResult, JsonRpcError, JsonRpcMessage, ListToolsResult,
+    ProtocolVersion, RequestId, ResourceContents, ServerCapabilities, ServerResult, Tool as McpTool,
+    ToolAnnotations,
+};
 use serde_json::{Value, json};
+use std::sync::Arc;
 
+// The wire shapes below are the official Rust MCP SDK's protocol types
+// (rmcp): requests are parsed into its `ClientJsonRpcMessage` and every
+// response is built from its `InitializeResult`, `ListToolsResult`,
+// `CallToolResult`, `ErrorData` and JSON-RPC envelope types. rmcp's HTTP
+// transport needs tokio and hyper, which do not run in a Worker, so only the
+// protocol layer is used here and `POST /mcp` stays ours (see `handle`).
+
+/// The protocol revision an `initialize` answer names (the legacy handshake).
 pub const PROTOCOL_VERSION: &str = "2025-06-18";
 
 pub struct Tool {
@@ -222,28 +237,27 @@ pub const TOOLS: &[Tool] = &[
     },
 ];
 
-fn rpc_result(id: &Value, result: Value) -> Value {
-    json!({ "jsonrpc": "2.0", "id": id, "result": result })
-}
-
-fn rpc_error(id: &Value, code: i64, message: &str) -> Value {
-    json!({ "jsonrpc": "2.0", "id": id, "error": { "code": code, "message": message } })
-}
-
-fn tool_list() -> Value {
-    let tools: Vec<Value> = TOOLS
+fn tool_list() -> ListToolsResult {
+    let tools = TOOLS
         .iter()
         .map(|t| {
-            json!({
-                "name": t.name,
-                "title": t.title,
-                "description": t.description,
-                "inputSchema": (t.schema)(),
-                "annotations": { "readOnlyHint": t.read_only, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false }
-            })
+            let schema = match (t.schema)() {
+                Value::Object(o) => o,
+                _ => serde_json::Map::new(),
+            };
+            let mut tool = McpTool::new(t.name, t.description, Arc::new(schema))
+                .with_annotations(
+                    ToolAnnotations::new()
+                        .read_only(t.read_only)
+                        .destructive(false)
+                        .idempotent(true)
+                        .open_world(false),
+                );
+            tool = tool.with_title(t.title);
+            tool
         })
         .collect();
-    json!({ "tools": tools })
+    ListToolsResult::with_all_items(tools)
 }
 
 fn header<'a>(r: &'a Reply, name: &str) -> &'a str {
@@ -273,7 +287,7 @@ fn percent_decode(s: &str) -> String {
 }
 
 /// A tool result from an API reply.
-fn to_result(reply: Reply) -> Value {
+fn to_result(reply: Reply) -> CallToolResult {
     let b64 = |b: &[u8]| base64::engine::general_purpose::STANDARD.encode(b);
     let ctype = header(&reply, "content-type").to_string();
     if reply.status >= 400 {
@@ -281,7 +295,7 @@ fn to_result(reply: Reply) -> Value {
             .ok()
             .and_then(|v| v["error"].as_str().map(str::to_string))
             .unwrap_or_else(|| format!("HTTP {}", reply.status));
-        return json!({ "content": [{ "type": "text", "text": msg }], "isError": true });
+        return CallToolResult::error(vec![ContentBlock::text(msg)]);
     }
     if ctype.starts_with("image/") {
         let alt = percent_decode(header(&reply, "x-alt-text"));
@@ -290,43 +304,52 @@ fn to_result(reply: Reply) -> Value {
             header(&reply, "x-width"),
             header(&reply, "x-height")
         );
-        return json!({
-            "content": [
-                { "type": "image", "data": b64(&reply.body), "mimeType": ctype },
-                { "type": "text", "text": format!("{size} {ctype}. Alt text: {alt}") }
-            ],
-            "structuredContent": { "width": header(&reply, "x-width"), "height": header(&reply, "x-height"), "mimeType": ctype, "alt": alt }
-        });
+        let mut result = CallToolResult::success(vec![
+            ContentBlock::image(b64(&reply.body), ctype.clone()),
+            ContentBlock::text(format!("{size} {ctype}. Alt text: {alt}")),
+        ]);
+        result.structured_content = Some(json!({
+            "width": header(&reply, "x-width"),
+            "height": header(&reply, "x-height"),
+            "mimeType": ctype,
+            "alt": alt
+        }));
+        return result;
     }
     if ctype == "application/zip" {
         let manifest = reply.meta.clone().unwrap_or(Value::Null);
-        return json!({
-            "content": [
-                { "type": "resource", "resource": { "uri": "nyuchi://campaign.zip", "mimeType": "application/zip", "blob": b64(&reply.body) } },
-                { "type": "text", "text": serde_json::to_string_pretty(&manifest).unwrap_or_default() }
-            ],
-            "structuredContent": { "manifest": manifest }
-        });
+        let mut result = CallToolResult::success(vec![
+            ContentBlock::resource(
+                ResourceContents::blob(b64(&reply.body), "nyuchi://campaign.zip")
+                    .with_mime_type("application/zip"),
+            ),
+            ContentBlock::text(serde_json::to_string_pretty(&manifest).unwrap_or_default()),
+        ]);
+        result.structured_content = Some(json!({ "manifest": manifest }));
+        return result;
     }
     let body: Value = serde_json::from_slice(&reply.body).unwrap_or(Value::Null);
-    json!({
-        "content": [{ "type": "text", "text": serde_json::to_string_pretty(&body).unwrap_or_default() }],
-        "structuredContent": if body.is_object() { body } else { json!({ "items": body }) }
-    })
+    let mut result = CallToolResult::success(vec![ContentBlock::text(
+        serde_json::to_string_pretty(&body).unwrap_or_default(),
+    )]);
+    result.structured_content = Some(if body.is_object() {
+        body
+    } else {
+        json!({ "items": body })
+    });
+    result
 }
 
-fn call_tool(params: &Value, cfg: &Config) -> Result<Value, (i64, String)> {
-    let name = params["name"]
-        .as_str()
-        .ok_or((-32602, "params.name is required".to_string()))?;
+fn call_tool(
+    name: &str,
+    arguments: Option<serde_json::Map<String, Value>>,
+    cfg: &Config,
+) -> Result<CallToolResult, ErrorData> {
     let tool = TOOLS
         .iter()
         .find(|t| t.name == name)
-        .ok_or((-32602, format!("unknown tool {name:?}")))?;
-    let args = params
-        .get("arguments")
-        .cloned()
-        .unwrap_or_else(|| json!({}));
+        .ok_or_else(|| ErrorData::invalid_params(format!("unknown tool {name:?}"), None))?;
+    let args = Value::Object(arguments.unwrap_or_default());
     let body = if tool.method == "POST" {
         serde_json::to_vec(&args).unwrap_or_default()
     } else {
@@ -337,31 +360,74 @@ fn call_tool(params: &Value, cfg: &Config) -> Result<Value, (i64, String)> {
     Ok(to_result(reply))
 }
 
+fn reply(id: RequestId, result: ServerResult) -> Value {
+    serde_json::to_value(JsonRpcMessage::<(), ServerResult, ()>::response(result, id))
+        .unwrap_or(Value::Null)
+}
+
+fn fail(id: Option<RequestId>, error: ErrorData) -> Value {
+    serde_json::to_value(JsonRpcError::new(id, error)).unwrap_or(Value::Null)
+}
+
+/// The server's answer to `initialize`: protocol version, capabilities, who we are.
+fn initialize_result() -> InitializeResult {
+    InitializeResult::new(ServerCapabilities::builder().enable_tools().build())
+        .with_protocol_version(ProtocolVersion::V_2025_06_18)
+        .with_server_info(
+            Implementation::new("nyuchi-tools", env!("CARGO_PKG_VERSION")).with_title("Nyuchi Tools"),
+        )
+        .with_instructions(
+            "Image presets, renders (single and campaign sets) and email signatures for the Bundu ecosystem — the same backend as tools.nyuchi.com. Screenshots must show only fake or redacted data; never put a real student, staff member or school name in any text.",
+        )
+}
+
 /// Handle one JSON-RPC message. `None` for a notification.
 fn handle_one(msg: &Value, cfg: &Config) -> Option<Value> {
-    let id = msg.get("id").cloned();
-    let method = msg["method"].as_str().unwrap_or("");
-    let id = id?; // notifications (no id) get no response
+    let id: Option<RequestId> = msg
+        .get("id")
+        .and_then(|v| serde_json::from_value(v.clone()).ok());
+    // A message with no id is a notification: no answer, whatever it says.
+    let id = id?;
     if msg["jsonrpc"] != "2.0" {
-        return Some(rpc_error(&id, -32600, "jsonrpc must be \"2.0\""));
+        return Some(fail(
+            Some(id),
+            ErrorData::invalid_request("jsonrpc must be \"2.0\"", None),
+        ));
     }
-    Some(match method {
-        "initialize" => rpc_result(
-            &id,
-            json!({
-                "protocolVersion": PROTOCOL_VERSION,
-                "capabilities": { "tools": { "listChanged": false } },
-                "serverInfo": { "name": "nyuchi-tools", "title": "Nyuchi Tools", "version": env!("CARGO_PKG_VERSION") },
-                "instructions": "Image presets, renders (single and campaign sets) and email signatures for the Bundu ecosystem — the same backend as tools.nyuchi.com. Screenshots must show only fake or redacted data; never put a real student, staff member or school name in any text."
-            }),
+    let method = msg["method"].as_str().unwrap_or("").to_string();
+    let parsed = match serde_json::from_value::<ClientJsonRpcMessage>(msg.clone()) {
+        Ok(JsonRpcMessage::Request(r)) => r.request,
+        _ => {
+            return Some(fail(
+                Some(id),
+                ErrorData::new(
+                    rmcp::model::ErrorCode::METHOD_NOT_FOUND,
+                    format!("method not found: {method}"),
+                    None,
+                ),
+            ));
+        }
+    };
+    Some(match parsed {
+        ClientRequest::InitializeRequest(_) => {
+            reply(id, ServerResult::InitializeResult(initialize_result()))
+        }
+        ClientRequest::PingRequest(_) => reply(id, ServerResult::empty(())),
+        ClientRequest::ListToolsRequest(_) => reply(id, ServerResult::ListToolsResult(tool_list())),
+        ClientRequest::CallToolRequest(r) => {
+            match call_tool(r.params.name.as_ref(), r.params.arguments, cfg) {
+                Ok(result) => reply(id, ServerResult::CallToolResult(result)),
+                Err(e) => fail(Some(id), e),
+            }
+        }
+        _ => fail(
+            Some(id),
+            ErrorData::new(
+                rmcp::model::ErrorCode::METHOD_NOT_FOUND,
+                format!("method not found: {method}"),
+                None,
+            ),
         ),
-        "ping" => rpc_result(&id, json!({})),
-        "tools/list" => rpc_result(&id, tool_list()),
-        "tools/call" => match call_tool(&msg["params"], cfg) {
-            Ok(r) => rpc_result(&id, r),
-            Err((code, m)) => rpc_error(&id, code, &m),
-        },
-        _ => rpc_error(&id, -32601, &format!("method not found: {method}")),
     })
 }
 
@@ -371,7 +437,7 @@ pub fn handle(body: &[u8], cfg: &Config) -> (u16, Vec<u8>) {
     let parsed: Value = match serde_json::from_slice(body) {
         Ok(v) => v,
         Err(_) => {
-            let e = rpc_error(&Value::Null, -32700, "parse error");
+            let e = fail(None, ErrorData::parse_error("parse error", None));
             return (400, serde_json::to_vec(&e).unwrap_or_default());
         }
     };
